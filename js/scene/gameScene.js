@@ -320,53 +320,91 @@ export default class GameScene {
       // 已落地但还没开始滑动：触发滑动检测
       if (ball.landed && !ball.sliding && !ball.slideDone) {
         this.launcher.checkLanded(ball);
-        ball.update(left, right, top, bottom); // 更新滑动
+        ball.update(left, right, top, bottom);
         return;
       }
 
       // 飞行中
       if (!ball.active) return;
 
-      ball.update(left, right, top, bottom);
+      // 子步进：高速时分多步移动+碰撞检测，防穿透
+      const subSteps = Math.max(1, Math.ceil(this.speedMultiplier));
+      const origVx = ball.vx;
+      const origVy = ball.vy;
 
-      // update后球可能刚落地，不再做碰撞检测
-      if (!ball.active) {
-        if (ball.landed && !ball.slideDone && !ball.sliding) {
-          this.launcher.checkLanded(ball);
-        }
-        return;
-      }
+      for (let step = 0; step < subSteps; step++) {
+        if (!ball.active) break;
 
-      // 碰撞检测 - 砖块
-      for (const brick of this.grid.bricks) {
-        if (!brick.isAlive) continue;
+        // 每步只移动 1/subSteps 的距离
+        ball.vx = origVx / subSteps;
+        ball.vy = origVy / subSteps;
+        ball.update(left, right, top, bottom);
 
-        let result;
-        if (brick.type === 'triangle') {
-          result = ballTriangleCollision(ball, brick);
-        } else {
-          result = ballBrickCollision(ball, brick);
-        }
-
-        if (result.hit) {
-          reflectBall(ball, result, brick);
-          const destroyed = brick.hit();
-          if (destroyed) {
-            this.score += brick.maxHp;
-            this.destroyedThisRound++;
-            this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+        if (!ball.active) {
+          if (ball.landed && !ball.slideDone && !ball.sliding) {
+            this.launcher.checkLanded(ball);
           }
           break;
         }
+
+        // 碰撞检测 - 砖块
+        for (const brick of this.grid.bricks) {
+          if (!brick.isAlive) continue;
+
+          let result;
+          if (brick.type === 'triangle') {
+            result = ballTriangleCollision(ball, brick);
+          } else {
+            result = ballBrickCollision(ball, brick);
+          }
+
+          if (result.hit) {
+            // 先恢复完整速度再反弹
+            ball.vx = origVx;
+            ball.vy = origVy;
+            reflectBall(ball, result, brick);
+            // 更新反弹后的速度作为后续步骤的基准
+            const newVx = ball.vx;
+            const newVy = ball.vy;
+            ball.vx = newVx;
+            ball.vy = newVy;
+
+            const destroyed = brick.hit();
+            if (destroyed) {
+              this.score += brick.maxHp;
+              this.destroyedThisRound++;
+              this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+            }
+            // 用反弹后的速度继续后续步骤
+            Object.assign(ball, { vx: newVx, vy: newVy });
+            // 重新计算后续步骤的分步速度
+            break;
+          }
+        }
+
+        // 碰撞检测 - 道具（每球每帧最多收集一个）
+        if (ball.active) {
+          for (const pickup of this.grid.pickups) {
+            if (pickup.collected) continue;
+            if (ballPickupCollision(ball, pickup)) {
+              pickup.collect();
+              this.nextBallCount++;
+              break;
+            }
+          }
+        }
       }
 
-      // 碰撞检测 - 道具（每球每帧最多收集一个）
-      for (const pickup of this.grid.pickups) {
-        if (pickup.collected) continue;
-        if (ballPickupCollision(ball, pickup)) {
-          pickup.collect();  // 彻底清除道具位置和碰撞半径
-          this.nextBallCount++;
-          break;
+      // 恢复完整速度（确保下一帧基准正确）
+      if (ball.active) {
+        // 如果没有碰撞过，恢复原始速度
+        // 如果碰撞过，ball.vx/vy 已经在 reflectBall 中被更新了
+        const curSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+        const targetSpeed = Math.sqrt(origVx * origVx + origVy * origVy);
+        if (curSpeed > 0 && Math.abs(curSpeed - targetSpeed) > 0.5) {
+          const ratio = targetSpeed / curSpeed;
+          ball.vx *= ratio;
+          ball.vy *= ratio;
         }
       }
     });
