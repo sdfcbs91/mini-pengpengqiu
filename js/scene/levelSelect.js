@@ -1,5 +1,6 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { COLORS, SCALE, TOTAL_LEVELS, LEVEL_GRID_COLS, LEVEL_GRID_ROWS, LEVELS_PER_PAGE } from '../config';
+import { LevelProgress } from '../data/levelData';
 
 /**
  * 关卡选择页面
@@ -8,8 +9,9 @@ import { COLORS, SCALE, TOTAL_LEVELS, LEVEL_GRID_COLS, LEVEL_GRID_ROWS, LEVELS_P
  */
 export default class LevelSelect {
   constructor() {
-    // 关卡数据：{ unlocked: bool, stars: 0-3 }
-    this.levelData = this._initLevelData();
+    // 关卡进度数据（从本地存储加载）
+    this.progress = new LevelProgress();
+    this.levelData = this.progress.getAllData();
 
     // 当前页（从0开始）
     this.currentPage = 0;
@@ -51,32 +53,6 @@ export default class LevelSelect {
 
     // 绑定触摸事件
     this._bindTouch();
-  }
-
-  _initLevelData() {
-    const data = [];
-    for (let i = 0; i < TOTAL_LEVELS; i++) {
-      if (i === 0) {
-        // 第一关默认解锁
-        data.push({ unlocked: true, stars: 0 });
-      } else if (i < 5) {
-        // 前5关解锁，模拟已通关的关卡
-        data.push({ unlocked: true, stars: 3 });
-      } else {
-        data.push({ unlocked: false, stars: 0 });
-      }
-    }
-    // 把前5关设置为已通关满星，第6关解锁但未通关
-    data[0].stars = 3;
-    data[1].stars = 3;
-    data[2].stars = 3;
-    data[3].stars = 2;
-    data[4].stars = 1;
-    if (data.length > 5) {
-      data[5].unlocked = true;
-      data[5].stars = 0;
-    }
-    return data;
   }
 
   _calculateLayout() {
@@ -222,31 +198,26 @@ export default class LevelSelect {
   }
 
   /**
-   * 解锁关卡
+   * 通关更新
    */
-  unlockLevel(levelNum) {
-    if (levelNum > 0 && levelNum <= TOTAL_LEVELS) {
-      this.levelData[levelNum - 1].unlocked = true;
-    }
+  completeLevel(levelNum, stars) {
+    this.progress.completeLevel(levelNum, stars);
+    this.levelData = this.progress.getAllData();
   }
 
   /**
-   * 设置关卡星级
+   * 解锁关卡
    */
-  setLevelStars(levelNum, stars) {
-    if (levelNum > 0 && levelNum <= TOTAL_LEVELS) {
-      this.levelData[levelNum - 1].stars = Math.min(3, Math.max(0, stars));
-    }
+  unlockLevel(levelNum) {
+    this.progress.unlock(levelNum);
+    this.levelData = this.progress.getAllData();
   }
 
   /**
    * 获取最高解锁关卡
    */
   getMaxUnlockedLevel() {
-    for (let i = TOTAL_LEVELS - 1; i >= 0; i--) {
-      if (this.levelData[i].unlocked) return i + 1;
-    }
-    return 1;
+    return this.progress.getMaxUnlocked();
   }
 
   update() {

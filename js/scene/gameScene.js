@@ -8,6 +8,7 @@ import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
 import { ballBrickCollision, ballTriangleCollision, ballPickupCollision, reflectBall } from '../core/collision';
+import { getLevelConfig } from '../data/levelData';
 
 /**
  * 游戏主场景
@@ -260,17 +261,16 @@ export default class GameScene {
   }
 
   /**
-   * 检测球速加速
-   * 从进入关卡开始计帧，跨轮累计
-   * 900帧(~15秒)→x2, 1800帧(~30秒)→x4
+   * 检测球速加速（阈值从关卡配置读取）
    */
   _checkSpeedBoost() {
     this.runningFrames++;
 
+    const cfg = getLevelConfig(this.stage);
     let newMultiplier = 1;
-    if (this.runningFrames >= 1800) {
+    if (this.runningFrames >= cfg.speedBoostFrame2) {
       newMultiplier = 4;
-    } else if (this.runningFrames >= 900) {
+    } else if (this.runningFrames >= cfg.speedBoostFrame1) {
       newMultiplier = 2;
     }
 
