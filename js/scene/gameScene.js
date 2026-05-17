@@ -408,17 +408,6 @@ export default class GameScene {
       LAUNCH_Y - GAME_AREA_TOP + 4
     );
     ctx.shadowBlur = 0;
-
-    // 底部红线（发射线）
-    ctx.strokeStyle = COLORS.neonRed;
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = COLORS.neonRed;
-    ctx.shadowBlur = 6 * s;
-    ctx.beginPath();
-    ctx.moveTo(GAME_AREA_LEFT, LAUNCH_Y);
-    ctx.lineTo(GAME_AREA_RIGHT, LAUNCH_Y);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   _renderPauseOverlay(ctx) {
