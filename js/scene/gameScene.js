@@ -24,9 +24,11 @@ export default class GameScene {
     this.stage = 1;
     this.score = 0;
     this.line = 0;
-    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'settling' | 'over' | 'paused'
+    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'settling' | 'over' | 'win' | 'paused'
     this.prevState = '';         // 暂停前的状态
     this.glowPhase = 0;
+    this.initialLevel = 1;       // 进入的关卡号（用于保存进度）
+    this.maxRounds = 20;         // 通关所需回合数
 
     // 技能
     this.lightningCount = LIGHTNING_INITIAL;
@@ -53,6 +55,8 @@ export default class GameScene {
     // 回调
     this.onGameOver = null;
     this.onBackToMenu = null;
+    this.onLevelComplete = null;  // (levelNum, stars) => void
+    this.winStars = 0;
 
     // 触摸绑定
     this._bindTouch();
@@ -62,6 +66,7 @@ export default class GameScene {
    * 初始化指定关卡
    */
   initLevel(levelNum) {
+    this.initialLevel = levelNum;
     this.stage = levelNum;
     this.score = 0;
     this.line = 0;
@@ -78,6 +83,9 @@ export default class GameScene {
     this.destroyedThisRound = 0;
     this.starProgress = 0;
 
+    const cfg = getLevelConfig(levelNum);
+    this.maxRounds = cfg.maxRounds || 20;
+
     this.grid.initLevel(this.stage);
     this.launcher.init(SCREEN_WIDTH / 2, this.ballCount);
   }
@@ -93,6 +101,11 @@ export default class GameScene {
 
       if (this.gameState === 'over') {
         this._handleOverTap(clientX, clientY);
+        return;
+      }
+
+      if (this.gameState === 'win') {
+        this._handleWinTap(clientX, clientY);
         return;
       }
 
@@ -218,7 +231,7 @@ export default class GameScene {
    * 每帧更新
    */
   update() {
-    if (this.gameState === 'paused' || this.gameState === 'over') return;
+    if (this.gameState === 'paused' || this.gameState === 'over' || this.gameState === 'win') return;
 
     this.glowPhase += 0.03;
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
@@ -428,6 +441,19 @@ export default class GameScene {
 
     // 增加行数
     this.line++;
+
+    // 检查通关
+    if (this.line >= this.maxRounds) {
+      // 计算星级：根据分数和剩余轮数
+      const stars = this.line >= this.maxRounds ? (this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1) : 0;
+      this.winStars = stars;
+      this.gameState = 'win';
+      if (this.onLevelComplete) {
+        this.onLevelComplete(this.initialLevel, stars);
+      }
+      return;
+    }
+
     this.stage++;
 
     // 砖块下移
@@ -499,6 +525,11 @@ export default class GameScene {
     // 游戏结束覆盖层
     if (this.gameState === 'over') {
       this._renderGameOverOverlay(ctx);
+    }
+
+    // 通关覆盖层
+    if (this.gameState === 'win') {
+      this._renderWinOverlay(ctx);
     }
   }
 
@@ -626,6 +657,85 @@ export default class GameScene {
 
     // 返回菜单
     this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, 'MENU', COLORS.neonRed);
+  }
+
+  _renderWinOverlay(ctx) {
+    const s = SCALE;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+
+    // 标题
+    ctx.fillStyle = '#39ff14';
+    ctx.font = `bold ${28 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#39ff14';
+    ctx.shadowBlur = 12 * s;
+    ctx.fillText('STAGE CLEAR!', centerX, centerY - 100 * s);
+    ctx.shadowBlur = 0;
+
+    // 星星
+    const starY = centerY - 55 * s;
+    const starSize = 14 * s;
+    const starGap = starSize * 2.5;
+    for (let i = 0; i < 3; i++) {
+      const sx = centerX + (i - 1) * starGap;
+      const filled = i < this.winStars;
+      ctx.fillStyle = filled ? '#ffdd00' : '#333355';
+      if (filled) { ctx.shadowColor = '#ffdd00'; ctx.shadowBlur = 6 * s; }
+      ctx.beginPath();
+      for (let j = 0; j < 10; j++) {
+        const r = j % 2 === 0 ? starSize : starSize * 0.4;
+        const angle = -Math.PI / 2 + (Math.PI / 5) * j;
+        const px = sx + Math.cos(angle) * r;
+        const py = starY + Math.sin(angle) * r;
+        if (j === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // 分数信息
+    ctx.fillStyle = COLORS.textWhite;
+    ctx.font = `${15 * s}px Arial`;
+    ctx.fillText(`Score: ${this.score}`, centerX, centerY - 15 * s);
+    ctx.fillText(`Rounds: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
+
+    // 下一关按钮
+    this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, 'NEXT LEVEL', '#39ff14');
+
+    // 返回菜单
+    this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, 'MENU', COLORS.neonCyan);
+  }
+
+  _handleWinTap(x, y) {
+    const s = SCALE;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    const bw = 140 * s;
+    const bh = 40 * s;
+
+    // 下一关按钮
+    const nextY = centerY + 65 * s;
+    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= nextY - bh / 2 && y <= nextY + bh / 2) {
+      this.initLevel(this.initialLevel + 1);
+      return;
+    }
+
+    // 返回菜单
+    const menuY = centerY + 120 * s;
+    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+      if (this.onBackToMenu) this.onBackToMenu();
+      return;
+    }
   }
 
   _drawButton(ctx, cx, cy, w, h, text, color) {

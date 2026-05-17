@@ -42,6 +42,10 @@ export default class Main {
     this.gameScene = new GameScene();
     this.gameScene.onBackToMenu = this.onBackToMenu.bind(this);
     this.gameScene.onGameOver = () => {};
+    this.gameScene.onLevelComplete = (level, stars) => {
+      // 保存通关进度
+      this.levelSelect.completeLevel(level, stars);
+    };
     this.gameScene.initLevel(levelNum);
 
     // 切换场景
