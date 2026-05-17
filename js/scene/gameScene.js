@@ -342,16 +342,21 @@ export default class GameScene {
 
       // 子步进：高速时分多步移动+碰撞检测，防穿透
       const subSteps = Math.max(1, Math.ceil(this.speedMultiplier));
-      const origVx = ball.vx;
-      const origVy = ball.vy;
+      let curVx = ball.vx;
+      let curVy = ball.vy;
+      const hitBricksThisFrame = new Set();
 
       for (let step = 0; step < subSteps; step++) {
         if (!ball.active) break;
 
         // 每步只移动 1/subSteps 的距离
-        ball.vx = origVx / subSteps;
-        ball.vy = origVy / subSteps;
+        ball.vx = curVx / subSteps;
+        ball.vy = curVy / subSteps;
         ball.update(left, right, top, bottom);
+
+        // update中可能发生墙壁反弹，同步更新基准速度方向
+        if (ball.vx > 0 !== curVx / subSteps > 0) curVx = -curVx;
+        if (ball.vy > 0 !== curVy / subSteps > 0) curVy = -curVy;
 
         if (!ball.active) {
           if (ball.landed && !ball.slideDone && !ball.sliding) {
@@ -360,9 +365,10 @@ export default class GameScene {
           break;
         }
 
-        // 碰撞检测 - 砖块
+        // 碰撞检测 - 砖块（每步最多碰一个）
         for (const brick of this.grid.bricks) {
           if (!brick.isAlive) continue;
+          if (hitBricksThisFrame.has(brick)) continue;
 
           let result;
           if (brick.type === 'triangle') {
@@ -372,15 +378,16 @@ export default class GameScene {
           }
 
           if (result.hit) {
-            // 先恢复完整速度再反弹
-            ball.vx = origVx;
-            ball.vy = origVy;
+            hitBricksThisFrame.add(brick);
+
+            // 恢复完整速度方向再反弹
+            ball.vx = curVx;
+            ball.vy = curVy;
             reflectBall(ball, result, brick);
-            // 更新反弹后的速度作为后续步骤的基准
-            const newVx = ball.vx;
-            const newVy = ball.vy;
-            ball.vx = newVx;
-            ball.vy = newVy;
+
+            // 更新基准速度为反弹后的方向（后续步骤用新方向）
+            curVx = ball.vx;
+            curVy = ball.vy;
 
             const destroyed = brick.hit();
             if (destroyed) {
@@ -388,14 +395,11 @@ export default class GameScene {
               this.destroyedThisRound++;
               this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
             }
-            // 用反弹后的速度继续后续步骤
-            Object.assign(ball, { vx: newVx, vy: newVy });
-            // 重新计算后续步骤的分步速度
             break;
           }
         }
 
-        // 碰撞检测 - 道具（每球每帧最多收集一个）
+        // 碰撞检测 - 道具
         if (ball.active) {
           for (const pickup of this.grid.pickups) {
             if (pickup.collected) continue;
@@ -408,17 +412,10 @@ export default class GameScene {
         }
       }
 
-      // 恢复完整速度（确保下一帧基准正确）
+      // 恢复完整速度
       if (ball.active) {
-        // 如果没有碰撞过，恢复原始速度
-        // 如果碰撞过，ball.vx/vy 已经在 reflectBall 中被更新了
-        const curSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-        const targetSpeed = Math.sqrt(origVx * origVx + origVy * origVy);
-        if (curSpeed > 0 && Math.abs(curSpeed - targetSpeed) > 0.5) {
-          const ratio = targetSpeed / curSpeed;
-          ball.vx *= ratio;
-          ball.vy *= ratio;
-        }
+        ball.vx = curVx;
+        ball.vy = curVy;
       }
     });
   }
