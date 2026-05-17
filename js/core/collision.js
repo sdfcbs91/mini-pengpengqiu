@@ -1,7 +1,7 @@
 // 碰撞检测模块
 
 /**
- * 球与矩形砖块碰撞检测（也用于三角砖块，统一用AABB）
+ * 球与砖块碰撞检测（AABB）
  * 返回 { hit: bool, side: 'top'|'bottom'|'left'|'right' }
  */
 export function ballBrickCollision(ball, brick) {
@@ -10,43 +10,41 @@ export function ballBrickCollision(ball, brick) {
   const bx = ball.x, by = ball.y, br = ball.radius;
   const rx = brick.x, ry = brick.y, rw = brick.width, rh = brick.height;
 
-  // 找到矩形上距离球心最近的点
+  // 球心到砖块的扩展AABB（扩展球半径）的重叠检测
+  if (bx + br <= rx || bx - br >= rx + rw || by + br <= ry || by - br >= ry + rh) {
+    return { hit: false };
+  }
+
+  // 计算球心到砖块最近点的距离（精确圆-矩形检测）
   const closestX = Math.max(rx, Math.min(bx, rx + rw));
   const closestY = Math.max(ry, Math.min(by, ry + rh));
-
   const dx = bx - closestX;
   const dy = by - closestY;
-  const distSq = dx * dx + dy * dy;
+  if (dx * dx + dy * dy >= br * br) return { hit: false };
 
-  if (distSq >= br * br) return { hit: false };
+  // 判断碰撞面：取最小穿透深度方向
+  const penetL = bx + br - rx;       // 从左边穿入的深度
+  const penetR = rx + rw - (bx - br); // 从右边穿入的深度
+  const penetT = by + br - ry;       // 从上边穿入的深度
+  const penetB = ry + rh - (by - br); // 从下边穿入的深度
 
-  // 判断碰撞面
-  const cx = rx + rw / 2;
-  const cy = ry + rh / 2;
-  const diffX = bx - cx;
-  const diffY = by - cy;
+  const minPenet = Math.min(penetL, penetR, penetT, penetB);
 
   let side;
-  if (Math.abs(diffX) / rw > Math.abs(diffY) / rh) {
-    side = diffX > 0 ? 'right' : 'left';
-  } else {
-    side = diffY > 0 ? 'bottom' : 'top';
-  }
+  if (minPenet === penetL) side = 'left';
+  else if (minPenet === penetR) side = 'right';
+  else if (minPenet === penetT) side = 'top';
+  else side = 'bottom';
 
   return { hit: true, side };
 }
 
 /**
- * 球与三角砖块碰撞检测（统一使用AABB，确保不穿透）
+ * 球与三角砖块碰撞检测（统一AABB）
  */
 export function ballTriangleCollision(ball, brick) {
   if (!brick.isAlive || brick.type !== 'triangle') return { hit: false };
-  // 统一用矩形碰撞，保证可靠性
-  const saved = brick.type;
-  brick.type = 'normal';
-  const result = ballBrickCollision(ball, brick);
-  brick.type = saved;
-  return result;
+  return ballBrickCollision(ball, brick);
 }
 
 /**
@@ -62,27 +60,30 @@ export function ballPickupCollision(ball, pickup) {
 }
 
 /**
- * 根据碰撞结果反弹球，并修正球位置到砖块外部（防止穿透）
+ * 根据碰撞结果反弹球，并将球推出砖块
  */
 export function reflectBall(ball, collisionResult, brick = null) {
   const { side } = collisionResult;
+  if (!brick) return;
+
+  const r = ball.radius;
 
   switch (side) {
     case 'top':
       ball.vy = -Math.abs(ball.vy);
-      if (brick) ball.y = brick.y - ball.radius;
+      ball.y = brick.y - r - 0.5;
       break;
     case 'bottom':
       ball.vy = Math.abs(ball.vy);
-      if (brick) ball.y = brick.y + brick.height + ball.radius;
+      ball.y = brick.y + brick.height + r + 0.5;
       break;
     case 'left':
       ball.vx = -Math.abs(ball.vx);
-      if (brick) ball.x = brick.x - ball.radius;
+      ball.x = brick.x - r - 0.5;
       break;
     case 'right':
       ball.vx = Math.abs(ball.vx);
-      if (brick) ball.x = brick.x + brick.width + ball.radius;
+      ball.x = brick.x + brick.width + r + 0.5;
       break;
   }
 }

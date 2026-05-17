@@ -282,7 +282,7 @@ export default class GameScene {
     const cfg = getLevelConfig(this.stage);
     let newMultiplier = 1;
     if (this.runningFrames >= cfg.speedBoostFrame2) {
-      newMultiplier = 4;
+      newMultiplier = 3;
     } else if (this.runningFrames >= cfg.speedBoostFrame1) {
       newMultiplier = 2;
     }
@@ -291,8 +291,8 @@ export default class GameScene {
       this.speedMultiplier = newMultiplier;
       if (newMultiplier === 2) {
         this.speedTipText = '加速 x2';
-      } else if (newMultiplier === 4) {
-        this.speedTipText = '加速 x4';
+      } else if (newMultiplier === 3) {
+        this.speedTipText = '加速 x3';
       }
       this.speedTipTimer = 120; // 显示2秒
 
@@ -340,11 +340,13 @@ export default class GameScene {
       // 飞行中
       if (!ball.active) return;
 
-      // 子步进：高速时分多步移动+碰撞检测，防穿透
-      const subSteps = Math.max(1, Math.ceil(this.speedMultiplier));
       let curVx = ball.vx;
       let curVy = ball.vy;
       const hitBricksThisFrame = new Set();
+
+      // 子步进：确保每步移动距离 < 15px，防穿透
+      const ballSpeed = Math.sqrt(curVx * curVx + curVy * curVy);
+      const subSteps = Math.max(1, Math.ceil(ballSpeed / 15));
 
       for (let step = 0; step < subSteps; step++) {
         if (!ball.active) break;
