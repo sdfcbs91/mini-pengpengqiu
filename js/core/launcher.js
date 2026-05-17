@@ -46,8 +46,8 @@ export default class Launcher {
     const dy = touchY - this.y;
     let angle = Math.atan2(dy, dx);
 
-    const minAngle = -Math.PI + Math.PI / 18;
-    const maxAngle = -Math.PI / 18;
+    const minAngle = -Math.PI + Math.PI / 36;
+    const maxAngle = -Math.PI / 36;
     angle = Math.max(minAngle, Math.min(maxAngle, angle));
 
     this.angle = angle;
