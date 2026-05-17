@@ -7,7 +7,6 @@ import {
 import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
-import BottomBar from '../runtime/bottombar';
 import { ballBrickCollision, ballTriangleCollision, ballPickupCollision, reflectBall } from '../core/collision';
 
 /**
@@ -19,7 +18,6 @@ export default class GameScene {
     this.grid = new Grid();
     this.launcher = new Launcher();
     this.hud = new HUD();
-    this.bottomBar = new BottomBar();
 
     // 游戏数据
     this.stage = 1;
@@ -100,11 +98,11 @@ export default class GameScene {
 
       // 检查技能按钮（仅在瞄准阶段）
       if (this.gameState === 'aiming') {
-        if (this.bottomBar.hitLightningButton(clientX, clientY)) {
+        if (this.hud.hitLightningButton(clientX, clientY)) {
           this._useLightning();
           return;
         }
-        if (this.bottomBar.hitMultiBallButton(clientX, clientY)) {
+        if (this.hud.hitMultiBallButton(clientX, clientY)) {
           this._useMultiBall();
           return;
         }
@@ -186,7 +184,6 @@ export default class GameScene {
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
 
     this.hud.update();
-    this.bottomBar.update();
     this.grid.update();
 
     switch (this.gameState) {
@@ -323,22 +320,15 @@ export default class GameScene {
     // 发射点（瞄准线等）
     this.launcher.render(ctx, this.gameState);
 
-    // HUD
+    // HUD（含技能按钮）
     this.hud.render(ctx, {
       stage: this.stage,
       line: this.line,
       score: this.score,
       starProgress: this.starProgress,
       showAimLine: this.showAimLine,
-      isPaused: this.gameState === 'paused',
-    });
-
-    // 底部操作栏
-    this.bottomBar.render(ctx, {
       lightningCount: this.lightningCount,
       multiBallCount: this.multiBallCount,
-      energy: this.energy,
-      maxEnergy: MAX_ENERGY,
     });
 
     // 暂停覆盖层

@@ -16,12 +16,11 @@ export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 export const SCALE = SCREEN_WIDTH / 375;
 
 // ====== 游戏场景布局 ======
-export const HUD_TOP_HEIGHT = 100 * SCALE;           // 顶部HUD高度
-export const HUD_BOTTOM_HEIGHT = 80 * SCALE;          // 底部操作栏高度
+export const HUD_TOP_HEIGHT = 80 * SCALE;              // 顶部HUD高度
 export const GAME_AREA_LEFT = 8 * SCALE;               // 游戏区域左边距
 export const GAME_AREA_RIGHT = SCREEN_WIDTH - 8 * SCALE;
 export const GAME_AREA_TOP = HUD_TOP_HEIGHT + 6 * SCALE;
-export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - HUD_BOTTOM_HEIGHT - 50 * SCALE;
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 20 * SCALE;
 export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
