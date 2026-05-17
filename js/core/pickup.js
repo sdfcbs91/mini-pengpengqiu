@@ -23,8 +23,15 @@ export default class Pickup {
   }
 
   /**
-   * 下移一行
+   * 收集道具 - 彻底清除碰撞，防止重复触发
    */
+  collect() {
+    this.collected = true;
+    this.radius = 0;
+    this.x = -9999;
+    this.y = -9999;
+    this.targetY = -9999;
+  }
   moveDown(amount) {
     this.targetY += amount;
   }

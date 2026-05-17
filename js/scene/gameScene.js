@@ -303,7 +303,7 @@ export default class GameScene {
       for (const pickup of this.grid.pickups) {
         if (pickup.collected) continue;
         if (ballPickupCollision(ball, pickup)) {
-          pickup.collected = true;
+          pickup.collect();  // 彻底清除道具位置和碰撞半径
           this.nextBallCount++;
           break;
         }
