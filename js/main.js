@@ -2,9 +2,12 @@ import './render';
 import DataBus from './databus';
 import LevelSelect from './scene/levelSelect';
 import GameScene from './scene/gameScene';
-import { SCREEN_WIDTH, SCREEN_HEIGHT } from './render';
+import { SCREEN_WIDTH, SCREEN_HEIGHT, DPR } from './render';
 
 const ctx = canvas.getContext('2d');
+
+// 高清适配：缩放 context，后续所有绘图坐标使用逻辑像素
+ctx.scale(DPR, DPR);
 
 GameGlobal.databus = new DataBus();
 
