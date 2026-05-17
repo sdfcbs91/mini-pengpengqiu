@@ -1,4 +1,4 @@
-import { SCREEN_WIDTH } from './render';
+import { SCREEN_WIDTH, SCREEN_HEIGHT } from './render';
 
 // 总关卡数
 export const TOTAL_LEVELS = 200;
@@ -12,10 +12,53 @@ export const LEVEL_GRID_COLS = 5;
 export const LEVEL_GRID_ROWS = 4;
 export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 
+// 屏幕适配比例
+export const SCALE = SCREEN_WIDTH / 375;
+
+// ====== 游戏场景布局 ======
+export const HUD_TOP_HEIGHT = 100 * SCALE;           // 顶部HUD高度
+export const HUD_BOTTOM_HEIGHT = 80 * SCALE;          // 底部操作栏高度
+export const GAME_AREA_LEFT = 8 * SCALE;               // 游戏区域左边距
+export const GAME_AREA_RIGHT = SCREEN_WIDTH - 8 * SCALE;
+export const GAME_AREA_TOP = HUD_TOP_HEIGHT + 6 * SCALE;
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - HUD_BOTTOM_HEIGHT - 50 * SCALE;
+export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
+export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
+
+// 砖块尺寸（根据游戏区域和列数自动计算）
+export const BRICK_GAP = 3 * SCALE;
+export const BRICK_W = (GAME_AREA_WIDTH - (GRID_COLS + 1) * BRICK_GAP) / GRID_COLS;
+export const BRICK_H = BRICK_W;  // 正方形砖块
+
+// 发射点
+export const LAUNCH_Y = GAME_AREA_BOTTOM - 10 * SCALE;
+
+// 球配置
+export const BALL_RADIUS = 5 * SCALE;
+export const BALL_SPEED = 12 * SCALE;
+export const BALL_LAUNCH_INTERVAL = 3;  // 帧间隔
+export const BALL_TRAIL_LENGTH = 8;
+
+// 加球道具
+export const PICKUP_RADIUS = 10 * SCALE;
+
+// 技能初始数量
+export const LIGHTNING_INITIAL = 4;
+export const MULTIBALL_INITIAL = 5;
+export const MAX_ENERGY = 100;
+export const ENERGY_PER_BRICK = 5;
+
+// 砖块填充率
+export const BRICK_FILL_RATE_MIN = 0.4;
+export const BRICK_FILL_RATE_MAX = 0.7;
+export const PICKUP_PER_ROW_MIN = 1;
+export const PICKUP_PER_ROW_MAX = 3;
+
 // 颜色配置（霓虹风格）
 export const COLORS = {
   // 背景
   bgTop: '#0a0e27',
+  bgMid: '#0c1435',
   bgBottom: '#0d0520',
 
   // 霓虹边框/发光
@@ -28,13 +71,22 @@ export const COLORS = {
   neonPurple: '#8b5cf6',
   neonRed: '#ff0044',
 
+  // 游戏场景 - 砖块颜色梯度（按HP比例）
+  brickColors: [
+    { bg: '#8b1a1a', border: '#ff3333', glow: 'rgba(255,51,51,0.4)' },     // 深红(低HP)
+    { bg: '#8b3a1a', border: '#ff6633', glow: 'rgba(255,102,51,0.4)' },    // 橙红
+    { bg: '#6b1a4a', border: '#cc3388', glow: 'rgba(204,51,136,0.4)' },    // 玫红
+    { bg: '#4a1a6b', border: '#8855cc', glow: 'rgba(136,85,204,0.5)' },    // 紫色
+    { bg: '#2a1a7b', border: '#6644ee', glow: 'rgba(102,68,238,0.5)' },    // 蓝紫(高HP)
+  ],
+
   // 关卡格子颜色（按行交替使用）
   levelColors: [
-    { bg: '#1a6b1a', border: '#39ff14', glow: 'rgba(57,255,20,0.4)' },   // 绿色
-    { bg: '#6b6b1a', border: '#f0e130', glow: 'rgba(240,225,48,0.4)' },   // 黄色
-    { bg: '#1a4a6b', border: '#00d4ff', glow: 'rgba(0,212,255,0.4)' },    // 蓝色
-    { bg: '#6b1a4a', border: '#ff1493', glow: 'rgba(255,20,147,0.4)' },   // 粉色
-    { bg: '#4a1a6b', border: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },   // 紫色
+    { bg: '#1a6b1a', border: '#39ff14', glow: 'rgba(57,255,20,0.4)' },
+    { bg: '#6b6b1a', border: '#f0e130', glow: 'rgba(240,225,48,0.4)' },
+    { bg: '#1a4a6b', border: '#00d4ff', glow: 'rgba(0,212,255,0.4)' },
+    { bg: '#6b1a4a', border: '#ff1493', glow: 'rgba(255,20,147,0.4)' },
+    { bg: '#4a1a6b', border: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },
   ],
 
   // 锁定关卡
@@ -54,10 +106,20 @@ export const COLORS = {
   navActive: '#ff6600',
   navInactive: '#555577',
 
-  // 按钮
+  // 按钮/技能
   btnRed: '#dc2626',
   btnGreen: '#22c55e',
-};
+  skillRed: '#cc1111',
+  skillRedGlow: 'rgba(204,17,17,0.6)',
+  energyBar: '#00d4ff',
+  energyBarBg: '#1a1a3a',
 
-// 屏幕适配比例
-export const SCALE = SCREEN_WIDTH / 375;
+  // 球
+  ballColor: '#ffffff',
+  ballGlow: 'rgba(255,255,255,0.6)',
+  trailColor: 'rgba(180,120,255,0.5)',
+
+  // 道具
+  pickupColor: '#e0e0ff',
+  pickupGlow: 'rgba(200,180,255,0.6)',
+};
