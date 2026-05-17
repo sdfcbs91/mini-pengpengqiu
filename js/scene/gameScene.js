@@ -23,7 +23,7 @@ export default class GameScene {
     this.stage = 1;
     this.score = 0;
     this.line = 0;
-    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'settling' | 'over' | 'paused'
+    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'collecting' | 'settling' | 'over' | 'paused'
     this.prevState = '';         // 暂停前的状态
     this.glowPhase = 0;
 
@@ -221,7 +221,7 @@ export default class GameScene {
         this.launcher.updateLaunch();
         this._updateBalls();
         if (!this.launcher.isLaunching && this.launcher.allBallsLanded()) {
-          this.gameState = 'settling';
+          this._startCollecting();
         } else if (!this.launcher.isLaunching) {
           this.gameState = 'running';
         }
@@ -230,6 +230,13 @@ export default class GameScene {
       case 'running':
         this._updateBalls();
         if (this.launcher.allBallsLanded()) {
+          this._startCollecting();
+        }
+        break;
+
+      case 'collecting':
+        // 回收动画：球从最后落地位置滑动到第一个落地位置
+        if (this.launcher.updateCollecting()) {
           this.gameState = 'settling';
         }
         break;
@@ -288,6 +295,14 @@ export default class GameScene {
 
       this.launcher.checkLanded(ball);
     });
+  }
+
+  /**
+   * 所有球落地后，开始回收动画
+   */
+  _startCollecting() {
+    this.launcher.startCollecting();
+    this.gameState = 'collecting';
   }
 
   _settle() {

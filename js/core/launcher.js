@@ -7,7 +7,7 @@ import {
 
 /**
  * 发射器
- * 管理瞄准、角度计算、依次发射球
+ * 管理瞄准、角度计算、依次发射球、回收动画
  */
 export default class Launcher {
   constructor() {
@@ -24,6 +24,13 @@ export default class Launcher {
     this.isLaunching = false; // 是否正在依次发射
 
     this.firstLandX = -1;    // 第一个落地球的X坐标
+    this.lastLandX = -1;     // 最后一个落地球的X坐标
+
+    // 回收动画
+    this.isCollecting = false;  // 是否正在播放回收动画
+    this.collectX = 0;          // 回收动画当前X
+    this.collectTargetX = 0;    // 回收动画目标X（第一个落地的位置）
+    this.collectSpeed = 0;      // 回收动画速度
   }
 
   /**
@@ -39,6 +46,8 @@ export default class Launcher {
     this.isLaunching = false;
     this.isAiming = false;
     this.firstLandX = -1;
+    this.lastLandX = -1;
+    this.isCollecting = false;
     this.angle = -Math.PI / 2;
   }
 
@@ -67,6 +76,8 @@ export default class Launcher {
     this.launchedCount = 0;
     this.launchTimer = 0;
     this.firstLandX = -1;
+    this.lastLandX = -1;
+    this.isCollecting = false;
   }
 
   /**
@@ -92,11 +103,15 @@ export default class Launcher {
   }
 
   /**
-   * 检查球是否落地，记录第一个落地的X坐标
+   * 检查球是否落地，记录第一个和最后一个落地的X坐标
    */
   checkLanded(ball) {
-    if (ball.landed && this.firstLandX < 0) {
-      this.firstLandX = ball.landX;
+    if (ball.landed) {
+      if (this.firstLandX < 0) {
+        this.firstLandX = ball.landX;
+      }
+      // 持续更新最后落地位置
+      this.lastLandX = ball.landX;
     }
   }
 
@@ -109,11 +124,45 @@ export default class Launcher {
   }
 
   /**
+   * 开始回收动画：从最后一个球的位置滑动到第一个球的位置
+   */
+  startCollecting() {
+    const startX = this.lastLandX >= 0 ? this.lastLandX : this.x;
+    const targetX = this.getNextLaunchX();
+
+    this.collectX = startX;
+    this.collectTargetX = targetX;
+    this.isCollecting = true;
+
+    // 根据距离计算速度，保证动画时长在 0.2s~0.6s 之间
+    const dist = Math.abs(targetX - startX);
+    this.collectSpeed = Math.max(dist / 30, 3 * SCALE); // 至少30帧，最小速度3*SCALE
+  }
+
+  /**
+   * 更新回收动画
+   * 返回 true 表示动画完成
+   */
+  updateCollecting() {
+    if (!this.isCollecting) return true;
+
+    const dx = this.collectTargetX - this.collectX;
+
+    if (Math.abs(dx) <= this.collectSpeed) {
+      this.collectX = this.collectTargetX;
+      this.isCollecting = false;
+      return true;
+    }
+
+    this.collectX += dx > 0 ? this.collectSpeed : -this.collectSpeed;
+    return false;
+  }
+
+  /**
    * 获取下一轮的发射X坐标
    */
   getNextLaunchX() {
     if (this.firstLandX >= 0) {
-      // 限制在游戏区域内
       return Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
         Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
     }
@@ -126,7 +175,47 @@ export default class Launcher {
   render(ctx, gameState) {
     const s = SCALE;
 
-    // 发射点球
+    // 回收动画中：绘制移动中的球
+    if (gameState === 'collecting') {
+      // 移动中的球
+      ctx.fillStyle = COLORS.ballColor;
+      ctx.shadowColor = COLORS.ballGlow;
+      ctx.shadowBlur = 10 * s;
+      ctx.beginPath();
+      ctx.arc(this.collectX, LAUNCH_Y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // 目标位置指示（半透明闪烁）
+      ctx.fillStyle = COLORS.ballColor;
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      ctx.arc(this.collectTargetX, LAUNCH_Y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // 球数
+      ctx.fillStyle = COLORS.textWhite;
+      ctx.font = `bold ${12 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`x ${this.ballCount}`, this.collectX, LAUNCH_Y - 12 * s);
+      return;
+    }
+
+    // 非 launching/running 状态才绘制发射点
+    if (gameState === 'launching' || gameState === 'running') {
+      // 发射中不绘制发射点球，球已经飞出去了
+      // 只绘制球数
+      ctx.fillStyle = COLORS.textWhite;
+      ctx.font = `bold ${12 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`x ${this.ballCount}`, this.x, this.y - 12 * s);
+      return;
+    }
+
+    // 瞄准/空闲状态：发射点球
     ctx.fillStyle = COLORS.ballColor;
     ctx.shadowColor = COLORS.ballGlow;
     ctx.shadowBlur = 10 * s;
@@ -142,7 +231,7 @@ export default class Launcher {
     ctx.textBaseline = 'bottom';
     ctx.fillText(`x ${this.ballCount}`, this.x, this.y - 12 * s);
 
-    // 辅助瞄准线（仅在瞄准状态且开启辅助线时）
+    // 辅助瞄准线
     if (gameState === 'aiming' && this.isAiming && this.showAimLine) {
       this._renderAimLine(ctx, s);
     }
@@ -159,7 +248,6 @@ export default class Launcher {
       const px = this.x + dirX * dotGap * i;
       const py = this.y + dirY * dotGap * i;
 
-      // 碰到边界后模拟反弹
       const alpha = 0.6 - (i / dotCount) * 0.4;
       ctx.globalAlpha = alpha;
       ctx.beginPath();
