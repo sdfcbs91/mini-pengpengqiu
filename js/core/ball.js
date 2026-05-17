@@ -12,6 +12,8 @@ export default class Ball {
     this.vy = 0;
     this.radius = BALL_RADIUS;
     this.speed = BALL_SPEED;
+    this.baseVx = 0;           // 初始速度分量（用于倍率计算）
+    this.baseVy = 0;
     this.active = false;
     this.landed = false;
     this.landX = 0;
@@ -26,13 +28,28 @@ export default class Ball {
   init(x, y, angle) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * this.speed;
-    this.vy = Math.sin(angle) * this.speed;
+    this.baseVx = Math.cos(angle) * this.speed;
+    this.baseVy = Math.sin(angle) * this.speed;
+    this.vx = this.baseVx;
+    this.vy = this.baseVy;
     this.active = true;
     this.landed = false;
     this.landX = x;
     this.sliding = false;
     this.slideDone = false;
+  }
+
+  /**
+   * 应用速度倍率（保持方向不变，调整速度大小）
+   */
+  applySpeedMultiplier(multiplier) {
+    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    const targetSpeed = this.speed * multiplier;
+    if (currentSpeed > 0 && Math.abs(currentSpeed - targetSpeed) > 0.1) {
+      const ratio = targetSpeed / currentSpeed;
+      this.vx *= ratio;
+      this.vy *= ratio;
+    }
   }
 
   startSlide(targetX) {

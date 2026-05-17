@@ -37,6 +37,13 @@ export default class GameScene {
     this.ballCount = 1;
     this.nextBallCount = 0;     // 本轮收集的加球道具数
 
+    // 球速加速系统（基于帧计数，更精确）
+    this.launchStartTime = 0;    // 发射开始时间戳
+    this.runningFrames = 0;      // 球运行帧数（launching+running 阶段累计）
+    this.speedMultiplier = 1;    // 当前速度倍率
+    this.speedTipText = '';      // 加速提示文字
+    this.speedTipTimer = 0;      // 提示显示计时器（帧数）
+
     // 统计（用于星级评价）
     this.totalBricksThisRound = 0;
     this.destroyedThisRound = 0;
@@ -61,6 +68,11 @@ export default class GameScene {
     this.energy = 0;
     this.ballCount = 1;
     this.nextBallCount = 0;
+    this.launchStartTime = 0;
+    this.runningFrames = 0;
+    this.speedMultiplier = 1;
+    this.speedTipText = '';
+    this.speedTipTimer = 0;
     this.totalBricksThisRound = 0;
     this.destroyedThisRound = 0;
     this.starProgress = 0;
@@ -160,6 +172,10 @@ export default class GameScene {
       this.launcher.startLaunch();
       this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
       this.destroyedThisRound = 0;
+      this.launchStartTime = Date.now();
+      // runningFrames 跨轮累计，不在每次发射时重置
+      this.speedTipText = '';
+      this.speedTipTimer = 0;
     }
   }
 
@@ -209,6 +225,9 @@ export default class GameScene {
     this.hud.update();
     this.grid.update();
 
+    // 球速加速：从进入关卡开始持续计帧（所有非暂停/结束状态都累计）
+    this._checkSpeedBoost();
+
     switch (this.gameState) {
       case 'aiming':
         // 帧级防卡死：如果正在瞄准但手指已不在屏幕上，自动发射
@@ -240,6 +259,43 @@ export default class GameScene {
     }
   }
 
+  /**
+   * 检测球速加速
+   * 从进入关卡开始计帧，跨轮累计
+   * 900帧(~15秒)→x2, 1800帧(~30秒)→x4
+   */
+  _checkSpeedBoost() {
+    this.runningFrames++;
+
+    let newMultiplier = 1;
+    if (this.runningFrames >= 1800) {
+      newMultiplier = 4;
+    } else if (this.runningFrames >= 900) {
+      newMultiplier = 2;
+    }
+
+    if (newMultiplier !== this.speedMultiplier) {
+      this.speedMultiplier = newMultiplier;
+      if (newMultiplier === 2) {
+        this.speedTipText = '加速 x2';
+      } else if (newMultiplier === 4) {
+        this.speedTipText = '加速 x4';
+      }
+      this.speedTipTimer = 120; // 显示2秒
+
+      // 立即对所有飞行中的球强制设速
+      this.launcher.balls.forEach(ball => {
+        if (ball.active) {
+          ball.applySpeedMultiplier(newMultiplier);
+        }
+      });
+    }
+
+    if (this.speedTipTimer > 0) {
+      this.speedTipTimer--;
+    }
+  }
+
   _updateBalls() {
     const left = GAME_AREA_LEFT;
     const right = GAME_AREA_RIGHT;
@@ -249,6 +305,11 @@ export default class GameScene {
     this.launcher.balls.forEach(ball => {
       // 已完全停止的球不再处理
       if (ball.isFullyStopped()) return;
+
+      // 飞行中的球应用速度倍率
+      if (ball.active && this.speedMultiplier > 1) {
+        ball.applySpeedMultiplier(this.speedMultiplier);
+      }
 
       // 正在滑动回收中：只更新滑动
       if (ball.sliding) {
@@ -387,6 +448,11 @@ export default class GameScene {
       multiBallCount: this.multiBallCount,
     });
 
+    // 加速提示
+    if (this.speedTipTimer > 0) {
+      this._renderSpeedTip(ctx);
+    }
+
     // 暂停覆盖层
     if (this.gameState === 'paused') {
       this._renderPauseOverlay(ctx);
@@ -396,6 +462,49 @@ export default class GameScene {
     if (this.gameState === 'over') {
       this._renderGameOverOverlay(ctx);
     }
+  }
+
+  _renderSpeedTip(ctx) {
+    const s = SCALE;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT * 0.35;
+
+    // 淡入淡出
+    let alpha = 1;
+    if (this.speedTipTimer > 105) alpha = (120 - this.speedTipTimer) / 15;
+    else if (this.speedTipTimer < 25) alpha = this.speedTipTimer / 25;
+
+    ctx.globalAlpha = alpha * 0.95;
+
+    // 背景圆角矩形
+    const tw = 160 * s;
+    const th = 40 * s;
+    const r = th / 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.beginPath();
+    ctx.moveTo(centerX - tw / 2 + r, centerY - th / 2);
+    ctx.lineTo(centerX + tw / 2 - r, centerY - th / 2);
+    ctx.arcTo(centerX + tw / 2, centerY - th / 2, centerX + tw / 2, centerY, r);
+    ctx.arcTo(centerX + tw / 2, centerY + th / 2, centerX + tw / 2 - r, centerY + th / 2, r);
+    ctx.lineTo(centerX - tw / 2 + r, centerY + th / 2);
+    ctx.arcTo(centerX - tw / 2, centerY + th / 2, centerX - tw / 2, centerY, r);
+    ctx.arcTo(centerX - tw / 2, centerY - th / 2, centerX - tw / 2 + r, centerY - th / 2, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // 边框发光
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 文字
+    ctx.fillStyle = '#ffcc00';
+    ctx.font = `bold ${18 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.speedTipText, centerX, centerY);
+
+    ctx.globalAlpha = 1;
   }
 
   _renderBackground(ctx) {
