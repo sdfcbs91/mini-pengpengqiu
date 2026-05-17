@@ -7,35 +7,26 @@ import {
 
 /**
  * 发射器
- * 管理瞄准、角度计算、依次发射球、回收动画
+ * 管理瞄准、角度计算、依次发射球、逐球回收滑动
  */
 export default class Launcher {
   constructor() {
     this.x = 0;              // 发射点X
     this.y = LAUNCH_Y;       // 发射点Y
-    this.angle = -Math.PI / 2; // 发射角度（默认向上）
-    this.isAiming = false;    // 是否正在瞄准
-    this.showAimLine = true;  // 是否显示辅助线
+    this.angle = -Math.PI / 2;
+    this.isAiming = false;
+    this.showAimLine = true;
 
-    this.ballCount = 1;       // 当前球数量
-    this.balls = [];          // 所有球实例
-    this.launchedCount = 0;   // 已发射的球数
-    this.launchTimer = 0;     // 发射计时器
-    this.isLaunching = false; // 是否正在依次发射
+    this.ballCount = 1;
+    this.balls = [];
+    this.launchedCount = 0;
+    this.launchTimer = 0;
+    this.isLaunching = false;
 
-    this.firstLandX = -1;    // 第一个落地球的X坐标
-    this.lastLandX = -1;     // 最后一个落地球的X坐标
-
-    // 回收动画
-    this.isCollecting = false;  // 是否正在播放回收动画
-    this.collectX = 0;          // 回收动画当前X
-    this.collectTargetX = 0;    // 回收动画目标X（第一个落地的位置）
-    this.collectSpeed = 0;      // 回收动画速度
+    this.firstLandX = -1;
+    this.landedCount = 0;      // 已落地球数（用于触发逐球滑动）
   }
 
-  /**
-   * 初始化发射器
-   */
   init(x, ballCount) {
     this.x = x;
     this.y = LAUNCH_Y;
@@ -46,43 +37,31 @@ export default class Launcher {
     this.isLaunching = false;
     this.isAiming = false;
     this.firstLandX = -1;
-    this.lastLandX = -1;
-    this.isCollecting = false;
+    this.landedCount = 0;
     this.angle = -Math.PI / 2;
   }
 
-  /**
-   * 设置瞄准角度（根据触摸点）
-   */
   setAimAngle(touchX, touchY) {
     const dx = touchX - this.x;
     const dy = touchY - this.y;
     let angle = Math.atan2(dy, dx);
 
-    // 限制角度：只能向上发射（-170° ~ -10°）
-    const minAngle = -Math.PI + Math.PI / 18; // -170°
-    const maxAngle = -Math.PI / 18;            // -10°
+    const minAngle = -Math.PI + Math.PI / 18;
+    const maxAngle = -Math.PI / 18;
     angle = Math.max(minAngle, Math.min(maxAngle, angle));
 
     this.angle = angle;
   }
 
-  /**
-   * 开始发射
-   */
   startLaunch() {
     this.isLaunching = true;
     this.isAiming = false;
     this.launchedCount = 0;
     this.launchTimer = 0;
     this.firstLandX = -1;
-    this.lastLandX = -1;
-    this.isCollecting = false;
+    this.landedCount = 0;
   }
 
-  /**
-   * 每帧更新发射（依次发射球）
-   */
   updateLaunch() {
     if (!this.isLaunching) return;
 
@@ -96,66 +75,39 @@ export default class Launcher {
       this.launchedCount++;
     }
 
-    // 所有球都发射完
     if (this.launchedCount >= this.ballCount) {
       this.isLaunching = false;
     }
   }
 
   /**
-   * 检查球是否落地，记录第一个和最后一个落地的X坐标
+   * 检查球是否刚落地，记录第一个落地的X，并让后续球开始滑动
    */
   checkLanded(ball) {
-    if (ball.landed) {
-      if (this.firstLandX < 0) {
-        this.firstLandX = ball.landX;
-      }
-      // 持续更新最后落地位置
-      this.lastLandX = ball.landX;
+    if (!ball.landed) return;
+    if (ball.sliding || ball.slideDone) return; // 已经处理过了
+
+    this.landedCount++;
+
+    if (this.firstLandX < 0) {
+      // 第一个落地的球：记录位置，标记为直接完成（不需要滑动）
+      this.firstLandX = ball.landX;
+      ball.slideDone = true;
+    } else {
+      // 第2个及以后的球：从落地位置滑动到第一个球的落地位置
+      const targetX = Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
+        Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
+      ball.startSlide(targetX);
     }
   }
 
   /**
-   * 所有球是否都已落地
+   * 所有球是否都已完全停止（落地+滑动完成）
    */
-  allBallsLanded() {
+  allBallsStopped() {
     if (this.isLaunching) return false;
-    return this.balls.length > 0 && this.balls.every(b => !b.active);
-  }
-
-  /**
-   * 开始回收动画：从最后一个球的位置滑动到第一个球的位置
-   */
-  startCollecting() {
-    const startX = this.lastLandX >= 0 ? this.lastLandX : this.x;
-    const targetX = this.getNextLaunchX();
-
-    this.collectX = startX;
-    this.collectTargetX = targetX;
-    this.isCollecting = true;
-
-    // 根据距离计算速度，保证动画时长在 0.2s~0.6s 之间
-    const dist = Math.abs(targetX - startX);
-    this.collectSpeed = Math.max(dist / 30, 3 * SCALE); // 至少30帧，最小速度3*SCALE
-  }
-
-  /**
-   * 更新回收动画
-   * 返回 true 表示动画完成
-   */
-  updateCollecting() {
-    if (!this.isCollecting) return true;
-
-    const dx = this.collectTargetX - this.collectX;
-
-    if (Math.abs(dx) <= this.collectSpeed) {
-      this.collectX = this.collectTargetX;
-      this.isCollecting = false;
-      return true;
-    }
-
-    this.collectX += dx > 0 ? this.collectSpeed : -this.collectSpeed;
-    return false;
+    if (this.balls.length === 0) return false;
+    return this.balls.every(b => b.isFullyStopped());
   }
 
   /**
@@ -170,48 +122,33 @@ export default class Launcher {
   }
 
   /**
-   * 渲染发射点和辅助线
+   * 渲染
    */
   render(ctx, gameState) {
     const s = SCALE;
 
-    // 回收动画中：绘制移动中的球
-    if (gameState === 'collecting') {
-      // 移动中的球
-      ctx.fillStyle = COLORS.ballColor;
-      ctx.shadowColor = COLORS.ballGlow;
-      ctx.shadowBlur = 10 * s;
-      ctx.beginPath();
-      ctx.arc(this.collectX, LAUNCH_Y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // 目标位置指示（半透明闪烁）
-      ctx.fillStyle = COLORS.ballColor;
-      ctx.globalAlpha = 0.3;
-      ctx.beginPath();
-      ctx.arc(this.collectTargetX, LAUNCH_Y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      // 球数
-      ctx.fillStyle = COLORS.textWhite;
-      ctx.font = `bold ${12 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(`x ${this.ballCount}`, this.collectX, LAUNCH_Y - 12 * s);
-      return;
-    }
-
-    // 非 launching/running 状态才绘制发射点
     if (gameState === 'launching' || gameState === 'running') {
-      // 发射中不绘制发射点球，球已经飞出去了
-      // 只绘制球数
-      ctx.fillStyle = COLORS.textWhite;
-      ctx.font = `bold ${12 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(`x ${this.ballCount}`, this.x, this.y - 12 * s);
+      // 发射/运行中：在第一个球落地位置显示集合点指示
+      if (this.firstLandX >= 0) {
+        const tx = Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
+          Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
+        ctx.fillStyle = COLORS.ballColor;
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        ctx.arc(tx, LAUNCH_Y - BALL_RADIUS, BALL_RADIUS * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // 已汇聚的球数
+        const stoppedCount = this.balls.filter(b => b.isFullyStopped()).length;
+        if (stoppedCount > 0) {
+          ctx.fillStyle = COLORS.textWhite;
+          ctx.font = `bold ${10 * s}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`x ${stoppedCount}`, tx, LAUNCH_Y - BALL_RADIUS - 8 * s);
+        }
+      }
       return;
     }
 
@@ -257,9 +194,6 @@ export default class Launcher {
     ctx.globalAlpha = 1;
   }
 
-  /**
-   * 渲染所有球
-   */
   renderBalls(ctx) {
     this.balls.forEach(ball => ball.render(ctx));
   }

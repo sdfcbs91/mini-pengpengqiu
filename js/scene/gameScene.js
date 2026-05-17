@@ -23,7 +23,7 @@ export default class GameScene {
     this.stage = 1;
     this.score = 0;
     this.line = 0;
-    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'collecting' | 'settling' | 'over' | 'paused'
+    this.gameState = 'aiming';  // 'aiming' | 'launching' | 'running' | 'settling' | 'over' | 'paused'
     this.prevState = '';         // 暂停前的状态
     this.glowPhase = 0;
 
@@ -220,8 +220,8 @@ export default class GameScene {
       case 'launching':
         this.launcher.updateLaunch();
         this._updateBalls();
-        if (!this.launcher.isLaunching && this.launcher.allBallsLanded()) {
-          this._startCollecting();
+        if (!this.launcher.isLaunching && this.launcher.allBallsStopped()) {
+          this.gameState = 'settling';
         } else if (!this.launcher.isLaunching) {
           this.gameState = 'running';
         }
@@ -229,14 +229,7 @@ export default class GameScene {
 
       case 'running':
         this._updateBalls();
-        if (this.launcher.allBallsLanded()) {
-          this._startCollecting();
-        }
-        break;
-
-      case 'collecting':
-        // 回收动画：球从最后落地位置滑动到第一个落地位置
-        if (this.launcher.updateCollecting()) {
+        if (this.launcher.allBallsStopped()) {
           this.gameState = 'settling';
         }
         break;
@@ -254,10 +247,24 @@ export default class GameScene {
     const bottom = LAUNCH_Y;
 
     this.launcher.balls.forEach(ball => {
-      if (!ball.active) {
-        this.launcher.checkLanded(ball);
+      // 已完全停止的球不再处理
+      if (ball.isFullyStopped()) return;
+
+      // 正在滑动回收中：只更新滑动
+      if (ball.sliding) {
+        ball.update(left, right, top, bottom);
         return;
       }
+
+      // 已落地但还没开始滑动：触发滑动检测
+      if (ball.landed && !ball.sliding && !ball.slideDone) {
+        this.launcher.checkLanded(ball);
+        ball.update(left, right, top, bottom); // 更新滑动
+        return;
+      }
+
+      // 飞行中
+      if (!ball.active) return;
 
       ball.update(left, right, top, bottom);
 
@@ -280,7 +287,7 @@ export default class GameScene {
             this.destroyedThisRound++;
             this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
           }
-          break; // 每帧每球只处理一次碰撞
+          break;
         }
       }
 
@@ -293,16 +300,11 @@ export default class GameScene {
         }
       }
 
-      this.launcher.checkLanded(ball);
+      // 检查是否刚落地
+      if (ball.landed && !ball.slideDone && !ball.sliding) {
+        this.launcher.checkLanded(ball);
+      }
     });
-  }
-
-  /**
-   * 所有球落地后，开始回收动画
-   */
-  _startCollecting() {
-    this.launcher.startCollecting();
-    this.gameState = 'collecting';
   }
 
   _settle() {
