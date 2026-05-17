@@ -312,8 +312,15 @@ export default class GameScene {
   }
 
   _settle() {
-    // 结算：清理、下移、生成新行
+    // 结算：清理已消除砖块和已收集道具
     this.grid.cleanup();
+
+    // 清理超出底线的未收集道具（防止道具无限累积）
+    this.grid.pickups = this.grid.pickups.filter(p => {
+      if (p.collected) return false;
+      if (p.targetY > LAUNCH_Y) return false; // 超出游戏区域的道具直接移除
+      return true;
+    });
 
     // 计算星级进度
     if (this.totalBricksThisRound > 0) {
@@ -330,8 +337,10 @@ export default class GameScene {
     // 生成新行
     this.grid.generateRow(this.stage, 0);
 
-    // 更新球数
-    this.ballCount += this.nextBallCount;
+    // 更新球数（单轮加球上限 = 当前球数的50%，至少+1，防止暴涨）
+    const maxAdd = Math.max(1, Math.ceil(this.ballCount * 0.5));
+    const actualAdd = Math.min(this.nextBallCount, maxAdd);
+    this.ballCount += actualAdd;
     this.nextBallCount = 0;
 
     // 更新发射点

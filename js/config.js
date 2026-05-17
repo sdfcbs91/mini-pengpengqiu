@@ -51,7 +51,7 @@ export const ENERGY_PER_BRICK = 5;
 export const BRICK_FILL_RATE_MIN = 0.4;
 export const BRICK_FILL_RATE_MAX = 0.7;
 export const PICKUP_PER_ROW_MIN = 1;
-export const PICKUP_PER_ROW_MAX = 3;
+export const PICKUP_PER_ROW_MAX = 2;
 
 // 颜色配置（霓虹风格）
 export const COLORS = {
