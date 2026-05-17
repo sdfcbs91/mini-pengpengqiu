@@ -7,7 +7,7 @@ import {
 import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
-import { ballBrickCollision, ballTriangleCollision, ballPickupCollision, reflectBall } from '../core/collision';
+import { ballBrickCollision, ballPickupCollision, reflectBall } from '../core/collision';
 import { getLevelConfig } from '../data/levelData';
 
 /**
@@ -370,12 +370,7 @@ export default class GameScene {
           if (!brick.isAlive) continue;
           if (hitBricksThisFrame.has(brick)) continue;
 
-          let result;
-          if (brick.type === 'triangle') {
-            result = ballTriangleCollision(ball, brick);
-          } else {
-            result = ballBrickCollision(ball, brick);
-          }
+          const result = ballBrickCollision(ball, brick);
 
           if (result.hit) {
             hitBricksThisFrame.add(brick);
