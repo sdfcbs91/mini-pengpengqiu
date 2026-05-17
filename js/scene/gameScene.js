@@ -291,12 +291,13 @@ export default class GameScene {
         }
       }
 
-      // 碰撞检测 - 道具
+      // 碰撞检测 - 道具（每球每帧最多收集一个）
       for (const pickup of this.grid.pickups) {
         if (pickup.collected) continue;
         if (ballPickupCollision(ball, pickup)) {
           pickup.collected = true;
           this.nextBallCount++;
+          break;
         }
       }
 
