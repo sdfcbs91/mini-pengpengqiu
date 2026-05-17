@@ -374,7 +374,7 @@ export default class GameScene {
     this.launcher.renderBalls(ctx);
 
     // 发射点（瞄准线等）
-    this.launcher.render(ctx, this.gameState);
+    this.launcher.render(ctx, this.gameState, this.grid.bricks);
 
     // HUD（含技能按钮）
     this.hud.render(ctx, {
