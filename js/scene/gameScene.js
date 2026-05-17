@@ -70,8 +70,12 @@ export default class GameScene {
   }
 
   _bindTouch() {
+    // 追踪触摸状态：是否有手指在屏幕上
+    this._touching = false;
+
     this._touchStartHandler = (e) => {
       if (GameGlobal.databus.scene !== 'playing') return;
+      this._touching = true;
       const { clientX, clientY } = e.touches[0];
 
       if (this.gameState === 'over') {
@@ -108,7 +112,7 @@ export default class GameScene {
         }
       }
 
-      // 瞄准
+      // 瞄准 - 任意位置触摸都可以开始瞄准
       if (this.gameState === 'aiming') {
         this.launcher.isAiming = true;
         this.launcher.setAimAngle(clientX, clientY);
@@ -119,32 +123,51 @@ export default class GameScene {
       if (GameGlobal.databus.scene !== 'playing') return;
       if (this.gameState !== 'aiming' || !this.launcher.isAiming) return;
 
+      if (!e.touches || e.touches.length === 0) {
+        this._touching = false;
+        return;
+      }
+
       const { clientX, clientY } = e.touches[0];
       this.launcher.setAimAngle(clientX, clientY);
     };
 
     this._touchEndHandler = () => {
       if (GameGlobal.databus.scene !== 'playing') return;
+      this._touching = false;
+      this._tryLaunch();
+    };
 
-      if (this.gameState === 'aiming' && this.launcher.isAiming) {
-        this.launcher.isAiming = false;
-        // 开始发射
-        this.gameState = 'launching';
-        this.launcher.startLaunch();
-        this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
-        this.destroyedThisRound = 0;
-      }
+    this._touchCancelHandler = () => {
+      if (GameGlobal.databus.scene !== 'playing') return;
+      this._touching = false;
+      this._tryLaunch();
     };
 
     wx.onTouchStart(this._touchStartHandler);
     wx.onTouchMove(this._touchMoveHandler);
     wx.onTouchEnd(this._touchEndHandler);
+    wx.onTouchCancel(this._touchCancelHandler);
+  }
+
+  /**
+   * 尝试发射球
+   */
+  _tryLaunch() {
+    if (this.gameState === 'aiming' && this.launcher.isAiming) {
+      this.launcher.isAiming = false;
+      this.gameState = 'launching';
+      this.launcher.startLaunch();
+      this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
+      this.destroyedThisRound = 0;
+    }
   }
 
   unbindTouch() {
     wx.offTouchStart(this._touchStartHandler);
     wx.offTouchMove(this._touchMoveHandler);
     wx.offTouchEnd(this._touchEndHandler);
+    wx.offTouchCancel(this._touchCancelHandler);
   }
 
   _useLightning() {
@@ -188,7 +211,10 @@ export default class GameScene {
 
     switch (this.gameState) {
       case 'aiming':
-        // 等待玩家操作
+        // 帧级防卡死：如果正在瞄准但手指已不在屏幕上，自动发射
+        if (this.launcher.isAiming && !this._touching) {
+          this._tryLaunch();
+        }
         break;
 
       case 'launching':

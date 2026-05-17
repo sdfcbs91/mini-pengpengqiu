@@ -65,8 +65,8 @@ export default class Ball {
       this.vy = Math.abs(this.vy);
     }
 
-    // 底部落地
-    if (this.y + this.radius >= bottom) {
+    // 底部落地（仅当球正在向下运动时才判定，防止刚发射就误判）
+    if (this.vy > 0 && this.y + this.radius >= bottom) {
       this.y = bottom - this.radius;
       this.active = false;
       this.landed = true;
