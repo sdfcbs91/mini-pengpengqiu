@@ -268,6 +268,14 @@ export default class GameScene {
 
       ball.update(left, right, top, bottom);
 
+      // update后球可能刚落地，不再做碰撞检测
+      if (!ball.active) {
+        if (ball.landed && !ball.slideDone && !ball.sliding) {
+          this.launcher.checkLanded(ball);
+        }
+        return;
+      }
+
       // 碰撞检测 - 砖块
       for (const brick of this.grid.bricks) {
         if (!brick.isAlive) continue;
@@ -299,11 +307,6 @@ export default class GameScene {
           this.nextBallCount++;
           break;
         }
-      }
-
-      // 检查是否刚落地
-      if (ball.landed && !ball.slideDone && !ball.sliding) {
-        this.launcher.checkLanded(ball);
       }
     });
   }

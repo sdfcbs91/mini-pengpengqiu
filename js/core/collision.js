@@ -119,6 +119,7 @@ function pointToSegmentDist(px, py, x1, y1, x2, y2) {
  */
 export function ballPickupCollision(ball, pickup) {
   if (pickup.collected) return false;
+  if (!ball.active) return false;
   const dx = ball.x - pickup.x;
   const dy = ball.y - pickup.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
