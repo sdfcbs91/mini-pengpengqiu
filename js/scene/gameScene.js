@@ -7,7 +7,7 @@ import {
 import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
-import { ballBrickCollision, ballPickupCollision, reflectBall } from '../core/collision';
+import { resolveBallBricks, ballPickupCollision } from '../core/collision';
 import { getLevelConfig } from '../data/levelData';
 
 /**
@@ -314,51 +314,44 @@ export default class GameScene {
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
+    const bricks = this.grid.bricks;
+    const MAX_STEP = 10; // 每步最大移动像素（小于砖块间隙）
 
     this.launcher.balls.forEach(ball => {
-      // 已完全停止的球不再处理
       if (ball.isFullyStopped()) return;
 
-      // 飞行中的球应用速度倍率
       if (ball.active && this.speedMultiplier > 1) {
         ball.applySpeedMultiplier(this.speedMultiplier);
       }
 
-      // 正在滑动回收中：只更新滑动
       if (ball.sliding) {
         ball.update(left, right, top, bottom);
         return;
       }
 
-      // 已落地但还没开始滑动：触发滑动检测
       if (ball.landed && !ball.sliding && !ball.slideDone) {
         this.launcher.checkLanded(ball);
         ball.update(left, right, top, bottom);
         return;
       }
 
-      // 飞行中
       if (!ball.active) return;
 
-      let curVx = ball.vx;
-      let curVy = ball.vy;
-      const hitBricksThisFrame = new Set();
+      // 根据球速决定拆成几步（每步不超过MAX_STEP像素）
+      const fullVx = ball.vx;
+      const fullVy = ball.vy;
+      const speed = Math.sqrt(fullVx * fullVx + fullVy * fullVy);
+      const steps = Math.max(1, Math.ceil(speed / MAX_STEP));
 
-      // 子步进：确保每步移动距离 < 15px，防穿透
-      const ballSpeed = Math.sqrt(curVx * curVx + curVy * curVy);
-      const subSteps = Math.max(1, Math.ceil(ballSpeed / 15));
-
-      for (let step = 0; step < subSteps; step++) {
+      for (let s = 0; s < steps; s++) {
         if (!ball.active) break;
 
-        // 每步只移动 1/subSteps 的距离
-        ball.vx = curVx / subSteps;
-        ball.vy = curVy / subSteps;
-        ball.update(left, right, top, bottom);
+        // 设置本步的速度（等比缩小）
+        ball.vx = fullVx / steps;
+        ball.vy = fullVy / steps;
 
-        // update中可能发生墙壁反弹，同步更新基准速度方向
-        if (ball.vx > 0 !== curVx / subSteps > 0) curVx = -curVx;
-        if (ball.vy > 0 !== curVy / subSteps > 0) curVy = -curVy;
+        // 移动 + 墙壁反弹
+        ball.update(left, right, top, bottom);
 
         if (!ball.active) {
           if (ball.landed && !ball.slideDone && !ball.sliding) {
@@ -367,52 +360,51 @@ export default class GameScene {
           break;
         }
 
-        // 碰撞检测 - 砖块（每步最多碰一个）
-        for (const brick of this.grid.bricks) {
-          if (!brick.isAlive) continue;
-          if (hitBricksThisFrame.has(brick)) continue;
-
-          const result = ballBrickCollision(ball, brick);
-
-          if (result.hit) {
-            hitBricksThisFrame.add(brick);
-
-            // 恢复完整速度方向再反弹
-            ball.vx = curVx;
-            ball.vy = curVy;
-            reflectBall(ball, result, brick);
-
-            // 更新基准速度为反弹后的方向（后续步骤用新方向）
-            curVx = ball.vx;
-            curVy = ball.vy;
-
-            const destroyed = brick.hit();
-            if (destroyed) {
-              this.score += brick.maxHp;
-              this.destroyedThisRound++;
-              this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
-            }
-            break;
+        // 砖块碰撞（法线推出+反弹）
+        const hitBricks = resolveBallBricks(ball, bricks);
+        for (const brick of hitBricks) {
+          const destroyed = brick.hit();
+          if (destroyed) {
+            this.score += brick.maxHp;
+            this.destroyedThisRound++;
+            this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
           }
         }
 
-        // 碰撞检测 - 道具
+        // 道具碰撞（一步内可收集多个）
         if (ball.active) {
           for (const pickup of this.grid.pickups) {
             if (pickup.collected) continue;
             if (ballPickupCollision(ball, pickup)) {
               pickup.collect();
               this.nextBallCount++;
-              break;
             }
           }
         }
       }
 
-      // 恢复完整速度
+      // 恢复完整速度方向（碰撞可能改变了方向）
       if (ball.active) {
-        ball.vx = curVx;
-        ball.vy = curVy;
+        // ball.vx/vy 现在是最后一步的分步速度，需要放大回完整速度
+        // 但方向已经是正确的（碰撞引擎已修改），只需要还原速度大小
+        const curSpd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+        if (curSpd > 0.01) {
+          ball.vx = ball.vx / curSpd * speed;
+          ball.vy = ball.vy / curSpd * speed;
+        }
+
+        // 防水平弹跳
+        const spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+        if (spd > 0) {
+          const minC = spd * 0.05;
+          if (Math.abs(ball.vy) < minC) {
+            ball.vy += ball.vy >= 0 ? minC : -minC;
+            if (Math.abs(ball.vy) < 0.01) ball.vy = minC;
+            const ns = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            ball.vx *= spd / ns;
+            ball.vy *= spd / ns;
+          }
+        }
       }
     });
   }
@@ -456,10 +448,8 @@ export default class GameScene {
     // 生成新行
     this.grid.generateRow(this.stage, 0);
 
-    // 更新球数（单轮加球上限 = 当前球数的50%，至少+1，防止暴涨）
-    const maxAdd = Math.max(1, Math.ceil(this.ballCount * 0.5));
-    const actualAdd = Math.min(this.nextBallCount, maxAdd);
-    this.ballCount += actualAdd;
+    // 更新球数（道具收集的球全部加入）
+    this.ballCount += this.nextBallCount;
     this.nextBallCount = 0;
 
     // 更新发射点
