@@ -72,7 +72,6 @@ export default class GameScene {
     this.line = 0;
     this.gameState = 'aiming';
     this.energy = 0;
-    this.ballCount = 1;
     this.nextBallCount = 0;
     this.launchStartTime = 0;
     this.runningFrames = 0;
@@ -85,6 +84,7 @@ export default class GameScene {
 
     const cfg = getLevelConfig(levelNum);
     this.maxRounds = cfg.maxRounds || 20;
+    this.ballCount = cfg.defaultBalls || (1 + levelNum);
 
     this.grid.initLevel(this.stage);
     this.launcher.init(SCREEN_WIDTH / 2, this.ballCount);
@@ -335,11 +335,20 @@ export default class GameScene {
       const vx = ball.vx;
       const vy = ball.vy;
 
-      // 墙壁碰撞由 ball.update 处理（只处理墙壁，不移动，先做砖块扫描）
-      // 改为手动处理：先做砖块扫描移动，再做墙壁反弹
+      // 快速回落检测：球向下飞且路径上没有砖块时，加速3倍回落
+      let speedBoost = 1;
+      if (vy > 0 && this.speedMultiplier >= 2) {
+        const hasBlockAhead = this._hasBrickInPath(ball, bricks);
+        if (!hasBlockAhead) {
+          speedBoost = 3;
+        }
+      }
 
-      // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹（绝不穿透）
-      const hitBricks = moveBallWithCollision(ball, vx, vy, bricks);
+      const moveVx = vx * speedBoost;
+      const moveVy = vy * speedBoost;
+
+      // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹
+      const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, bricks);
 
       // 2. 处理被击中的砖块
       for (const brick of hitBricks) {
@@ -394,6 +403,56 @@ export default class GameScene {
         }
       }
     });
+  }
+
+  /**
+   * 检测球的前进路径上是否有砖块
+   * 用扫描方式检测：沿当前速度方向延伸，看是否会碰到任何活跃砖块
+   */
+  _hasBrickInPath(ball, bricks) {
+    const r = ball.radius;
+    const vx = ball.vx;
+    const vy = ball.vy;
+
+    for (const brick of bricks) {
+      if (!brick.isAlive) continue;
+
+      // Minkowski扩展AABB
+      const ex = brick.x - r;
+      const ey = brick.y - r;
+      const ew = brick.width + r * 2;
+      const eh = brick.height + r * 2;
+
+      // 简单射线-AABB检测
+      let tMin = -Infinity, tMax = Infinity;
+
+      if (Math.abs(vx) > 0.001) {
+        let t1 = (ex - ball.x) / vx;
+        let t2 = (ex + ew - ball.x) / vx;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        tMin = Math.max(tMin, t1);
+        tMax = Math.min(tMax, t2);
+      } else {
+        if (ball.x < ex || ball.x > ex + ew) continue;
+      }
+
+      if (Math.abs(vy) > 0.001) {
+        let t1 = (ey - ball.y) / vy;
+        let t2 = (ey + eh - ball.y) / vy;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        tMin = Math.max(tMin, t1);
+        tMax = Math.min(tMax, t2);
+      } else {
+        if (ball.y < ey || ball.y > ey + eh) continue;
+      }
+
+      // t > 0 且相交 → 前方有砖块
+      if (tMax > 0 && tMin < tMax && tMin < 50) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   _settle() {
@@ -621,7 +680,7 @@ export default class GameScene {
     ctx.font = `${16 * s}px Arial`;
     ctx.fillText(`Score: ${this.score}`, centerX, centerY - 30 * s);
     ctx.fillText(`Stage: ${this.stage}`, centerX, centerY);
-    ctx.fillText(`Line: ${this.line}`, centerX, centerY + 30 * s);
+    ctx.fillText(`Rounds: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
 
     // 重试按钮
     this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, 'RETRY', COLORS.neonCyan);
