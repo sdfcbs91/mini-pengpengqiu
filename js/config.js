@@ -16,7 +16,8 @@ export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 export const SCALE = SCREEN_WIDTH / 375;
 
 // ====== 游戏场景布局 ======
-export const HUD_TOP_HEIGHT = 80 * SCALE;              // 顶部HUD高度
+export const STATUS_BAR_HEIGHT = 44 * SCALE;              // 微信状态栏安全区高度
+export const HUD_TOP_HEIGHT = STATUS_BAR_HEIGHT + 36 * SCALE; // 顶部HUD总高度（安全区+一行按钮）
 export const GAME_AREA_LEFT = 8 * SCALE;               // 游戏区域左边距
 export const GAME_AREA_RIGHT = SCREEN_WIDTH - 8 * SCALE;
 export const GAME_AREA_TOP = HUD_TOP_HEIGHT + 6 * SCALE;

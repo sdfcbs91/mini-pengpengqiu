@@ -459,10 +459,10 @@ export default class GameScene {
     // 结算：清理已消除砖块和已收集道具
     this.grid.cleanup();
 
-    // 清理超出底线的未收集道具（防止道具无限累积）
+    // 清理超出底线的未收集道具
     this.grid.pickups = this.grid.pickups.filter(p => {
       if (p.collected) return false;
-      if (p.targetY > LAUNCH_Y) return false; // 超出游戏区域的道具直接移除
+      if (p.targetY > LAUNCH_Y) return false;
       return true;
     });
 
@@ -474,10 +474,12 @@ export default class GameScene {
     // 增加行数
     this.line++;
 
-    // 检查通关
-    if (this.line >= this.maxRounds) {
-      // 计算星级：根据分数和剩余轮数
-      const stars = this.line >= this.maxRounds ? (this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1) : 0;
+    const reachedTarget = this.line >= this.maxRounds;
+    const noBricksLeft = this.grid.bricks.filter(b => b.isAlive).length === 0;
+
+    // 通关条件：达到目标回合数 且 所有砖块已清除
+    if (reachedTarget && noBricksLeft) {
+      const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
       this.winStars = stars;
       this.gameState = 'win';
       if (this.onLevelComplete) {
@@ -491,10 +493,12 @@ export default class GameScene {
     // 砖块下移
     const isOver = this.grid.shiftDown(LAUNCH_Y);
 
-    // 生成新行
-    this.grid.generateRow(this.stage, 0);
+    // 达到目标回合后不再生成新砖块，只继续推砖块下移
+    if (!reachedTarget) {
+      this.grid.generateRow(this.stage, 0);
+    }
 
-    // 更新球数（道具收集的球全部加入）
+    // 更新球数
     this.ballCount += this.nextBallCount;
     this.nextBallCount = 0;
 
@@ -503,9 +507,20 @@ export default class GameScene {
     this.launcher.init(nextX, this.ballCount);
     this.launcher.showAimLine = this.showAimLine;
 
-    // 检查游戏结束
+    // 检查游戏结束（砖块触底）
     if (isOver || this.grid.checkGameOver(LAUNCH_Y)) {
       this.gameState = 'over';
+      return;
+    }
+
+    // 下移后砖块可能全被推出/打完了，再检一次
+    if (reachedTarget && this.grid.bricks.filter(b => b.isAlive).length === 0) {
+      const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
+      this.winStars = stars;
+      this.gameState = 'win';
+      if (this.onLevelComplete) {
+        this.onLevelComplete(this.initialLevel, stars);
+      }
       return;
     }
 
@@ -531,13 +546,12 @@ export default class GameScene {
     // 发射点（瞄准线等）
     this.launcher.render(ctx, this.gameState, this.grid.bricks);
 
-    // HUD（含技能按钮）
+    // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球）
     this.hud.render(ctx, {
       stage: this.stage,
       line: this.line,
+      maxRounds: this.maxRounds,
       score: this.score,
-      starProgress: this.starProgress,
-      showAimLine: this.showAimLine,
       lightningCount: this.lightningCount,
       multiBallCount: this.multiBallCount,
     });
