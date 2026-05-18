@@ -7,7 +7,7 @@ import {
 import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
-import { resolveBallBricks, ballPickupCollision } from '../core/collision';
+import { moveBallWithCollision, ballPickupCollision } from '../core/collision';
 import { getLevelConfig } from '../data/levelData';
 
 /**
@@ -315,7 +315,6 @@ export default class GameScene {
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
     const bricks = this.grid.bricks;
-    const MAX_STEP = 10; // 每步最大移动像素（小于砖块间隙）
 
     this.launcher.balls.forEach(ball => {
       if (ball.isFullyStopped()) return;
@@ -337,63 +336,55 @@ export default class GameScene {
 
       if (!ball.active) return;
 
-      // 根据球速决定拆成几步（每步不超过MAX_STEP像素）
-      const fullVx = ball.vx;
-      const fullVy = ball.vy;
-      const speed = Math.sqrt(fullVx * fullVx + fullVy * fullVy);
-      const steps = Math.max(1, Math.ceil(speed / MAX_STEP));
+      const vx = ball.vx;
+      const vy = ball.vy;
 
-      for (let s = 0; s < steps; s++) {
-        if (!ball.active) break;
+      // 墙壁碰撞由 ball.update 处理（只处理墙壁，不移动，先做砖块扫描）
+      // 改为手动处理：先做砖块扫描移动，再做墙壁反弹
 
-        // 设置本步的速度（等比缩小）
-        ball.vx = fullVx / steps;
-        ball.vy = fullVy / steps;
+      // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹（绝不穿透）
+      const hitBricks = moveBallWithCollision(ball, vx, vy, bricks);
 
-        // 移动 + 墙壁反弹
-        ball.update(left, right, top, bottom);
-
-        if (!ball.active) {
-          if (ball.landed && !ball.slideDone && !ball.sliding) {
-            this.launcher.checkLanded(ball);
-          }
-          break;
+      // 2. 处理被击中的砖块
+      for (const brick of hitBricks) {
+        const destroyed = brick.hit();
+        if (destroyed) {
+          this.score += brick.maxHp;
+          this.destroyedThisRound++;
+          this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
         }
+      }
 
-        // 砖块碰撞（法线推出+反弹）
-        const hitBricks = resolveBallBricks(ball, bricks);
-        for (const brick of hitBricks) {
-          const destroyed = brick.hit();
-          if (destroyed) {
-            this.score += brick.maxHp;
-            this.destroyedThisRound++;
-            this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
-          }
+      // 3. 墙壁反弹（扫描碰撞后球可能到了墙壁外）
+      const r = ball.radius;
+      if (ball.x - r <= left) { ball.x = left + r; ball.vx = Math.abs(ball.vx); }
+      if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); }
+      if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); }
+
+      // 4. 底部落地
+      if (ball.vy > 0 && ball.y + r >= bottom) {
+        ball.y = bottom - r;
+        ball.active = false;
+        ball.landed = true;
+        ball.landX = ball.x;
+        if (!ball.slideDone && !ball.sliding) {
+          this.launcher.checkLanded(ball);
         }
+      }
 
-        // 道具碰撞（一步内可收集多个）
-        if (ball.active) {
-          for (const pickup of this.grid.pickups) {
-            if (pickup.collected) continue;
-            if (ballPickupCollision(ball, pickup)) {
-              pickup.collect();
-              this.nextBallCount++;
-            }
+      // 5. 道具碰撞（一步内可收集多个）
+      if (ball.active) {
+        for (const pickup of this.grid.pickups) {
+          if (pickup.collected) continue;
+          if (ballPickupCollision(ball, pickup)) {
+            pickup.collect();
+            this.nextBallCount++;
           }
         }
       }
 
-      // 恢复完整速度方向（碰撞可能改变了方向）
+      // 6. 防水平弹跳
       if (ball.active) {
-        // ball.vx/vy 现在是最后一步的分步速度，需要放大回完整速度
-        // 但方向已经是正确的（碰撞引擎已修改），只需要还原速度大小
-        const curSpd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-        if (curSpd > 0.01) {
-          ball.vx = ball.vx / curSpd * speed;
-          ball.vy = ball.vy / curSpd * speed;
-        }
-
-        // 防水平弹跳
         const spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
         if (spd > 0) {
           const minC = spd * 0.05;

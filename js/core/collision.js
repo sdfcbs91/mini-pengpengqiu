@@ -1,79 +1,115 @@
 /**
- * 碰撞检测模块（简洁高效版）
- * 采用 Swept AABB 思路：先移动球，检测重叠，修正位置+反弹
+ * 碰撞检测模块
+ * 使用扫描碰撞（Swept）：移动前检测路径，碰到砖块就停在碰撞点
  */
 
 /**
- * 检测球与单个砖块的碰撞
- * 返回 null（无碰撞）或 { brick, nx, ny, pen }（碰撞法线和穿透深度）
+ * 扫描碰撞：球沿 (vx,vy) 移动时，找到最先碰到的砖块
+ * 返回 { brick, t, nx, ny } 或 null
+ * t = 碰撞时间比例 (0~1)，0=起点就碰，1=终点才碰
  */
-function checkBallBrick(ball, brick) {
+function sweepBallBrick(ball, vx, vy, brick) {
   if (!brick.isAlive) return null;
 
-  const bx = ball.x, by = ball.y, r = ball.radius;
-  const rx = brick.x, ry = brick.y, rw = brick.width, rh = brick.height;
+  const r = ball.radius;
+  // 将砖块扩展球半径（Minkowski Sum），问题变为点与扩展矩形的射线检测
+  const ex = brick.x - r;
+  const ey = brick.y - r;
+  const ew = brick.width + r * 2;
+  const eh = brick.height + r * 2;
 
-  // 最近点
-  const cx = Math.max(rx, Math.min(bx, rx + rw));
-  const cy = Math.max(ry, Math.min(by, ry + rh));
-  const dx = bx - cx;
-  const dy = by - cy;
-  const distSq = dx * dx + dy * dy;
+  const px = ball.x;
+  const py = ball.y;
 
-  if (distSq >= r * r) return null;
+  // 射线-AABB 相交（Slab Method）
+  let tMin = -Infinity, tMax = Infinity;
+  let hitNx = 0, hitNy = 0;
 
-  // 球心在砖块内部（深度穿透）
-  if (distSq < 0.001) {
-    // 按最小穿透轴推出
-    const pl = bx - rx + r;
-    const pr = rx + rw - bx + r;
-    const pt = by - ry + r;
-    const pb = ry + rh - by + r;
-    const m = Math.min(pl, pr, pt, pb);
-    if (m === pt) return { brick, nx: 0, ny: -1, pen: pt };
-    if (m === pb) return { brick, nx: 0, ny: 1, pen: pb };
-    if (m === pl) return { brick, nx: -1, ny: 0, pen: pl };
-    return { brick, nx: 1, ny: 0, pen: pr };
+  // X 轴
+  if (Math.abs(vx) < 0.0001) {
+    if (px < ex || px > ex + ew) return null;
+  } else {
+    let t1 = (ex - px) / vx;
+    let t2 = (ex + ew - px) / vx;
+    let n1x = -1;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; n1x = 1; }
+    if (t1 > tMin) { tMin = t1; hitNx = n1x; hitNy = 0; }
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return null;
   }
 
-  const dist = Math.sqrt(distSq);
-  const pen = r - dist;
-  return { brick, nx: dx / dist, ny: dy / dist, pen };
+  // Y 轴
+  if (Math.abs(vy) < 0.0001) {
+    if (py < ey || py > ey + eh) return null;
+  } else {
+    let t1 = (ey - py) / vy;
+    let t2 = (ey + eh - py) / vy;
+    let n1y = -1;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; n1y = 1; }
+    if (t1 > tMin) { tMin = t1; hitNx = 0; hitNy = n1y; }
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return null;
+  }
+
+  // tMin 是最先碰到的时间
+  if (tMin >= 1 || tMax <= 0) return null; // 在移动范围外
+  if (tMin < 0) tMin = 0; // 已经重叠
+
+  return { brick, t: tMin, nx: hitNx, ny: hitNy };
 }
 
 /**
- * 处理球与所有砖块的碰撞（单帧，最多3轮解决重叠）
+ * 移动球并处理砖块碰撞（扫描方式，不会穿透）
  * 返回碰撞到的砖块列表
  */
-export function resolveBallBricks(ball, bricks) {
+export function moveBallWithCollision(ball, vx, vy, bricks) {
   const hitBricks = [];
+  let remainVx = vx;
+  let remainVy = vy;
+  const maxBounces = 4; // 一步内最多反弹4次
 
-  for (let iter = 0; iter < 3; iter++) {
-    // 找穿透最深的碰撞
-    let best = null;
+  for (let bounce = 0; bounce < maxBounces; bounce++) {
+    // 找最先碰到的砖块
+    let earliest = null;
     for (const brick of bricks) {
       if (!brick.isAlive) continue;
-      const c = checkBallBrick(ball, brick);
-      if (c && (!best || c.pen > best.pen)) {
-        best = c;
+      const hit = sweepBallBrick(ball, remainVx, remainVy, brick);
+      if (hit && (!earliest || hit.t < earliest.t)) {
+        earliest = hit;
       }
     }
 
-    if (!best || best.pen <= 0) break;
-
-    // 推出球
-    ball.x += best.nx * (best.pen + 0.5);
-    ball.y += best.ny * (best.pen + 0.5);
-
-    // 反弹速度（沿法线方向翻转）
-    const dot = ball.vx * best.nx + ball.vy * best.ny;
-    if (dot < 0) {
-      // 球正在朝砖块方向运动才反弹
-      ball.vx -= 2 * dot * best.nx;
-      ball.vy -= 2 * dot * best.ny;
+    if (!earliest || earliest.t >= 1) {
+      // 无碰撞，正常移动到终点
+      ball.x += remainVx;
+      ball.y += remainVy;
+      break;
     }
 
-    hitBricks.push(best.brick);
+    // 移动到碰撞点（稍微留一点间隙）
+    const safeT = Math.max(0, earliest.t - 0.01);
+    ball.x += remainVx * safeT;
+    ball.y += remainVy * safeT;
+
+    // 记录被击中的砖块（避免重复）
+    if (!hitBricks.includes(earliest.brick)) {
+      hitBricks.push(earliest.brick);
+    }
+
+    // 计算剩余移动量
+    const leftT = 1 - earliest.t;
+    remainVx *= leftT;
+    remainVy *= leftT;
+
+    // 反弹：沿碰撞法线翻转速度分量
+    const dot = remainVx * earliest.nx + remainVy * earliest.ny;
+    remainVx -= 2 * dot * earliest.nx;
+    remainVy -= 2 * dot * earliest.ny;
+
+    // 同时更新球的实际速度方向
+    const vdot = ball.vx * earliest.nx + ball.vy * earliest.ny;
+    ball.vx -= 2 * vdot * earliest.nx;
+    ball.vy -= 2 * vdot * earliest.ny;
   }
 
   return hitBricks;
