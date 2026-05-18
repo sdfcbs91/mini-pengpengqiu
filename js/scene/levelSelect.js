@@ -21,14 +21,14 @@ export default class LevelSelect {
     this.touchStartX = 0;
     this.touchStartY = 0;
     this.touchStartTime = 0;
-    this.offsetX = 0;       // 当前滑动偏移
     this.isDragging = false;
-    this.isSwiping = false;  // 是否横向滑动
+    this.isSwiping = false;
 
-    // 动画相关
-    this.animOffset = 0;     // 翻页动画偏移
-    this.animTarget = 0;
-    this.isAnimating = false;
+    // 页面滑动动画（像素偏移，正值=往右拖=看前一页）
+    this.slideOffset = 0;       // 当前实际偏移
+    this.slideTarget = 0;       // 动画目标偏移（松手后吸附到0）
+    this.slideVelocity = 0;     // 松手时的速度
+    this.isSlideAnimating = false;
 
     // 霓虹动画计时器
     this.glowPhase = 0;
@@ -88,14 +88,18 @@ export default class LevelSelect {
   }
 
   _bindTouch() {
+    this._lastTouchX = 0;
+
     this._touchStartHandler = (e) => {
       const { clientX, clientY } = e.touches[0];
       this.touchStartX = clientX;
       this.touchStartY = clientY;
+      this._lastTouchX = clientX;
       this.touchStartTime = Date.now();
       this.isDragging = true;
       this.isSwiping = false;
-      this.offsetX = 0;
+      this.isSlideAnimating = false; // 按下时中断正在进行的动画
+      this.slideVelocity = 0;
     };
 
     this._touchMoveHandler = (e) => {
@@ -104,14 +108,23 @@ export default class LevelSelect {
       const dx = clientX - this.touchStartX;
       const dy = clientY - this.touchStartY;
 
-      // 判断滑动方向
+      // 判断滑动方向（首次超过10px时决定）
       if (!this.isSwiping && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
         this.isSwiping = Math.abs(dx) > Math.abs(dy);
       }
 
       if (this.isSwiping) {
-        this.offsetX = dx;
+        // 实时跟随手指：用增量更新偏移
+        const moveDelta = clientX - this._lastTouchX;
+        this.slideOffset += moveDelta;
+
+        // 边界阻尼：首页往右拖或末页往左拖时加阻力
+        if ((this.currentPage === 0 && this.slideOffset > 0) ||
+            (this.currentPage >= this.totalPages - 1 && this.slideOffset < 0)) {
+          this.slideOffset *= 0.4; // 强阻尼
+        }
       }
+      this._lastTouchX = clientX;
     };
 
     this._touchEndHandler = (e) => {
@@ -121,21 +134,33 @@ export default class LevelSelect {
       const elapsed = Date.now() - this.touchStartTime;
 
       if (this.isSwiping) {
-        // 滑动翻页
-        const threshold = SCREEN_WIDTH * 0.2;
-        const velocity = this.offsetX / Math.max(elapsed, 1);
+        // 计算松手速度
+        const velocity = this.slideOffset / Math.max(elapsed, 1);
+        const threshold = SCREEN_WIDTH * 0.15;
 
-        if (this.offsetX < -threshold || velocity < -0.5) {
-          this._nextPage();
-        } else if (this.offsetX > threshold || velocity > 0.5) {
-          this._prevPage();
+        // 判断翻页方向
+        if (this.slideOffset < -threshold || velocity < -0.3) {
+          // 向左滑 → 下一页
+          if (this.currentPage < this.totalPages - 1) {
+            this.currentPage++;
+            this.slideOffset += SCREEN_WIDTH; // 偏移加一页宽度（动画起点）
+          }
+        } else if (this.slideOffset > threshold || velocity > 0.3) {
+          // 向右滑 → 上一页
+          if (this.currentPage > 0) {
+            this.currentPage--;
+            this.slideOffset -= SCREEN_WIDTH;
+          }
         }
-        this.offsetX = 0;
+
+        // 启动回弹动画（目标偏移=0）
+        this.isSlideAnimating = true;
         this.isSwiping = false;
-      } else if (elapsed < 300) {
+      } else if (elapsed < 300 && Math.abs(this.slideOffset) < 5) {
         // 点击事件
         const touch = e.changedTouches[0];
         this._handleTap(touch.clientX, touch.clientY);
+        this.slideOffset = 0;
       }
     };
 
@@ -148,18 +173,6 @@ export default class LevelSelect {
     wx.offTouchStart(this._touchStartHandler);
     wx.offTouchMove(this._touchMoveHandler);
     wx.offTouchEnd(this._touchEndHandler);
-  }
-
-  _nextPage() {
-    if (this.currentPage < this.totalPages - 1) {
-      this.currentPage++;
-    }
-  }
-
-  _prevPage() {
-    if (this.currentPage > 0) {
-      this.currentPage--;
-    }
   }
 
   _handleTap(x, y) {
@@ -223,6 +236,15 @@ export default class LevelSelect {
   update() {
     this.glowPhase += 0.03;
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
+
+    // 滑动回弹动画
+    if (this.isSlideAnimating) {
+      this.slideOffset *= 0.82; // 衰减系数（越小越快吸附）
+      if (Math.abs(this.slideOffset) < 0.5) {
+        this.slideOffset = 0;
+        this.isSlideAnimating = false;
+      }
+    }
   }
 
   render(ctx) {
@@ -366,9 +388,6 @@ export default class LevelSelect {
   }
 
   _drawLevelGrid(ctx) {
-    const startIdx = this.currentPage * LEVELS_PER_PAGE;
-
-    // 游戏区域霓虹边框
     const s = SCALE;
     const borderPad = 8 * s;
     const bx = this.gridStartX - borderPad;
@@ -376,7 +395,7 @@ export default class LevelSelect {
     const bw = SCREEN_WIDTH - 2 * this.gridStartX + 2 * borderPad;
     const bh = LEVEL_GRID_ROWS * (this.cellH + this.cellGap) - this.cellGap + 2 * borderPad;
 
-    // 外框发光
+    // 外框发光（固定不随滑动）
     const glowIntensity = 0.5 + 0.3 * Math.sin(this.glowPhase);
     ctx.strokeStyle = COLORS.neonBlue;
     ctx.lineWidth = 2;
@@ -385,14 +404,40 @@ export default class LevelSelect {
     ctx.strokeRect(bx, by, bw, bh);
     ctx.shadowBlur = 0;
 
-    // 绘制每个关卡格子（从下往上排列：底行是小编号，顶行是大编号）
+    // 裁剪区域（只在边框内绘制，防止格子画到外面）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.clip();
+
+    // 渲染当前页 + 相邻页（带滑动偏移）
+    const offset = this.slideOffset;
+    this._drawPageCells(ctx, this.currentPage, offset);
+
+    // 如果向右拖（offset>0），左边露出前一页
+    if (offset > 0 && this.currentPage > 0) {
+      this._drawPageCells(ctx, this.currentPage - 1, offset - SCREEN_WIDTH);
+    }
+    // 如果向左拖（offset<0），右边露出后一页
+    if (offset < 0 && this.currentPage < this.totalPages - 1) {
+      this._drawPageCells(ctx, this.currentPage + 1, offset + SCREEN_WIDTH);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 绘制一页的关卡格子（带水平偏移）
+   */
+  _drawPageCells(ctx, pageIdx, offsetX) {
+    const startIdx = pageIdx * LEVELS_PER_PAGE;
+
     for (let row = 0; row < LEVEL_GRID_ROWS; row++) {
       for (let col = 0; col < LEVEL_GRID_COLS; col++) {
-        // 底部是小编号，所以反转行
         const levelIdx = startIdx + (LEVEL_GRID_ROWS - 1 - row) * LEVEL_GRID_COLS + col;
-        if (levelIdx >= TOTAL_LEVELS) continue;
+        if (levelIdx >= TOTAL_LEVELS || levelIdx < 0) continue;
 
-        const cx = this.gridStartX + col * (this.cellW + this.cellGap);
+        const cx = this.gridStartX + col * (this.cellW + this.cellGap) + offsetX;
         const cy = this.gridStartY + row * (this.cellH + this.cellGap);
 
         this._drawLevelCell(ctx, cx, cy, levelIdx, row, col);
