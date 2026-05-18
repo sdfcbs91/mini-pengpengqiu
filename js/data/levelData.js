@@ -117,7 +117,7 @@ export const LEVEL_CONFIGS = [
         level: lv,
         baseHp: hp + i * 3,
         fillRate: fill,
-        initRows: 3,
+        initRows: 3 + Math.floor(lv / 30),
         triangleRate: tri,
         pickupMin: 1,
         pickupMax: 1,
