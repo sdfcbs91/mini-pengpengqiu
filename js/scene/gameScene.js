@@ -281,9 +281,7 @@ export default class GameScene {
 
     const cfg = getLevelConfig(this.stage);
     let newMultiplier = 1;
-    if (this.runningFrames >= cfg.speedBoostFrame2) {
-      newMultiplier = 3;
-    } else if (this.runningFrames >= cfg.speedBoostFrame1) {
+    if (this.runningFrames >= cfg.speedBoostFrame1) {
       newMultiplier = 2;
     }
 
@@ -291,8 +289,6 @@ export default class GameScene {
       this.speedMultiplier = newMultiplier;
       if (newMultiplier === 2) {
         this.speedTipText = '加速 x2';
-      } else if (newMultiplier === 3) {
-        this.speedTipText = '加速 x3';
       }
       this.speedTipTimer = 120; // 显示2秒
 
