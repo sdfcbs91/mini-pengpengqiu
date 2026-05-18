@@ -2,22 +2,22 @@ import { SCREEN_WIDTH } from '../render';
 import { COLORS, SCALE, STATUS_BAR_HEIGHT } from '../config';
 
 /**
- * 顶部 HUD（单行布局）
- * 布局：[闪电] [STAGE / Rounds / Score] [暂停] [多球]
+ * 顶部 HUD（单行布局，按钮全部靠左）
+ * 布局：[暂停] [闪电] [多球] ... [STAGE / Rounds / Score]
  */
 export default class HUD {
   constructor() {
     this.glowPhase = 0;
 
     const s = SCALE;
-    // 单行Y坐标（状态栏下方）
     this.rowY = STATUS_BAR_HEIGHT + 18 * s;
     this.btnR = 15 * s;
+    this.pauseR = 12 * s;
 
-    // 按钮X坐标
-    this.lightningX = 28 * s;
-    this.multiBallX = SCREEN_WIDTH - 28 * s;
-    this.pauseX = SCREEN_WIDTH - 70 * s;
+    // 按钮全部靠左排列
+    this.pauseX = 24 * s;
+    this.lightningX = 62 * s;
+    this.multiBallX = 100 * s;
   }
 
   update() {
@@ -27,31 +27,14 @@ export default class HUD {
 
   render(ctx, data) {
     const s = SCALE;
-    const { stage, line, score, lightningCount, multiBallCount } = data;
+    const { stage, score, lightningCount, multiBallCount } = data;
     const y = this.rowY;
-    const centerX = SCREEN_WIDTH / 2;
 
-    // ---- 左侧：闪电技能 ----
-    this._drawSkillButton(ctx, this.lightningX, y, this.btnR, s, lightningCount);
-    this._drawLightning(ctx, this.lightningX, y - 2 * s, 9 * s);
-
-    // ---- 中间信息 ----
-    ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${11 * s}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`STAGE ${stage}`, centerX, y - 7 * s);
-
-    ctx.font = `${9 * s}px Arial`;
-    ctx.fillStyle = '#aaaacc';
-    ctx.fillText(`${data.line || 0}/${data.maxRounds || '?'}   Score: ${score}`, centerX, y + 8 * s);
-
-    // ---- 暂停按钮 ----
-    const pauseR = 12 * s;
+    // ---- 暂停按钮（最左） ----
     ctx.strokeStyle = COLORS.neonCyan;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(this.pauseX, y, pauseR, 0, Math.PI * 2);
+    ctx.arc(this.pauseX, y, this.pauseR, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.fillStyle = COLORS.neonCyan;
@@ -59,9 +42,25 @@ export default class HUD {
     ctx.fillRect(this.pauseX - lg / 2 - lw, y - lh / 2, lw, lh);
     ctx.fillRect(this.pauseX + lg / 2, y - lh / 2, lw, lh);
 
-    // ---- 右侧：多球技能 ----
+    // ---- 闪电技能 ----
+    this._drawSkillButton(ctx, this.lightningX, y, this.btnR, s, lightningCount);
+    this._drawLightning(ctx, this.lightningX, y - 2 * s, 9 * s);
+
+    // ---- 多球技能 ----
     this._drawSkillButton(ctx, this.multiBallX, y, this.btnR, s, multiBallCount);
     this._drawMultiBall(ctx, this.multiBallX, y - 2 * s, 7 * s);
+
+    // ---- 右侧信息（不放按钮，避开微信功能按钮） ----
+    const infoX = SCREEN_WIDTH - 12 * s;
+    ctx.fillStyle = COLORS.textWhite;
+    ctx.font = `bold ${11 * s}px Arial`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`STAGE ${stage}`, infoX, y - 7 * s);
+
+    ctx.font = `${9 * s}px Arial`;
+    ctx.fillStyle = '#aaaacc';
+    ctx.fillText(`${data.line || 0}/${data.maxRounds || '?'}  Score:${score}`, infoX, y + 8 * s);
   }
 
   _drawSkillButton(ctx, cx, cy, r, s, count) {
@@ -124,13 +123,12 @@ export default class HUD {
     ctx.shadowBlur = 0;
   }
 
-  // 辅助线开关按钮已删除，hitAimButton 始终返回 false
   hitAimButton() { return false; }
 
   hitPauseButton(x, y) {
     const dx = x - this.pauseX;
     const dy = y - this.rowY;
-    return dx * dx + dy * dy <= (12 * SCALE) * (12 * SCALE);
+    return dx * dx + dy * dy <= this.pauseR * this.pauseR;
   }
 
   hitLightningButton(x, y) {
