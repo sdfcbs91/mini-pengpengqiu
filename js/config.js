@@ -34,7 +34,7 @@ export const BRICK_H = BRICK_W;  // 正方形砖块
 export const LAUNCH_Y = GAME_AREA_BOTTOM - 10 * SCALE;
 
 // 球配置
-export const BALL_RADIUS = 5 * SCALE;
+export const BALL_RADIUS = 6 * SCALE;
 export const BALL_SPEED = 12 * SCALE;
 export const BALL_LAUNCH_INTERVAL = 3;  // 帧间隔
 export const BALL_TRAIL_LENGTH = 8;
