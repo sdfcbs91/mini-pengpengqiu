@@ -120,7 +120,7 @@ export default class LevelSelect {
 
         // 边界阻尼：首页往右拖或末页往左拖时加阻力
         if ((this.currentPage === 0 && this.slideOffset > 0) ||
-            (this.currentPage >= this.totalPages - 1 && this.slideOffset < 0)) {
+          (this.currentPage >= this.totalPages - 1 && this.slideOffset < 0)) {
           this.slideOffset *= 0.4; // 强阻尼
         }
       }
@@ -307,7 +307,7 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(180,210,255,0.7)';
     ctx.font = `${11 * s}px Arial`;
     ctx.fillText('选择关卡，即刻开启挑战', centerX, y + 42 * s);
-  }
+
   }
 
   _drawPageIndicator(ctx) {
