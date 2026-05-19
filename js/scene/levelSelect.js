@@ -307,30 +307,7 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(180,210,255,0.7)';
     ctx.font = `${11 * s}px Arial`;
     ctx.fillText('选择关卡，即刻开启挑战', centerX, y + 42 * s);
-
-    // 右上角电源按钮
-    const pwrX = SCREEN_WIDTH - 30 * s;
-    const pwrY = y + 18 * s;
-    const pwrR = 14 * s;
-    ctx.strokeStyle = '#ff0044';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#ff0044';
-    ctx.shadowBlur = 6 * s;
-    ctx.beginPath();
-    ctx.arc(pwrX, pwrY, pwrR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // 电源图标线条
-    ctx.strokeStyle = '#ff0044';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(pwrX, pwrY, pwrR * 0.5, Math.PI * 0.3, Math.PI * 1.7);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pwrX, pwrY - pwrR * 0.6);
-    ctx.lineTo(pwrX, pwrY - pwrR * 0.1);
-    ctx.stroke();
+  }
   }
 
   _drawPageIndicator(ctx) {
