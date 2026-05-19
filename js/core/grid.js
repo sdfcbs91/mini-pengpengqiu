@@ -1,5 +1,6 @@
 import Brick from './brick';
 import Pickup from './pickup';
+import Plank from './plank';
 import {
   GRID_COLS, BRICK_GAP, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_TOP,
@@ -14,6 +15,7 @@ export default class Grid {
   constructor() {
     this.bricks = [];
     this.pickups = [];
+    this.planks = [];           // 横板（不可破坏障碍物）
     this.rowHeight = BRICK_H + BRICK_GAP;
     this.levelConfig = null;
     this.gapCol = -1;          // 持续空列（垂直通道）
@@ -32,6 +34,7 @@ export default class Grid {
   initLevel(stage) {
     this.bricks = [];
     this.pickups = [];
+    this.planks = [];
     this.levelConfig = getLevelConfig(stage);
     this.gapCol = -1;
     this.gapColLife = 0;
@@ -120,6 +123,20 @@ export default class Grid {
       );
       this.pickups.push(pickup);
     }
+
+    // 横板生成（第5关起，随机在空列中放置）
+    const plankRate = cfg.plankRate || 0;
+    if (plankRate > 0 && emptyCols.length > pickupCount) {
+      const remainCols = shuffled.slice(pickupCount);
+      for (const col of remainCols) {
+        if (Math.random() < plankRate) {
+          const plank = new Plank();
+          plank.init(rowIndex, col, this.getColX(col), this.getRowY(rowIndex));
+          this.planks.push(plank);
+          break; // 每行最多1个横板
+        }
+      }
+    }
   }
 
   /**
@@ -191,6 +208,12 @@ export default class Grid {
       }
     });
 
+    // 横板也下移（但不触发 game over）
+    this.planks.forEach(plank => {
+      plank.row++;
+      plank.targetY += this.rowHeight;
+    });
+
     this.pickups.forEach(pickup => {
       if (!pickup.collected) {
         pickup.moveDown(this.rowHeight);
@@ -203,6 +226,8 @@ export default class Grid {
   cleanup() {
     this.bricks = this.bricks.filter(b => b.isAlive);
     this.pickups = this.pickups.filter(p => !p.collected);
+    // 清除超出屏幕底部的横板
+    this.planks = this.planks.filter(p => p.y < GAME_AREA_TOP + this.rowHeight * 15);
   }
 
   checkGameOver(bottomLimit) {
@@ -212,10 +237,12 @@ export default class Grid {
   update() {
     this.bricks.forEach(b => { if (b.isAlive) b.update(); });
     this.pickups.forEach(p => { if (!p.collected) p.update(); });
+    this.planks.forEach(p => { p.update(); });
   }
 
   render(ctx, glowPhase) {
     this.bricks.forEach(b => { b.render(ctx, glowPhase); });
+    this.planks.forEach(p => { p.render(ctx, glowPhase); });
     this.pickups.forEach(p => { p.render(ctx); });
   }
 }

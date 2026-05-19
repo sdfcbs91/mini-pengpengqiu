@@ -311,6 +311,8 @@ export default class GameScene {
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
     const bricks = this.grid.bricks;
+    // 横板也参与碰撞（球碰到反弹但不消除）
+    const allObstacles = [...bricks, ...this.grid.planks];
 
     this.launcher.balls.forEach(ball => {
       if (ball.isFullyStopped()) return;
@@ -338,7 +340,7 @@ export default class GameScene {
       // 快速回落检测：球向下飞且路径上没有砖块时，加速3倍回落
       let speedBoost = 1;
       if (vy > 0 && this.speedMultiplier >= 2) {
-        const hasBlockAhead = this._hasBrickInPath(ball, bricks);
+        const hasBlockAhead = this._hasBrickInPath(ball, allObstacles);
         if (!hasBlockAhead) {
           speedBoost = 3;
         }
@@ -348,7 +350,7 @@ export default class GameScene {
       const moveVy = vy * speedBoost;
 
       // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹
-      const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, bricks);
+      const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, allObstacles);
 
       // 2. 处理被击中的砖块
       for (const brick of hitBricks) {
