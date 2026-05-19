@@ -66,13 +66,14 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
   const hitBricks = [];
   let remainVx = vx;
   let remainVy = vy;
-  const maxBounces = 4; // 一步内最多反弹4次
+  const maxBounces = 4;
+  let lastHitBrick = null; // 上一次碰到的障碍物（防卡死）
 
   for (let bounce = 0; bounce < maxBounces; bounce++) {
-    // 找最先碰到的砖块
     let earliest = null;
     for (const brick of bricks) {
       if (!brick.isAlive) continue;
+      if (brick === lastHitBrick) continue; // 跳过刚碰过的，防止反复弹同一个
       const hit = sweepBallBrick(ball, remainVx, remainVy, brick);
       if (hit && (!earliest || hit.t < earliest.t)) {
         earliest = hit;
@@ -80,33 +81,33 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
     }
 
     if (!earliest || earliest.t >= 1) {
-      // 无碰撞，正常移动到终点
       ball.x += remainVx;
       ball.y += remainVy;
       break;
     }
 
-    // 移动到碰撞点（稍微留一点间隙）
+    // 移动到碰撞点
     const safeT = Math.max(0, earliest.t - 0.01);
     ball.x += remainVx * safeT;
     ball.y += remainVy * safeT;
 
-    // 记录被击中的砖块（避免重复）
     if (!hitBricks.includes(earliest.brick)) {
       hitBricks.push(earliest.brick);
     }
+
+    lastHitBrick = earliest.brick;
 
     // 计算剩余移动量
     const leftT = 1 - earliest.t;
     remainVx *= leftT;
     remainVy *= leftT;
 
-    // 反弹：沿碰撞法线翻转速度分量
+    // 反弹
     const dot = remainVx * earliest.nx + remainVy * earliest.ny;
     remainVx -= 2 * dot * earliest.nx;
     remainVy -= 2 * dot * earliest.ny;
 
-    // 同时更新球的实际速度方向
+    // 更新球速方向
     const vdot = ball.vx * earliest.nx + ball.vy * earliest.ny;
     ball.vx -= 2 * vdot * earliest.nx;
     ball.vy -= 2 * vdot * earliest.ny;
