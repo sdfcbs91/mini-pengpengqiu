@@ -50,11 +50,11 @@ export default class HUD {
     this._drawSkillButton(ctx, this.multiBallX, y, this.btnR, s, multiBallCount);
     this._drawMultiBall(ctx, this.multiBallX, y - 2 * s, 7 * s);
 
-    // ---- 右侧信息（不放按钮，避开微信功能按钮） ----
-    const infoX = SCREEN_WIDTH - 12 * s;
+    // ---- 信息显示（放在按钮右侧） ----
+    const infoX = 130 * s;
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `bold ${11 * s}px Arial`;
-    ctx.textAlign = 'right';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(`STAGE ${stage}`, infoX, y - 7 * s);
 
