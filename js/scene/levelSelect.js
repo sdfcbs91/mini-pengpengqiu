@@ -284,55 +284,33 @@ export default class LevelSelect {
     const centerX = SCREEN_WIDTH / 2;
     const y = this.titleY;
 
-    // 标题文字 "BRICKS"（每个字母一个彩色方块）
-    const letters = [
-      { char: 'B', color: '#39ff14' },
-      { char: 'R', color: '#ff6600' },
-      { char: 'I', color: '#f0e130' },
-      { char: 'C', color: '#00d4ff' },
-      { char: 'K', color: '#8b5cf6' },
-      { char: 'S', color: '#ff1493' },
-    ];
-    const blockSize = 30 * s;
-    const blockGap = 6 * s;
-    const totalW = letters.length * blockSize + (letters.length - 1) * blockGap;
-    let bx = centerX - totalW / 2;
+    // 主标题 "弹球粉碎大师" — 霓虹蓝发光大字
+    const title = '弹球粉碎大师';
+    const fontSize = 26 * s;
 
-    letters.forEach(({ char, color }) => {
-      // 方块背景
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.3;
-      ctx.fillRect(bx, y, blockSize, blockSize);
-      ctx.globalAlpha = 1;
-
-      // 方块边框（发光）
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8 * s;
-      ctx.strokeRect(bx, y, blockSize, blockSize);
-      ctx.shadowBlur = 0;
-
-      // 字母
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `bold ${18 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(char, bx + blockSize / 2, y + blockSize / 2);
-
-      bx += blockSize + blockGap;
-    });
-
-    // 副标题 "BREAKER QUEST"
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${12 * s}px Arial`;
+    // 外发光层
+    ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('BREAKER  QUEST', centerX, y + blockSize + 6 * s);
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 20 * s;
+    ctx.fillStyle = '#00d4ff';
+    ctx.fillText(title, centerX, y + 18 * s);
+
+    // 主体文字（白色）
+    ctx.shadowBlur = 8 * s;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(title, centerX, y + 18 * s);
+    ctx.shadowBlur = 0;
+
+    // 副标题
+    ctx.fillStyle = 'rgba(180,210,255,0.7)';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.fillText('选择关卡，即刻开启挑战', centerX, y + 42 * s);
 
     // 右上角电源按钮
     const pwrX = SCREEN_WIDTH - 30 * s;
-    const pwrY = y + blockSize / 2;
+    const pwrY = y + 18 * s;
     const pwrR = 14 * s;
     ctx.strokeStyle = '#ff0044';
     ctx.lineWidth = 2;
