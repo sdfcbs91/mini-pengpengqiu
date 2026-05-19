@@ -56,11 +56,11 @@ export default class HUD {
     ctx.font = `bold ${11 * s}px Arial`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`STAGE ${stage}`, infoX, y - 7 * s);
+    ctx.fillText(`关卡 ${stage}`, infoX, y - 7 * s);
 
     ctx.font = `${9 * s}px Arial`;
     ctx.fillStyle = '#aaaacc';
-    ctx.fillText(`${data.line || 0}/${data.maxRounds || '?'}  Score:${score}`, infoX, y + 8 * s);
+    ctx.fillText(`${data.line || 0}/${data.maxRounds || '?'}  得分:${score}`, infoX, y + 8 * s);
   }
 
   _drawSkillButton(ctx, cx, cy, r, s, count) {
