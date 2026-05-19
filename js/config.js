@@ -26,7 +26,7 @@ export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
 // 砖块尺寸（根据游戏区域和列数自动计算）
-export const BRICK_GAP = 3 * SCALE;
+export const BRICK_GAP = 2 * SCALE;
 export const BRICK_W = (GAME_AREA_WIDTH - (GRID_COLS + 1) * BRICK_GAP) / GRID_COLS;
 export const BRICK_H = BRICK_W;  // 正方形砖块
 

@@ -40,9 +40,12 @@ export default class Grid {
     this.gapColLife = 0;
     this.rowCounter = 0;
 
-    // 初始行数 = 配置值 + 关卡/20（渐进增加）
+    // 初始保留空列（整局保持，让球有通道可钻）
+    this.reservedEmptyCol = Math.floor(Math.random() * GRID_COLS);
+
+    // 初始行数 = 配置值 + 1 + 关卡/20（渐进增加）
     const baseRows = this.levelConfig.initRows;
-    const rows = Math.min(baseRows + Math.floor(stage / 20), 7);
+    const rows = Math.min(baseRows + 1 + Math.floor(stage / 20), 8);
     for (let i = 0; i < rows; i++) {
       this.generateRow(stage - i, i);
     }
@@ -79,10 +82,10 @@ export default class Grid {
       cols = this._generateNormalRow(cfg.fillRate);
     }
 
-    // 确保至少2个砖块
+    // 确保至少2个砖块（不放在保留空列）
     while (cols.length < 2) {
       const c = Math.floor(Math.random() * GRID_COLS);
-      if (!cols.includes(c)) cols.push(c);
+      if (c !== this.reservedEmptyCol && !cols.includes(c)) cols.push(c);
     }
 
     // 创建砖块
@@ -154,6 +157,8 @@ export default class Grid {
 
     const cols = [];
     for (let c = 0; c < GRID_COLS; c++) {
+      // 保留空列始终为空
+      if (c === this.reservedEmptyCol) continue;
       // 通道列强制空
       if (c === this.gapCol && this.gapColLife > 0) continue;
       if (Math.random() < fillRate) {
@@ -168,12 +173,13 @@ export default class Grid {
    * 球可以从口子钻进去在两侧墙壁间弹跳
    */
   _generatePocketRow(fillRate) {
-    const gapStart = 2 + Math.floor(Math.random() * 3); // 口子起始列 2~4
-    const gapWidth = 1 + Math.floor(Math.random() * 2);  // 口子宽度 1~2
+    const gapStart = 1 + Math.floor(Math.random() * (GRID_COLS - 2));
+    const gapWidth = 1 + Math.floor(Math.random() * 2);
 
     const cols = [];
     for (let c = 0; c < GRID_COLS; c++) {
-      if (c >= gapStart && c < gapStart + gapWidth) continue; // 口子
+      if (c === this.reservedEmptyCol) continue;
+      if (c >= gapStart && c < gapStart + gapWidth) continue;
       if (Math.random() < Math.min(0.85, fillRate + 0.15)) {
         cols.push(c);
       }
@@ -186,13 +192,12 @@ export default class Grid {
    * 形成左右夹击的走廊，球在里面来回弹
    */
   _generateCorridorRow() {
+    const reserved = this.reservedEmptyCol;
     const cols = [];
-    // 左侧1~2列
-    cols.push(0);
-    if (Math.random() < 0.6) cols.push(1);
-    // 右侧1~2列
-    cols.push(GRID_COLS - 1);
-    if (Math.random() < 0.6) cols.push(GRID_COLS - 2);
+    if (0 !== reserved) cols.push(0);
+    if (1 !== reserved && Math.random() < 0.6) cols.push(1);
+    if (GRID_COLS - 1 !== reserved) cols.push(GRID_COLS - 1);
+    if (GRID_COLS - 2 !== reserved && Math.random() < 0.6) cols.push(GRID_COLS - 2);
     return cols;
   }
 
