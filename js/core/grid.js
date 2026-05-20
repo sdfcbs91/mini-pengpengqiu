@@ -60,7 +60,7 @@ export default class Grid {
    */
   generateRow(stage, rowIndex = 0) {
     const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
-    const hp = Math.max(1, Math.round(stage * 1.5));
+    const hp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));
     const triangleRate = cfg.triangleRate;
     const pickupMin = cfg.pickupMin;
     const pickupMax = cfg.pickupMax;
