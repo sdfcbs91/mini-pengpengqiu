@@ -80,7 +80,8 @@ export default class LevelSelect {
     const availH = this.gridHeight - this.gridPadY * 2;
     this.cellGap = 8 * s;
     this.cellW = (availW - (LEVEL_GRID_COLS - 1) * this.cellGap) / LEVEL_GRID_COLS;
-    this.cellH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGap) / LEVEL_GRID_ROWS;
+    this.cellRowH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGap) / LEVEL_GRID_ROWS; // 行高（含间距用）
+    this.cellH = this.cellRowH * 0.8; // 格子实际高度（降低20%）
 
     // 网格起始位置
     this.gridStartX = this.gridPadX;
@@ -194,7 +195,7 @@ export default class LevelSelect {
         if (levelIdx >= TOTAL_LEVELS) continue;
 
         const cx = this.gridStartX + col * (this.cellW + this.cellGap);
-        const cy = this.gridStartY + row * (this.cellH + this.cellGap);
+        const cy = this.gridStartY + row * (this.cellRowH + this.cellGap) + (this.cellRowH - this.cellH) / 2;
 
         if (x >= cx && x <= cx + this.cellW && y >= cy && y <= cy + this.cellH) {
           const data = this.levelData[levelIdx];
@@ -348,7 +349,7 @@ export default class LevelSelect {
     const bx = this.gridStartX - borderPad;
     const by = this.gridStartY - borderPad;
     const bw = SCREEN_WIDTH - 2 * this.gridStartX + 2 * borderPad;
-    const bh = LEVEL_GRID_ROWS * (this.cellH + this.cellGap) - this.cellGap + 2 * borderPad;
+    const bh = LEVEL_GRID_ROWS * (this.cellRowH + this.cellGap) - this.cellGap + 2 * borderPad;
 
     // 外框发光（固定不随滑动）
     const glowIntensity = 0.5 + 0.3 * Math.sin(this.glowPhase);
@@ -393,7 +394,7 @@ export default class LevelSelect {
         if (levelIdx >= TOTAL_LEVELS || levelIdx < 0) continue;
 
         const cx = this.gridStartX + col * (this.cellW + this.cellGap) + offsetX;
-        const cy = this.gridStartY + row * (this.cellH + this.cellGap);
+        const cy = this.gridStartY + row * (this.cellRowH + this.cellGap) + (this.cellRowH - this.cellH) / 2;
 
         this._drawLevelCell(ctx, cx, cy, levelIdx, row, col);
       }
@@ -408,59 +409,38 @@ export default class LevelSelect {
     const h = this.cellH;
     const isSelected = this.selectedLevel === levelIdx;
 
-    // 颜色 - 按行对应不同颜色
-    const displayRow = LEVEL_GRID_ROWS - 1 - row; // 实际显示行
-    const colorIdx = displayRow % COLORS.levelColors.length;
-    const colorScheme = COLORS.levelColors[colorIdx];
-
     if (data.unlocked) {
-      // 已解锁关卡
-
-      // 背景填充
-      ctx.fillStyle = colorScheme.bg;
-      ctx.globalAlpha = 0.7;
+      // 已解锁关卡 — 统一淡蓝色
+      ctx.fillStyle = '#1a3050';
+      ctx.globalAlpha = 0.75;
       this._roundRect(ctx, x, y, w, h, 6 * s);
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // 发光边框
-      const cellGlow = isSelected ? 1.0 : (0.5 + 0.3 * Math.sin(this.glowPhase + levelIdx * 0.3));
-      ctx.strokeStyle = colorScheme.border;
-      ctx.lineWidth = isSelected ? 3 : 1.5;
-      ctx.shadowColor = colorScheme.border;
-      ctx.shadowBlur = (isSelected ? 15 : 8) * s * cellGlow;
+      // 边框
+      const cellGlow = isSelected ? 1.0 : (0.4 + 0.2 * Math.sin(this.glowPhase + levelIdx * 0.3));
+      ctx.strokeStyle = '#4499cc';
+      ctx.lineWidth = isSelected ? 2.5 : 1;
+      ctx.shadowColor = '#4499cc';
+      ctx.shadowBlur = (isSelected ? 12 : 4) * s * cellGlow;
       this._roundRect(ctx, x, y, w, h, 6 * s);
       ctx.stroke();
       ctx.shadowBlur = 0;
 
       // 关卡号
       ctx.fillStyle = COLORS.textWhite;
-      ctx.font = `bold ${18 * s}px Arial`;
+      ctx.font = `bold ${16 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 8 * s);
+      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 6 * s);
 
       // 星星
-      this._drawStars(ctx, x + w / 2, y + h - 16 * s, data.stars, 3, 7 * s);
+      this._drawStars(ctx, x + w / 2, y + h - 12 * s, data.stars, 3, 6 * s);
 
-      // 行间的箭头连接符（同一行内，非最后一列）
-      if (col < LEVEL_GRID_COLS - 1) {
-        const arrowX = x + w + this.cellGap / 2;
-        const arrowY = y + h / 2;
-        // 判断方向：奇数行从右到左，偶数行从左到右
-        const isReverse = displayRow % 2 === 1;
-        ctx.fillStyle = colorScheme.border;
-        ctx.globalAlpha = 0.6;
-        ctx.font = `${10 * s}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(isReverse ? '<' : '>', arrowX, arrowY);
-        ctx.globalAlpha = 1;
-      }
     } else {
       // 锁定关卡
       ctx.fillStyle = COLORS.lockedBg;
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.5;
       this._roundRect(ctx, x, y, w, h, 6 * s);
       ctx.fill();
       ctx.globalAlpha = 1;
@@ -470,15 +450,15 @@ export default class LevelSelect {
       this._roundRect(ctx, x, y, w, h, 6 * s);
       ctx.stroke();
 
-      // 锁图标
-      this._drawLock(ctx, x + w / 2, y + h / 2 - 4 * s, 12 * s);
-
-      // 关卡号（灰色）
+      // 关卡号（灰色）+ 未解锁文字
       ctx.fillStyle = COLORS.textGray;
-      ctx.font = `${11 * s}px Arial`;
+      ctx.font = `bold ${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(levelNum), x + w / 2, y + h - 14 * s);
+      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 6 * s);
+
+      ctx.font = `${8 * s}px Arial`;
+      ctx.fillText('未解锁', x + w / 2, y + h / 2 + 8 * s);
     }
   }
 
@@ -511,33 +491,6 @@ export default class LevelSelect {
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
-  }
-
-  _drawLock(ctx, cx, cy, size) {
-    const s = SCALE;
-    const lockW = size;
-    const lockH = size * 0.7;
-    const shackleH = size * 0.5;
-
-    // 锁身（红褐色矩形）
-    ctx.fillStyle = '#8b2020';
-    ctx.fillRect(cx - lockW / 2, cy, lockW, lockH);
-    ctx.strokeStyle = '#aa3333';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(cx - lockW / 2, cy, lockW, lockH);
-
-    // 锁扣（弧形）
-    ctx.strokeStyle = '#ccaa00';
-    ctx.lineWidth = 2.5 * s;
-    ctx.beginPath();
-    ctx.arc(cx, cy, shackleH * 0.5, Math.PI, 0);
-    ctx.stroke();
-
-    // 锁眼
-    ctx.fillStyle = '#ccaa00';
-    ctx.beginPath();
-    ctx.arc(cx, cy + lockH * 0.35, 2 * s, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   _drawNavBar(ctx) {
