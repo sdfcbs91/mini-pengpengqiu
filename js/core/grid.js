@@ -82,8 +82,8 @@ export default class Grid {
       cols = this._generateNormalRow(cfg.fillRate);
     }
 
-    // 确保至少2个砖块（不放在保留空列）
-    while (cols.length < 2) {
+    // 确保至少4个砖块（不放在保留空列）
+    while (cols.length < 4) {
       const c = Math.floor(Math.random() * GRID_COLS);
       if (c !== this.reservedEmptyCol && !cols.includes(c)) cols.push(c);
     }
