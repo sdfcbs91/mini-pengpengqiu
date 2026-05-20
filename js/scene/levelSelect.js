@@ -44,9 +44,9 @@ export default class LevelSelect {
 
     // 底部导航栏项
     this.navItems = [
-      { icon: '闯', label: '闯关', active: true },
-      { icon: '百', label: '150球' },
-      { icon: '设', label: '设置' },
+      { label: '闯关', active: true },
+      { label: '150球' },
+      { label: '设置' },
     ];
 
     // 绑定触摸事件
@@ -531,7 +531,7 @@ export default class LevelSelect {
         ctx.shadowColor = COLORS.navActive;
         ctx.shadowBlur = 4 * s;
       }
-      ctx.fillText(item.label, ix, y + this.navHeight / 2);
+      ctx.fillText(item.label, ix, y + this.navHeight * 0.4);
       ctx.shadowBlur = 0;
 
       // 激活指示条
