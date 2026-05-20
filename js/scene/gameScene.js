@@ -495,6 +495,10 @@ export default class GameScene {
     // 砖块下移
     const isOver = this.grid.shiftDown(LAUNCH_Y);
 
+    // 删除靠近发射线的横板（防止与白球起点重叠）
+    const safeZone = LAUNCH_Y - this.grid.rowHeight;
+    this.grid.planks = this.grid.planks.filter(p => p.targetY < safeZone);
+
     // 达到目标回合后不再生成新砖块，只继续推砖块下移
     if (!reachedTarget) {
       this.grid.generateRow(this.stage, 0);

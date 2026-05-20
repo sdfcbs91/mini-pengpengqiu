@@ -45,7 +45,7 @@ export default class LevelSelect {
     // 底部导航栏项
     this.navItems = [
       { icon: '闯', label: '闯关', active: true },
-      { icon: '百', label: '100球' },
+      { icon: '百', label: '150球' },
       { icon: '设', label: '设置' },
     ];
 
