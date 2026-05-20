@@ -9,7 +9,7 @@ export const BRICK_PADDING = 2;
 
 // 关卡选择页 - 网格布局
 export const LEVEL_GRID_COLS = 5;
-export const LEVEL_GRID_ROWS = 4;
+export const LEVEL_GRID_ROWS = 6;
 export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 
 // 屏幕适配比例

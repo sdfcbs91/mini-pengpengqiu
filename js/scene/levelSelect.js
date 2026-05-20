@@ -44,11 +44,9 @@ export default class LevelSelect {
 
     // 底部导航栏项
     this.navItems = [
-      { icon: 'SHOP', label: 'SHOP' },
-      { icon: 'BALL', label: 'BALL' },
-      { icon: 'CLASSIC', label: 'CLASSIC', active: true },
-      { icon: 'MULTI', label: 'MULTI' },
-      { icon: '100', label: '100BALLS' },
+      { icon: '闯', label: '闯关', active: true },
+      { icon: '百', label: '100球' },
+      { icon: '设', label: '设置' },
     ];
 
     // 绑定触摸事件
@@ -78,10 +76,11 @@ export default class LevelSelect {
     // 单元格尺寸
     const availW = SCREEN_WIDTH - this.gridPadX * 2;
     const availH = this.gridHeight - this.gridPadY * 2;
-    this.cellGap = 8 * s;
-    this.cellW = (availW - (LEVEL_GRID_COLS - 1) * this.cellGap) / LEVEL_GRID_COLS;
-    this.cellRowH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGap) / LEVEL_GRID_ROWS; // 行高（含间距用）
-    this.cellH = this.cellRowH * 0.8; // 格子实际高度（降低20%）
+    this.cellGapX = 8;        // 左右间距8px
+    this.cellGapY = 2;        // 上下间距2px
+    this.cellW = (availW - (LEVEL_GRID_COLS - 1) * this.cellGapX) / LEVEL_GRID_COLS;
+    this.cellRowH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGapY) / LEVEL_GRID_ROWS;
+    this.cellH = this.cellRowH * 0.85; // 格子占行高的85%
 
     // 网格起始位置
     this.gridStartX = this.gridPadX;
@@ -194,8 +193,8 @@ export default class LevelSelect {
         const levelIdx = startIdx + (LEVEL_GRID_ROWS - 1 - row) * LEVEL_GRID_COLS + col;
         if (levelIdx >= TOTAL_LEVELS) continue;
 
-        const cx = this.gridStartX + col * (this.cellW + this.cellGap);
-        const cy = this.gridStartY + row * (this.cellRowH + this.cellGap) + (this.cellRowH - this.cellH) / 2;
+        const cx = this.gridStartX + col * (this.cellW + this.cellGapX);
+        const cy = this.gridStartY + row * (this.cellRowH + this.cellGapY) + (this.cellRowH - this.cellH) / 2;
 
         if (x >= cx && x <= cx + this.cellW && y >= cy && y <= cy + this.cellH) {
           const data = this.levelData[levelIdx];
@@ -313,33 +312,33 @@ export default class LevelSelect {
 
   _drawPageIndicator(ctx) {
     const s = SCALE;
-    const y = this.gridTop - 8 * s;
+    const y = this.gridTop - 10 * s;
     const centerX = SCREEN_WIDTH / 2;
-    const dotR = 3 * s;
-    const dotGap = 12 * s;
 
-    // 只显示附近几页的点
-    const maxDots = 7;
-    const half = Math.floor(maxDots / 2);
-    let startPage = Math.max(0, this.currentPage - half);
-    let endPage = Math.min(this.totalPages - 1, startPage + maxDots - 1);
-    startPage = Math.max(0, endPage - maxDots + 1);
+    // 左箭头 <
+    const arrowPad = 60 * s;
+    if (this.currentPage > 0) {
+      ctx.fillStyle = '#4499cc';
+      ctx.font = `bold ${16 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('<', centerX - arrowPad, y);
+    }
 
-    const dotsCount = endPage - startPage + 1;
-    let dx = centerX - (dotsCount - 1) * dotGap / 2;
+    // 页码 "3 / 8"
+    ctx.fillStyle = COLORS.textWhite;
+    ctx.font = `${12 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`当前:${this.currentPage + 1}`, centerX, y);
 
-    for (let i = startPage; i <= endPage; i++) {
-      const isCurrent = i === this.currentPage;
-      ctx.fillStyle = isCurrent ? COLORS.neonCyan : '#333355';
-      if (isCurrent) {
-        ctx.shadowColor = COLORS.neonCyan;
-        ctx.shadowBlur = 6 * s;
-      }
-      ctx.beginPath();
-      ctx.arc(dx, y, isCurrent ? dotR * 1.3 : dotR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      dx += dotGap;
+    // 右箭头 >
+    if (this.currentPage < this.totalPages - 1) {
+      ctx.fillStyle = '#4499cc';
+      ctx.font = `bold ${16 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('>', centerX + arrowPad, y);
     }
   }
 
@@ -349,7 +348,7 @@ export default class LevelSelect {
     const bx = this.gridStartX - borderPad;
     const by = this.gridStartY - borderPad;
     const bw = SCREEN_WIDTH - 2 * this.gridStartX + 2 * borderPad;
-    const bh = LEVEL_GRID_ROWS * (this.cellRowH + this.cellGap) - this.cellGap + 2 * borderPad;
+    const bh = LEVEL_GRID_ROWS * (this.cellRowH + this.cellGapY) - this.cellGapY + 2 * borderPad;
 
     // 外框发光（固定不随滑动）
     const glowIntensity = 0.5 + 0.3 * Math.sin(this.glowPhase);
@@ -393,15 +392,15 @@ export default class LevelSelect {
         const levelIdx = startIdx + (LEVEL_GRID_ROWS - 1 - row) * LEVEL_GRID_COLS + col;
         if (levelIdx >= TOTAL_LEVELS || levelIdx < 0) continue;
 
-        const cx = this.gridStartX + col * (this.cellW + this.cellGap) + offsetX;
-        const cy = this.gridStartY + row * (this.cellRowH + this.cellGap) + (this.cellRowH - this.cellH) / 2;
+        const cx = this.gridStartX + col * (this.cellW + this.cellGapX) + offsetX;
+        const cy = this.gridStartY + row * (this.cellRowH + this.cellGapY) + (this.cellRowH - this.cellH) / 2;
 
-        this._drawLevelCell(ctx, cx, cy, levelIdx, row, col);
+        this._drawLevelCell(ctx, cx, cy, levelIdx);
       }
     }
   }
 
-  _drawLevelCell(ctx, x, y, levelIdx, row, col) {
+  _drawLevelCell(ctx, x, y, levelIdx) {
     const s = SCALE;
     const data = this.levelData[levelIdx];
     const levelNum = levelIdx + 1;
@@ -516,40 +515,31 @@ export default class LevelSelect {
 
     // 导航项
     const itemW = SCREEN_WIDTH / this.navItems.length;
-    const iconSize = 22 * s;
-    const iconY = y + 12 * s;
-    const labelY = y + this.navHeight - 12 * s;
 
     this.navItems.forEach((item, i) => {
       const ix = itemW * i + itemW / 2;
       const isActive = item.active;
 
-      // 图标占位（简化为圆形+文字）
-      ctx.strokeStyle = isActive ? COLORS.navActive : COLORS.navInactive;
       ctx.fillStyle = isActive ? COLORS.navActive : COLORS.navInactive;
-      ctx.lineWidth = 1.5;
+
+      // 标签文字
+      ctx.font = `bold ${13 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
 
       if (isActive) {
         ctx.shadowColor = COLORS.navActive;
-        ctx.shadowBlur = 6 * s;
+        ctx.shadowBlur = 4 * s;
       }
-
-      // 图标（简化圆圈）
-      ctx.beginPath();
-      ctx.arc(ix, iconY + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillText(item.label, ix, y + this.navHeight / 2);
       ctx.shadowBlur = 0;
 
-      // 图标中文字
-      ctx.font = `bold ${8 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(item.icon.substring(0, 2), ix, iconY + iconSize / 2);
+      // 激活指示条
+      if (isActive) {
+        ctx.fillStyle = COLORS.navActive;
+        ctx.fillRect(ix - 20 * s, y + 2, 40 * s, 2.5 * s);
+      }
 
-      // 标签
-      ctx.font = `${8 * s}px Arial`;
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(item.label, ix, labelY);
     });
   }
 
