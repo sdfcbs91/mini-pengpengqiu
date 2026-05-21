@@ -50,17 +50,27 @@ export default class Ball {
   }
 
   /**
-   * 记录碰撞对象，检测循环弹跳
-   * 如果最近6次碰撞中同一对象出现>=3次，判定为循环
+   * 记录碰撞对象，检测死循环弹跳
+   * 只记录非砖块对象（横板、白洞等），砖块碰撞会改变局面不算死循环
+   * 最近6次非砖块碰撞中同一对象出现>=3次，判定为死循环
    */
   recordBounce(obstacle) {
+    // 砖块碰撞不记录（砖块有isAlive属性且可被消除，不会导致死循环）
+    if (obstacle.isAlive !== undefined) return;
+
+    // 同一对象连续记录则跳过（防止单帧内重复计数）
+    if (this.bounceHistory.length > 0 &&
+        this.bounceHistory[this.bounceHistory.length - 1] === obstacle) {
+      return;
+    }
+
     this.bounceHistory.push(obstacle);
     if (this.bounceHistory.length > 6) {
       this.bounceHistory.shift();
     }
 
-    // 检测：最近6次中是否有对象出现3次以上
-    if (this.bounceHistory.length >= 6) {
+    // 检测：最近6次中是否有非砖块对象出现3次以上
+    if (this.bounceHistory.length >= 3) {
       const countMap = new Map();
       for (const obj of this.bounceHistory) {
         countMap.set(obj, (countMap.get(obj) || 0) + 1);
