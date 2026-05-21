@@ -13,6 +13,11 @@ export default class Warp {
     this.radius = 12 * SCALE;
     this.active = true;
     this.phase = Math.random() * Math.PI * 2;
+
+    // 缓存的传送目标位置（每轮只计算一次）
+    this.cachedDestX = -1;
+    this.cachedDestY = -1;
+    this.cachedAngle = 0;
   }
 
   init(x, y) {
@@ -21,6 +26,25 @@ export default class Warp {
     this.targetY = y;
     this.active = true;
     this.phase = Math.random() * Math.PI * 2;
+    this.cachedDestX = -1;
+    this.cachedDestY = -1;
+    this.cachedAngle = 0;
+  }
+
+  /**
+   * 每轮结算后清除缓存，下一轮重新计算传送目标
+   */
+  resetCache() {
+    this.cachedDestX = -1;
+    this.cachedDestY = -1;
+    this.cachedAngle = 0;
+  }
+
+  /**
+   * 是否已有缓存的目标位置
+   */
+  hasCachedDest() {
+    return this.cachedDestX >= 0;
   }
 
   moveDown(amount) {

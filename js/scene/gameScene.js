@@ -390,14 +390,23 @@ export default class GameScene {
         }
       }
 
-      // 5.5 白洞碰撞（碰到后传送到随机位置，白洞不消失）
+      // 5.5 白洞碰撞（碰到后传送到缓存位置，白洞不消失）
       if (ball.active) {
         for (const warp of this.grid.warps) {
           if (!warp.active) continue;
           const dx = ball.x - warp.x;
           const dy = ball.y - warp.y;
           if (dx * dx + dy * dy < (ball.radius + warp.radius) * (ball.radius + warp.radius)) {
-            this._warpBall(ball);
+            // 第一次碰到时计算并缓存目标位置
+            if (!warp.hasCachedDest()) {
+              this._calcWarpDest(warp);
+            }
+            // 传送到缓存位置
+            ball.x = warp.cachedDestX;
+            ball.y = warp.cachedDestY;
+            ball.vx = Math.cos(warp.cachedAngle) * Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            ball.vy = Math.sin(warp.cachedAngle) * Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+            this._warpEffect = { x: warp.x, y: warp.y, timer: 30 };
             break;
           }
         }
@@ -471,6 +480,44 @@ export default class GameScene {
   }
 
   /**
+   * 为白洞计算并缓存传送目标位置（每轮只算一次）
+   */
+  _calcWarpDest(warp) {
+    const left = GAME_AREA_LEFT;
+    const right = GAME_AREA_RIGHT;
+    const top = GAME_AREA_TOP;
+    const bottom = LAUNCH_Y;
+    const r = 8; // 球半径近似
+
+    const allObstacles = [...this.grid.bricks.filter(b => b.isAlive), ...this.grid.planks];
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const nx = left + r + Math.random() * (right - left - r * 2);
+      const ny = top + r + Math.random() * (bottom - top - r * 2) * 0.6;
+
+      let blocked = false;
+      for (const ob of allObstacles) {
+        if (nx + r > ob.x && nx - r < ob.x + ob.width &&
+            ny + r > ob.y && ny - r < ob.y + ob.height) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) {
+        warp.cachedDestX = nx;
+        warp.cachedDestY = ny;
+        warp.cachedAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+        return;
+      }
+    }
+
+    // 兜底：传送到游戏区域中间偏上
+    warp.cachedDestX = (left + right) / 2;
+    warp.cachedDestY = top + (bottom - top) * 0.3;
+    warp.cachedAngle = -Math.PI / 2;
+  }
+
+  /**
    * 检测球的前进路径上是否有砖块
    */
   _hasBrickInPath(ball, bricks) {
@@ -522,6 +569,9 @@ export default class GameScene {
   _settle() {
     // 结算：清理已消除砖块和已收集道具
     this.grid.cleanup();
+
+    // 白洞缓存重置（下一轮重新计算传送位置）
+    this.grid.warps.forEach(w => { if (w.active) w.resetCache(); });
 
     // 清理超出底线的未收集道具
     this.grid.pickups = this.grid.pickups.filter(p => {
