@@ -7,7 +7,7 @@ import {
 import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
-import { moveBallWithCollision, ballPickupCollision } from '../core/collision';
+import { moveBallWithCollision } from '../core/collision';
 import Warp from '../core/warp';
 import { getLevelConfig } from '../data/levelData';
 
@@ -380,24 +380,28 @@ export default class GameScene {
         }
       }
 
-      // 5. 道具碰撞（一步内可收集多个）
+      // 5. 道具碰撞（一步内可收集多个，碰撞半径加容差让擦边也能触发）
       if (ball.active) {
         for (const pickup of this.grid.pickups) {
           if (pickup.collected) continue;
-          if (ballPickupCollision(ball, pickup)) {
+          const pdx = ball.x - pickup.x;
+          const pdy = ball.y - pickup.y;
+          const pickupHitR = ball.radius + pickup.radius + 4 * SCALE;
+          if (pdx * pdx + pdy * pdy < pickupHitR * pickupHitR) {
             pickup.collect();
             this.nextBallCount++;
           }
         }
       }
 
-      // 5.5 白洞碰撞（碰到后传送到缓存位置，白洞不消失）
+      // 5.5 白洞碰撞（碰到后传送到缓存位置，白洞不消失，碰撞半径加容差）
       if (ball.active) {
         for (const warp of this.grid.warps) {
           if (!warp.active) continue;
           const dx = ball.x - warp.x;
           const dy = ball.y - warp.y;
-          if (dx * dx + dy * dy < (ball.radius + warp.radius) * (ball.radius + warp.radius)) {
+          const warpHitR = ball.radius + warp.radius + 4 * SCALE;
+          if (dx * dx + dy * dy < warpHitR * warpHitR) {
             // 记录白洞碰撞用于循环检测
             ball.recordBounce(warp);
             // 第一次碰到时计算并缓存目标位置
