@@ -93,5 +93,65 @@ export default class Warp {
     ctx.beginPath();
     ctx.arc(this.x, this.y, 2 * s, 0, Math.PI * 2);
     ctx.fill();
+
+    // 渲染缓存的穿越目标位置标记
+    if (this.hasCachedDest()) {
+      this._renderDestMarker(ctx, s);
+    }
+  }
+
+  /**
+   * 渲染穿越目标位置标记 —— 脉动双圈 + 十字星 + 连线
+   */
+  _renderDestMarker(ctx, s) {
+    const dx = this.cachedDestX;
+    const dy = this.cachedDestY;
+    const pulse = 0.6 + 0.4 * Math.sin(this.phase * 1.5);
+    const r = this.radius;
+
+    // 从白洞到目标的虚线连线
+    ctx.strokeStyle = 'rgba(200,220,255,0.15)';
+    ctx.lineWidth = 1 * s;
+    ctx.setLineDash([4 * s, 4 * s]);
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+    ctx.lineTo(dx, dy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 外圈发光
+    ctx.shadowColor = 'rgba(150,200,255,0.9)';
+    ctx.shadowBlur = 12 * s * pulse;
+    ctx.strokeStyle = `rgba(200,220,255,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath();
+    ctx.arc(dx, dy, r * (0.8 + 0.2 * pulse), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 内圈脉动
+    const innerR2 = r * (0.35 + 0.2 * Math.sin(this.phase * 2.5));
+    ctx.strokeStyle = `rgba(180,210,255,${0.4 + 0.3 * pulse})`;
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.arc(dx, dy, innerR2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 十字星标记
+    const crossLen = 5 * s * pulse;
+    ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(dx - crossLen, dy);
+    ctx.lineTo(dx + crossLen, dy);
+    ctx.moveTo(dx, dy - crossLen);
+    ctx.lineTo(dx, dy + crossLen);
+    ctx.stroke();
+
+    // 中心亮点
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.4 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 2.5 * s, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

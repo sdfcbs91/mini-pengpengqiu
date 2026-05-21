@@ -28,6 +28,7 @@ export default class Ball {
     this.bounceHistory = [];     // 最近碰撞对象记录
     this.loopCount = 0;          // 检测到的循环次数
     this.needWarp = false;       // 是否需要穿越
+    this.loopObject = null;      // 导致循环的对象引用
   }
 
   init(x, y, angle) {
@@ -45,27 +46,29 @@ export default class Ball {
     this.bounceHistory = [];
     this.loopCount = 0;
     this.needWarp = false;
+    this.loopObject = null;
   }
 
   /**
    * 记录碰撞对象，检测循环弹跳
-   * 如果最近10次碰撞中同一对象出现>=5次，判定为循环
+   * 如果最近6次碰撞中同一对象出现>=3次，判定为循环
    */
   recordBounce(obstacle) {
     this.bounceHistory.push(obstacle);
-    if (this.bounceHistory.length > 10) {
+    if (this.bounceHistory.length > 6) {
       this.bounceHistory.shift();
     }
 
-    // 检测：最近10次中是否有对象出现5次以上
-    if (this.bounceHistory.length >= 10) {
+    // 检测：最近6次中是否有对象出现3次以上
+    if (this.bounceHistory.length >= 6) {
       const countMap = new Map();
       for (const obj of this.bounceHistory) {
         countMap.set(obj, (countMap.get(obj) || 0) + 1);
       }
-      for (const count of countMap.values()) {
-        if (count >= 5) {
+      for (const [obj, count] of countMap.entries()) {
+        if (count >= 3) {
           this.needWarp = true;
+          this.loopObject = obj;
           return;
         }
       }

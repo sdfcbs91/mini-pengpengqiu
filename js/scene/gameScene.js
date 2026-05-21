@@ -8,6 +8,7 @@ import Grid from '../core/grid';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
 import { moveBallWithCollision, ballPickupCollision } from '../core/collision';
+import Warp from '../core/warp';
 import { getLevelConfig } from '../data/levelData';
 
 /**
@@ -397,16 +398,19 @@ export default class GameScene {
           const dx = ball.x - warp.x;
           const dy = ball.y - warp.y;
           if (dx * dx + dy * dy < (ball.radius + warp.radius) * (ball.radius + warp.radius)) {
+            // 记录白洞碰撞用于循环检测
+            ball.recordBounce(warp);
             // 第一次碰到时计算并缓存目标位置
             if (!warp.hasCachedDest()) {
               this._calcWarpDest(warp);
             }
             // 传送到缓存位置
+            const spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
             ball.x = warp.cachedDestX;
             ball.y = warp.cachedDestY;
-            ball.vx = Math.cos(warp.cachedAngle) * Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-            ball.vy = Math.sin(warp.cachedAngle) * Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-            this._warpEffect = { x: warp.x, y: warp.y, timer: 30 };
+            ball.vx = Math.cos(warp.cachedAngle) * spd;
+            ball.vy = Math.sin(warp.cachedAngle) * spd;
+            this._warpEffect = { x: warp.x, y: warp.y, dx: warp.cachedDestX, dy: warp.cachedDestY, timer: 30 };
             break;
           }
         }
@@ -426,11 +430,29 @@ export default class GameScene {
           }
         }
       }
-      // 7. 循环弹跳穿越：检测到重复路径时传送到随机空位
+      // 7. 循环弹跳穿越：检测到重复路径时打破循环
       if (ball.active && ball.needWarp) {
         ball.needWarp = false;
+        const loopObj = ball.loopObject;
+        ball.loopObject = null;
         ball.bounceHistory = [];
-        this._warpBall(ball);
+
+        if (loopObj instanceof Warp) {
+          // 循环路径包含白洞：重新随机目标位置，传送到新位置
+          loopObj.resetCache();
+          this._calcWarpDest(loopObj);
+          const spd2 = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          ball.x = loopObj.cachedDestX;
+          ball.y = loopObj.cachedDestY;
+          ball.vx = Math.cos(loopObj.cachedAngle) * spd2;
+          ball.vy = Math.sin(loopObj.cachedAngle) * spd2;
+          this._warpEffect = { x: loopObj.x, y: loopObj.y, dx: loopObj.cachedDestX, dy: loopObj.cachedDestY, timer: 30 };
+        } else {
+          // 循环路径不含白洞：生成临时白洞效果，传送到随机空位
+          const fromX = ball.x, fromY = ball.y;
+          this._warpBall(ball);
+          this._warpEffect = { x: fromX, y: fromY, dx: ball.x, dy: ball.y, timer: 30 };
+        }
       }
     });
   }
@@ -444,9 +466,6 @@ export default class GameScene {
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
     const r = ball.radius;
-
-    // 记录传送前位置（用于渲染传送效果）
-    this._warpEffect = { x: ball.x, y: ball.y, timer: 30 };
 
     // 随机找一个不在砖块内的位置
     const allObstacles = [...this.grid.bricks.filter(b => b.isAlive), ...this.grid.planks];
@@ -701,28 +720,66 @@ export default class GameScene {
   }
 
   /**
-   * 渲染穿越白洞特效（空心圆环逐渐缩小消失）
+   * 渲染穿越白洞特效 — 出发点缩小消失 + 目标点扩散出现
    */
   _renderWarpEffect(ctx) {
     const e = this._warpEffect;
     e.timer--;
-    const progress = e.timer / 30;
+    const progress = e.timer / 30; // 1→0
     const s = SCALE;
-    const r = 15 * s * progress;
 
+    // === 出发点：圆环缩小消失 ===
+    const rOut = 15 * s * progress;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2 * s;
     ctx.globalAlpha = progress * 0.8;
-
-    // 外圈
     ctx.beginPath();
-    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+    ctx.arc(e.x, e.y, rOut, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, rOut * 0.5, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 内圈
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, r * 0.5, 0, Math.PI * 2);
-    ctx.stroke();
+    // === 目标点：圆环从小扩散 + 闪烁出现 ===
+    if (e.dx != null && e.dy != null) {
+      const appear = 1 - progress; // 0→1
+      const rDest = 18 * s * appear;
+      const flash = 0.6 + 0.4 * Math.sin(appear * Math.PI * 4);
+
+      // 扩散外圈（蓝白发光）
+      ctx.shadowColor = 'rgba(150,200,255,0.9)';
+      ctx.shadowBlur = 14 * s * appear;
+      ctx.strokeStyle = `rgba(200,220,255,${0.9 * flash * (appear > 0.1 ? 1 : appear * 10)})`;
+      ctx.lineWidth = 2.5 * s;
+      ctx.beginPath();
+      ctx.arc(e.dx, e.dy, rDest, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 扩散内圈
+      ctx.strokeStyle = `rgba(180,210,255,${0.7 * flash * appear})`;
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.arc(e.dx, e.dy, rDest * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 十字标记
+      const crossLen = 6 * s * appear;
+      ctx.strokeStyle = `rgba(255,255,255,${0.8 * flash * appear})`;
+      ctx.lineWidth = 1.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(e.dx - crossLen, e.dy);
+      ctx.lineTo(e.dx + crossLen, e.dy);
+      ctx.moveTo(e.dx, e.dy - crossLen);
+      ctx.lineTo(e.dx, e.dy + crossLen);
+      ctx.stroke();
+
+      // 中心亮点
+      ctx.fillStyle = `rgba(255,255,255,${0.9 * appear})`;
+      ctx.beginPath();
+      ctx.arc(e.dx, e.dy, 3 * s * appear, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.globalAlpha = 1;
   }
