@@ -132,6 +132,7 @@ export default class Grid {
 
     // 横板生成（第5关起，随机在空列中放置）
     const plankRate = cfg.plankRate || 0;
+    const plankCols = []; // 记录放了横板的列
     if (plankRate > 0 && emptyCols.length > pickupCount) {
       const remainCols = shuffled.slice(pickupCount);
       for (const col of remainCols) {
@@ -139,16 +140,23 @@ export default class Grid {
           const plank = new Plank();
           plank.init(rowIndex, col, this.getColX(col), this.getRowY(rowIndex));
           this.planks.push(plank);
+          plankCols.push(col);
           break; // 每行最多1个横板
         }
       }
     }
 
     // 空心白洞生成（第18关起，概率约每关1~2个）
+    // 不能与砖块、加球器、横板在同一格
     const warpRate = cfg.warpRate || 0;
     if (warpRate > 0 && Math.random() < warpRate) {
-      // 在空列中找一个位置放白洞
-      const warpCols = emptyCols.filter(c => !cols.includes(c));
+      const usedCols = new Set(cols); // 砖块列
+      for (let i = 0; i < pickupCount; i++) usedCols.add(shuffled[i]); // 加球器列
+      for (const pc of plankCols) usedCols.add(pc); // 横板列
+      const warpCols = [];
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (!usedCols.has(c)) warpCols.push(c);
+      }
       if (warpCols.length > 0) {
         const wCol = warpCols[Math.floor(Math.random() * warpCols.length)];
         const warp = new Warp();
