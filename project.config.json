@@ -54,5 +54,7 @@
     "include": []
   },
   "isGameTourist": false,
-  "editorSetting": {}
+  "editorSetting": {},
+  "cloudfunctionTemplateRoot": "cloudfunctions/",
+  "cloudfunctionRoot": "js/cloudfunctions"
 }
