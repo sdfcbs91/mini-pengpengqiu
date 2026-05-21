@@ -23,6 +23,11 @@ export default class Ball {
     this.slideDone = false;
     this.slideTargetX = 0;
     this.slideSpeed = 0;
+
+    // 循环弹跳检测
+    this.bounceHistory = [];     // 最近碰撞对象记录
+    this.loopCount = 0;          // 检测到的循环次数
+    this.needWarp = false;       // 是否需要穿越
   }
 
   init(x, y, angle) {
@@ -37,6 +42,34 @@ export default class Ball {
     this.landX = x;
     this.sliding = false;
     this.slideDone = false;
+    this.bounceHistory = [];
+    this.loopCount = 0;
+    this.needWarp = false;
+  }
+
+  /**
+   * 记录碰撞对象，检测循环弹跳
+   * 如果最近10次碰撞中同一对象出现>=5次，判定为循环
+   */
+  recordBounce(obstacle) {
+    this.bounceHistory.push(obstacle);
+    if (this.bounceHistory.length > 10) {
+      this.bounceHistory.shift();
+    }
+
+    // 检测：最近10次中是否有对象出现5次以上
+    if (this.bounceHistory.length >= 10) {
+      const countMap = new Map();
+      for (const obj of this.bounceHistory) {
+        countMap.set(obj, (countMap.get(obj) || 0) + 1);
+      }
+      for (const count of countMap.values()) {
+        if (count >= 5) {
+          this.needWarp = true;
+          return;
+        }
+      }
+    }
   }
 
   /**

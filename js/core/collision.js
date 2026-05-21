@@ -95,6 +95,11 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
       hitBricks.push(earliest.brick);
     }
 
+    // 记录碰撞用于循环弹跳检测
+    if (ball.recordBounce) {
+      ball.recordBounce(earliest.brick);
+    }
+
     lastHitBrick = earliest.brick;
 
     // 计算剩余移动量

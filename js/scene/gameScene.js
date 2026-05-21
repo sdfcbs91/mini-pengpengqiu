@@ -390,6 +390,19 @@ export default class GameScene {
         }
       }
 
+      // 5.5 白洞碰撞（碰到后传送到随机位置，白洞不消失）
+      if (ball.active) {
+        for (const warp of this.grid.warps) {
+          if (!warp.active) continue;
+          const dx = ball.x - warp.x;
+          const dy = ball.y - warp.y;
+          if (dx * dx + dy * dy < (ball.radius + warp.radius) * (ball.radius + warp.radius)) {
+            this._warpBall(ball);
+            break;
+          }
+        }
+      }
+
       // 6. 防水平弹跳
       if (ball.active) {
         const spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
@@ -404,12 +417,61 @@ export default class GameScene {
           }
         }
       }
+      // 7. 循环弹跳穿越：检测到重复路径时传送到随机空位
+      if (ball.active && ball.needWarp) {
+        ball.needWarp = false;
+        ball.bounceHistory = [];
+        this._warpBall(ball);
+      }
     });
   }
 
   /**
+   * 将球传送到随机空位（空心白洞穿越效果）
+   */
+  _warpBall(ball) {
+    const left = GAME_AREA_LEFT;
+    const right = GAME_AREA_RIGHT;
+    const top = GAME_AREA_TOP;
+    const bottom = LAUNCH_Y;
+    const r = ball.radius;
+
+    // 记录传送前位置（用于渲染传送效果）
+    this._warpEffect = { x: ball.x, y: ball.y, timer: 30 };
+
+    // 随机找一个不在砖块内的位置
+    const allObstacles = [...this.grid.bricks.filter(b => b.isAlive), ...this.grid.planks];
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const nx = left + r + Math.random() * (right - left - r * 2);
+      const ny = top + r + Math.random() * (bottom - top - r * 2) * 0.6; // 偏上半区
+
+      // 检查是否与任何障碍物重叠
+      let blocked = false;
+      for (const ob of allObstacles) {
+        if (nx + r > ob.x && nx - r < ob.x + ob.width &&
+            ny + r > ob.y && ny - r < ob.y + ob.height) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) {
+        ball.x = nx;
+        ball.y = ny;
+        // 给一个随机向下的角度
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+        const spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+        ball.vx = Math.cos(angle) * spd;
+        ball.vy = Math.sin(angle) * spd;
+        return;
+      }
+    }
+
+    // 找不到空位就强制往下弹
+    ball.vy = Math.abs(ball.vy);
+  }
+
+  /**
    * 检测球的前进路径上是否有砖块
-   * 用扫描方式检测：沿当前速度方向延伸，看是否会碰到任何活跃砖块
    */
   _hasBrickInPath(ball, bricks) {
     const r = ball.radius;
@@ -549,6 +611,11 @@ export default class GameScene {
     // 球
     this.launcher.renderBalls(ctx);
 
+    // 穿越白洞特效
+    if (this._warpEffect && this._warpEffect.timer > 0) {
+      this._renderWarpEffect(ctx);
+    }
+
     // 发射点（瞄准线等）
     this.launcher.render(ctx, this.gameState, this.grid.bricks);
 
@@ -581,6 +648,33 @@ export default class GameScene {
     if (this.gameState === 'win') {
       this._renderWinOverlay(ctx);
     }
+  }
+
+  /**
+   * 渲染穿越白洞特效（空心圆环逐渐缩小消失）
+   */
+  _renderWarpEffect(ctx) {
+    const e = this._warpEffect;
+    e.timer--;
+    const progress = e.timer / 30;
+    const s = SCALE;
+    const r = 15 * s * progress;
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2 * s;
+    ctx.globalAlpha = progress * 0.8;
+
+    // 外圈
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 内圈
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r * 0.5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
   }
 
   _renderSpeedTip(ctx) {
