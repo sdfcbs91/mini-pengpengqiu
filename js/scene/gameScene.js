@@ -21,6 +21,9 @@ export default class GameScene {
     this.launcher = new Launcher();
     this.hud = new HUD();
 
+    // 墙壁碰撞标记（用于死循环检测，统一为一个对象）
+    this._wall = { isWall: true };
+
     // 游戏数据
     this.stage = 1;
     this.score = 0;
@@ -365,9 +368,9 @@ export default class GameScene {
 
       // 3. 墙壁反弹（扫描碰撞后球可能到了墙壁外）
       const r = ball.radius;
-      if (ball.x - r <= left) { ball.x = left + r; ball.vx = Math.abs(ball.vx); }
-      if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); }
-      if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); }
+      if (ball.x - r <= left) { ball.x = left + r; ball.vx = Math.abs(ball.vx); ball.recordBounce(this._wall); }
+      if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); ball.recordBounce(this._wall); }
+      if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); ball.recordBounce(this._wall); }
 
       // 4. 底部落地
       if (ball.vy > 0 && ball.y + r >= bottom) {
