@@ -50,40 +50,60 @@ export default class Ball {
   }
 
   /**
-   * 记录碰撞对象，检测死循环弹跳
-   * 只记录非砖块对象（横板、白洞等），砖块碰撞会清空历史（局面已改变）
-   * 最近6次非砖块碰撞中同一对象出现>=3次，判定为死循环
+   * 记录碰撞，检测死循环弹跳
+   * 用球的碰撞坐标（取整）作为路径标识，精确判断路径是否重复
+   * 碰到砖块时清空历史（局面已改变）
+   * 检测：坐标序列中存在长度1~4的子模式连续重复3次
    */
   recordBounce(obstacle) {
-    // 砖块碰撞：清空历史记录（碰到砖块说明局面改变，之前的路径不再有效）
+    // 砖块碰撞：清空历史记录（碰到砖块说明局面改变）
     if (obstacle.isAlive !== undefined && !obstacle.isPlank) {
       this.bounceHistory = [];
       return;
     }
 
-    // 同一对象连续记录则跳过（防止单帧内重复计数）
+    // 用球当前坐标取整作为碰撞点标识
+    const key = (Math.round(this.x) << 16) | (Math.round(this.y) & 0xFFFF);
+
+    // 同一坐标连续记录则跳过（防止单帧内重复计数）
     if (this.bounceHistory.length > 0 &&
-        this.bounceHistory[this.bounceHistory.length - 1] === obstacle) {
+        this.bounceHistory[this.bounceHistory.length - 1].key === key) {
       return;
     }
 
-    this.bounceHistory.push(obstacle);
-    if (this.bounceHistory.length > 6) {
+    this.bounceHistory.push({ key, obj: obstacle });
+    // 保留最多12条记录（最长模式4 × 重复3次 = 12）
+    if (this.bounceHistory.length > 12) {
       this.bounceHistory.shift();
     }
 
-    // 检测：最近6次中是否有非砖块对象出现3次以上
-    if (this.bounceHistory.length >= 3) {
-      const countMap = new Map();
-      for (const obj of this.bounceHistory) {
-        countMap.set(obj, (countMap.get(obj) || 0) + 1);
-      }
-      for (const [obj, count] of countMap.entries()) {
-        if (count >= 3) {
-          this.needWarp = true;
-          this.loopObject = obj;
-          return;
+    // 检测重复路径：从历史末尾检查是否存在长度1~4的坐标模式重复了3次
+    const h = this.bounceHistory;
+    const len = h.length;
+    for (let patLen = 1; patLen <= 4 && patLen * 3 <= len; patLen++) {
+      const start = len - patLen * 3;
+      let isLoop = true;
+      for (let rep = 1; rep < 3 && isLoop; rep++) {
+        for (let i = 0; i < patLen; i++) {
+          if (h[start + i].key !== h[start + rep * patLen + i].key) {
+            isLoop = false;
+            break;
+          }
         }
+      }
+      if (isLoop) {
+        this.needWarp = true;
+        // loopObject 取模式中最关键的对象（优先取非墙壁的）
+        this.loopObject = null;
+        for (let i = 0; i < patLen; i++) {
+          const obj = h[start + i].obj;
+          if (!obj.isWall) {
+            this.loopObject = obj;
+            break;
+          }
+        }
+        if (!this.loopObject) this.loopObject = h[start].obj;
+        return;
       }
     }
   }
