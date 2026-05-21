@@ -879,8 +879,11 @@ export default class GameScene {
     // 继续按钮
     this._drawButton(ctx, centerX, centerY, 120 * s, 40 * s, 'CONTINUE', COLORS.neonCyan);
 
+    // 重试按钮
+    this._drawButton(ctx, centerX, centerY + 60 * s, 120 * s, 40 * s, 'RETRY', COLORS.neonYellow);
+
     // 返回菜单按钮
-    this._drawButton(ctx, centerX, centerY + 60 * s, 120 * s, 40 * s, 'MENU', COLORS.neonRed);
+    this._drawButton(ctx, centerX, centerY + 120 * s, 120 * s, 40 * s, 'MENU', COLORS.neonRed);
   }
 
   _renderGameOverOverlay(ctx) {
@@ -1033,8 +1036,16 @@ export default class GameScene {
       return;
     }
 
+    // 重试按钮
+    const retryY = centerY + 60 * s;
+    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+      this.initLevel(this.initialLevel);
+      return;
+    }
+
     // 返回菜单按钮
-    const menuY = centerY + 60 * s;
+    const menuY = centerY + 120 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
         y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();

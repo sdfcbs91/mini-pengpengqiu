@@ -51,14 +51,15 @@ export default class Ball {
 
   /**
    * 记录碰撞对象，检测死循环弹跳
-   * 只记录非砖块对象（横板、白洞等），砖块碰撞会改变局面不算死循环
-   * 横板虽有isAlive但标记了isPlank，需要记录
+   * 只记录非砖块对象（横板、白洞等），砖块碰撞会清空历史（局面已改变）
    * 最近6次非砖块碰撞中同一对象出现>=3次，判定为死循环
    */
   recordBounce(obstacle) {
-    // 砖块碰撞不记录（可被消除的砖块不会导致死循环）
-    // 横板有 isPlank 标记，需要记录
-    if (obstacle.isAlive !== undefined && !obstacle.isPlank) return;
+    // 砖块碰撞：清空历史记录（碰到砖块说明局面改变，之前的路径不再有效）
+    if (obstacle.isAlive !== undefined && !obstacle.isPlank) {
+      this.bounceHistory = [];
+      return;
+    }
 
     // 同一对象连续记录则跳过（防止单帧内重复计数）
     if (this.bounceHistory.length > 0 &&
