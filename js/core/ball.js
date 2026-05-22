@@ -29,6 +29,7 @@ export default class Ball {
     this.loopCount = 0;          // 检测到的循环次数
     this.needWarp = false;       // 是否需要穿越
     this.loopObject = null;      // 导致循环的对象引用
+    this.usedWarps = new Set();  // 本次飞行已穿过的白洞
   }
 
   init(x, y, angle) {
@@ -47,6 +48,7 @@ export default class Ball {
     this.loopCount = 0;
     this.needWarp = false;
     this.loopObject = null;
+    this.usedWarps = new Set();
   }
 
   /**

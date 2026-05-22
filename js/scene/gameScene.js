@@ -399,14 +399,17 @@ export default class GameScene {
         }
       }
 
-      // 5.5 白洞碰撞（碰到后传送到缓存位置，白洞不消失，碰撞半径加容差）
+      // 5.5 白洞碰撞（每个白洞每次飞行只传送一次，防止死循环）
       if (ball.active) {
         for (const warp of this.grid.warps) {
           if (!warp.active) continue;
+          if (ball.usedWarps.has(warp)) continue; // 已穿过此白洞，跳过
           const dx = ball.x - warp.x;
           const dy = ball.y - warp.y;
           const warpHitR = ball.radius + warp.radius + 4 * SCALE;
           if (dx * dx + dy * dy < warpHitR * warpHitR) {
+            // 标记已使用
+            ball.usedWarps.add(warp);
             // 记录白洞碰撞用于循环检测
             ball.recordBounce(warp);
             // 第一次碰到时计算并缓存目标位置
