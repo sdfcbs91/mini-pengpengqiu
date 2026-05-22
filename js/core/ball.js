@@ -51,7 +51,7 @@ export default class Ball {
 
   /**
    * 记录碰撞，检测死循环弹跳
-   * 用球的碰撞坐标（取整）作为路径标识，精确判断路径是否重复
+   * 用球的碰撞坐标（降精度取整）作为路径标识
    * 碰到砖块时清空历史（局面已改变）
    * 检测：坐标序列中存在长度1~4的子模式连续重复3次
    */
@@ -62,8 +62,11 @@ export default class Ball {
       return;
     }
 
-    // 用球当前坐标取整作为碰撞点标识
-    const key = (Math.round(this.x) << 16) | (Math.round(this.y) & 0xFFFF);
+    // 生成碰撞点 key：坐标降精度（除以8取整），容忍浮点漂移
+    // 8px容差 ≈ 球半径大小，同一区域内的碰撞视为同一位置
+    const gx = Math.round(this.x / 8);
+    const gy = Math.round(this.y / 8);
+    const key = ((gx & 0xFFFF) << 16) | (gy & 0xFFFF);
 
     // 同一坐标连续记录则跳过（防止单帧内重复计数）
     if (this.bounceHistory.length > 0 &&
