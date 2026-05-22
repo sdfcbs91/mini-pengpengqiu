@@ -51,6 +51,9 @@ export default class LevelSelect {
 
     // 绑定触摸事件
     this._bindTouch();
+
+    // 进入菜单时同步本地进度到云端
+    this._syncProgressToCloud();
   }
 
   _calculateLayout() {
@@ -216,6 +219,8 @@ export default class LevelSelect {
   completeLevel(levelNum, stars) {
     this.progress.completeLevel(levelNum, stars);
     this.levelData = this.progress.getAllData();
+    // 通关后同步到云端
+    this._uploadProgressToCloud();
   }
 
   /**
@@ -224,6 +229,77 @@ export default class LevelSelect {
   unlockLevel(levelNum) {
     this.progress.unlock(levelNum);
     this.levelData = this.progress.getAllData();
+  }
+
+  /**
+   * 进入菜单时同步本地进度到云端
+   * 逻辑：先查云端是否有数据，如果没有则把本地缓存上传
+   */
+  _syncProgressToCloud() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+    console.log('_syncProgressToCloud')
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'get' },
+      success: (res) => {
+        console.log('res:', res)
+        const result = res.result;
+        if (result && result.code === 0) {
+          if (result.msg === 'not_found' || !result.levelProgress) {
+            // 云端没有数据，把本地进度同步上去
+            const maxLevel = this.progress.getMaxUnlocked();
+            if (maxLevel > 1) {
+              this._uploadProgressToCloud();
+            }
+          }
+        }
+      },
+      fail: () => {
+        console.log('没有获取到用户')
+        /* 网络错误静默处理 */
+      },
+    });
+  }
+
+  /**
+   * 上传本地关卡进度到云端（含用户信息）
+   */
+  _uploadProgressToCloud() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+
+    const maxLevel = this.progress.getMaxUnlocked();
+    const levelProgress = this.progress.getAllData();
+
+    // 获取用户信息后一并上传
+    wx.getUserInfo({
+      success: (userRes) => {
+        console.log('userRes:', userRes)
+        wx.cloud.callFunction({
+          name: 'saveUserProgress',
+          data: {
+            action: 'save',
+            maxLevel,
+            levelProgress,
+            userInfo: userRes.userInfo,
+          },
+          success: () => { },
+          fail: () => { },
+        });
+      },
+      fail: () => {
+        // 用户未授权，不传 userInfo，仅同步进度
+        wx.cloud.callFunction({
+          name: 'saveUserProgress',
+          data: {
+            action: 'save',
+            maxLevel,
+            levelProgress,
+          },
+          success: () => { },
+          fail: () => { },
+        });
+      },
+    });
   }
 
   /**
