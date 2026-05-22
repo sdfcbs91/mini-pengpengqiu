@@ -244,19 +244,26 @@ export default class LevelSelect {
       success: (res) => {
         console.log('res:', res)
         const result = res.result;
+        const maxLevel = this.progress.getMaxUnlocked();
         if (result && result.code === 0) {
           if (result.msg === 'not_found' || !result.levelProgress) {
             // 云端没有数据，把本地进度同步上去
-            const maxLevel = this.progress.getMaxUnlocked();
+
             if (maxLevel > 1) {
               this._uploadProgressToCloud();
             }
+          } else {
+            if (maxLevel > result.maxLevel) {
+              this._uploadProgressToCloud();
+
+            }
           }
+        } else {
+          this._uploadProgressToCloud();
         }
       },
-      fail: () => {
-        console.log('没有获取到用户')
-        /* 网络错误静默处理 */
+      fail: (err) => {
+        console.error('云函数调用失败:', err);
       },
     });
   }
