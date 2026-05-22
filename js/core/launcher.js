@@ -164,7 +164,7 @@ export default class Launcher {
    * 最多反弹 MAX_BOUNCES 次
    */
   _renderAimLine(ctx, s, bricks) {
-    const MAX_BOUNCES = 2;
+    const MAX_BOUNCES = 1;
     const DOT_GAP = 6 * s;
     const DOT_R = 2 * s;
     const left = GAME_AREA_LEFT;
