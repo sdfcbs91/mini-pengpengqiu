@@ -663,9 +663,8 @@ export default class GameScene {
       }
     }
 
-    // 删除靠近发射线的横板（防止与白球起点重叠）
-    const safeZone = LAUNCH_Y - this.grid.rowHeight;
-    this.grid.planks = this.grid.planks.filter(p => p.targetY < safeZone);
+    // 删除超出底部的横板（只删除完全超出发射线的）
+    this.grid.planks = this.grid.planks.filter(p => p.targetY < LAUNCH_Y);
 
     // 达到目标回合后不再生成新砖块
     if (!reachedTarget) {

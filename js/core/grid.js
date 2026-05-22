@@ -263,8 +263,8 @@ export default class Grid {
   cleanup() {
     this.bricks = this.bricks.filter(b => b.isAlive);
     this.pickups = this.pickups.filter(p => !p.collected);
-    this.planks = this.planks.filter(p => p.y < GAME_AREA_TOP + this.rowHeight * 15);
-    this.warps = this.warps.filter(w => w.active && w.y < GAME_AREA_TOP + this.rowHeight * 15);
+    this.planks = this.planks.filter(p => p.targetY < GAME_AREA_TOP + this.rowHeight * 15);
+    this.warps = this.warps.filter(w => w.active && w.targetY < GAME_AREA_TOP + this.rowHeight * 15);
   }
 
   checkGameOver(bottomLimit) {
