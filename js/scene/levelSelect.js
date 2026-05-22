@@ -45,15 +45,22 @@ export default class LevelSelect {
     // 底部导航栏项
     this.navItems = [
       { label: '闯关', active: true },
+      { label: '排行' },
       { label: '150球' },
       { label: '设置' },
     ];
+
+    // 排行榜状态
+    this.showRank = false;
+    this._openDataCanvas = null;
 
     // 绑定触摸事件
     this._bindTouch();
 
     // 进入菜单时同步本地进度到云端
     this._syncProgressToCloud();
+    // 写入开放数据（排行榜数据源）
+    this._updateOpenData();
   }
 
   _calculateLayout() {
@@ -185,6 +192,7 @@ export default class LevelSelect {
       const idx = Math.floor(x / itemW);
       if (idx >= 0 && idx < this.navItems.length) {
         this.navItems.forEach((item, i) => { item.active = i === idx; });
+        this._onNavChange(idx);
       }
       return;
     }
@@ -221,6 +229,8 @@ export default class LevelSelect {
     this.levelData = this.progress.getAllData();
     // 通关后同步到云端
     this._uploadProgressToCloud();
+    // 写入开放数据（好友排行用）
+    this._updateOpenData();
   }
 
   /**
@@ -232,33 +242,38 @@ export default class LevelSelect {
   }
 
   /**
-   * 进入菜单时同步本地进度到云端
-   * 逻辑：先查云端是否有数据，如果没有则把本地缓存上传
+   * 进入菜单时同步进度（双向）
+   * - 云端 maxLevel > 本地：用云端数据覆盖本地，确保解锁到 maxLevel
+   * - 本地 maxLevel > 云端：上传本地数据到云端
+   * - 云端无数据：上传本地数据
    */
   _syncProgressToCloud() {
     if (typeof wx === 'undefined' || !wx.cloud) return;
-    console.log('_syncProgressToCloud')
+
     wx.cloud.callFunction({
       name: 'saveUserProgress',
       data: { action: 'get' },
       success: (res) => {
-        console.log('res:', res)
         const result = res.result;
-        const maxLevel = this.progress.getMaxUnlocked();
-        if (result && result.code === 0) {
-          if (result.msg === 'not_found' || !result.levelProgress) {
-            // 云端没有数据，把本地进度同步上去
+        if (!result || result.code !== 0) {
+          this._uploadProgressToCloud();
+          return;
+        }
 
-            if (maxLevel > 1) {
-              this._uploadProgressToCloud();
-            }
-          } else {
-            if (maxLevel > result.maxLevel) {
-              this._uploadProgressToCloud();
+        const localMax = this.progress.getMaxUnlocked();
+        const cloudMax = result.maxLevel || 0;
+        const cloudProgress = result.levelProgress;
 
-            }
+        if (result.msg === 'not_found' || !cloudProgress) {
+          // 云端无数据，上传本地
+          if (localMax > 1) {
+            this._uploadProgressToCloud();
           }
-        } else {
+        } else if (cloudMax > localMax) {
+          // 云端更新：用云端数据覆盖本地
+          this._applyCloudProgress(cloudProgress, cloudMax);
+        } else if (localMax > cloudMax) {
+          // 本地更新：上传到云端
           this._uploadProgressToCloud();
         }
       },
@@ -298,10 +313,97 @@ export default class LevelSelect {
   }
 
   /**
+   * 应用云端进度到本地
+   * 用云端的 levelProgress 覆盖本地，并确保解锁到 cloudMax
+   */
+  _applyCloudProgress(cloudProgress, cloudMax) {
+    if (cloudProgress && Array.isArray(cloudProgress)) {
+      // 用云端数据覆盖本地
+      for (let i = 0; i < cloudProgress.length && i < this.progress.data.length; i++) {
+        const cloud = cloudProgress[i];
+        const local = this.progress.data[i];
+        // 取两者较高值（合并）
+        if (cloud.unlocked) local.unlocked = true;
+        if ((cloud.stars || 0) > (local.stars || 0)) {
+          local.stars = cloud.stars;
+        }
+      }
+    }
+
+    // 确保解锁到 cloudMax
+    for (let i = 0; i < cloudMax && i < this.progress.data.length; i++) {
+      this.progress.data[i].unlocked = true;
+    }
+
+    // 保存到本地缓存并刷新显示
+    this.progress.save();
+    this.levelData = this.progress.getAllData();
+    console.log('已从云端同步进度，maxLevel:', cloudMax);
+  }
+
+  /**
    * 获取最高解锁关卡
    */
   getMaxUnlockedLevel() {
     return this.progress.getMaxUnlocked();
+  }
+
+  /**
+   * 导航 tab 切换回调
+   */
+  _onNavChange(idx) {
+    const label = this.navItems[idx].label;
+    if (label === '排行') {
+      this.showRank = true;
+      this._showRankBoard();
+    } else {
+      if (this.showRank) {
+        this.showRank = false;
+        this._hideRankBoard();
+      }
+    }
+  }
+
+  /**
+   * 显示排行榜 — 通知开放数据域获取数据
+   */
+  _showRankBoard() {
+    if (typeof wx === 'undefined') return;
+    const openDataContext = wx.getOpenDataContext();
+    openDataContext.postMessage({ action: 'showRank' });
+    // 缓存开放数据域的 canvas 引用
+    this._openDataCanvas = openDataContext.canvas;
+  }
+
+  /**
+   * 隐藏排行榜
+   */
+  _hideRankBoard() {
+    if (typeof wx === 'undefined') return;
+    const openDataContext = wx.getOpenDataContext();
+    openDataContext.postMessage({ action: 'hideRank' });
+    this._openDataCanvas = null;
+  }
+
+  /**
+   * 写入开放数据（好友排行榜数据源）
+   * 通关后调用，写入当前最高关卡和总星数
+   */
+  _updateOpenData() {
+    if (typeof wx === 'undefined' || !wx.setUserCloudStorage) return;
+
+    const maxLevel = this.progress.getMaxUnlocked();
+    let totalStars = 0;
+    this.levelData.forEach(d => { totalStars += d.stars || 0; });
+
+    wx.setUserCloudStorage({
+      KVDataList: [
+        { key: 'maxLevel', value: String(maxLevel) },
+        { key: 'totalStars', value: String(totalStars) },
+      ],
+      success: () => { console.log('开放数据写入成功'); },
+      fail: (err) => { console.error('开放数据写入失败:', err); },
+    });
   }
 
   update() {
@@ -321,9 +423,32 @@ export default class LevelSelect {
   render(ctx) {
     this._drawBackground(ctx);
     this._drawTitle(ctx);
-    this._drawPageIndicator(ctx);
-    this._drawLevelGrid(ctx);
+
+    if (this.showRank) {
+      // 排行榜模式：绘制开放数据域 canvas
+      this._drawRankBoard(ctx);
+    } else {
+      this._drawPageIndicator(ctx);
+      this._drawLevelGrid(ctx);
+    }
+
     this._drawNavBar(ctx);
+  }
+
+  /**
+   * 将开放数据域的 sharedCanvas 绘制到主域
+   */
+  _drawRankBoard(ctx) {
+    if (!this._openDataCanvas) return;
+    const top = this.gridTop;
+    const height = this.gridBottom - this.gridTop;
+
+    // 将开放数据域 canvas 绘制到游戏区域
+    ctx.drawImage(
+      this._openDataCanvas,
+      0, 0, this._openDataCanvas.width, this._openDataCanvas.height,
+      0, top, SCREEN_WIDTH, height
+    );
   }
 
   _drawBackground(ctx) {
