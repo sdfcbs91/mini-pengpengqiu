@@ -544,6 +544,17 @@ export default class GameScene {
   }
 
   /**
+   * 统计当前存活砖块占据的行数
+   */
+  _countBrickRows() {
+    const rows = new Set();
+    for (const b of this.grid.bricks) {
+      if (b.isAlive) rows.add(b.row);
+    }
+    return rows.size;
+  }
+
+  /**
    * 检测球的前进路径上是否有砖块
    */
   _hasBrickInPath(ball, bricks) {
@@ -630,16 +641,35 @@ export default class GameScene {
 
     this.stage++;
 
-    // 砖块下移
-    const isOver = this.grid.shiftDown(LAUNCH_Y);
+    // 根据当前砖块行数决定生成几行
+    const existingRows = this._countBrickRows();
+    let rowsToGenerate = 1;
+    if (!reachedTarget) {
+      if (existingRows <= 2) {
+        rowsToGenerate = 3;
+      } else if (existingRows <= 4) {
+        rowsToGenerate = 2;
+      }
+    }
+
+    // 砖块下移（移动相应行数）
+    for (let i = 0; i < rowsToGenerate; i++) {
+      const isOver = this.grid.shiftDown(LAUNCH_Y);
+      if (isOver) {
+        this.gameState = 'over';
+        return;
+      }
+    }
 
     // 删除靠近发射线的横板（防止与白球起点重叠）
     const safeZone = LAUNCH_Y - this.grid.rowHeight;
     this.grid.planks = this.grid.planks.filter(p => p.targetY < safeZone);
 
-    // 达到目标回合后不再生成新砖块，只继续推砖块下移
+    // 达到目标回合后不再生成新砖块
     if (!reachedTarget) {
-      this.grid.generateRow(this.stage, 0);
+      for (let i = 0; i < rowsToGenerate; i++) {
+        this.grid.generateRow(this.stage, i);
+      }
     }
 
     // 更新球数
@@ -652,7 +682,7 @@ export default class GameScene {
     this.launcher.showAimLine = this.showAimLine;
 
     // 检查游戏结束（砖块触底）
-    if (isOver || this.grid.checkGameOver(LAUNCH_Y)) {
+    if (this.grid.checkGameOver(LAUNCH_Y)) {
       this.gameState = 'over';
       return;
     }
