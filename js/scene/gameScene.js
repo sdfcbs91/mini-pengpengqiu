@@ -692,8 +692,8 @@ export default class GameScene {
       this._renderWarpEffect(ctx);
     }
 
-    // 发射点（瞄准线等）
-    this.launcher.render(ctx, this.gameState, this.grid.bricks);
+    // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
+    this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
 
     // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球）
     this.hud.render(ctx, {

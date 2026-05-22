@@ -159,11 +159,12 @@ export default class Launcher {
   }
 
   /**
-   * 渲染瞄准辅助线（射线追踪 + 墙壁/砖块反弹折线）
+   * 渲染瞄准辅助线（射线追踪 + 反弹折线）
+   * 支持：墙壁、矩形砖块、三角形砖块、横板
    * 最多反弹 MAX_BOUNCES 次
    */
   _renderAimLine(ctx, s, bricks) {
-    const MAX_BOUNCES = 1;
+    const MAX_BOUNCES = 2;
     const DOT_GAP = 6 * s;
     const DOT_R = 2 * s;
     const left = GAME_AREA_LEFT;
@@ -179,10 +180,10 @@ export default class Launcher {
     ctx.fillStyle = '#ffffff';
 
     for (let bounce = 0; bounce <= MAX_BOUNCES; bounce++) {
-      // 找到这条射线的最近碰撞点
+      // 找到这条射线的最近碰撞点和法线
       const hit = this._raycast(ox, oy, dx, dy, left, right, top, r, bricks);
 
-      // 沿射线画虚线点，从 ox,oy 到 hit.x,hit.y
+      // 沿射线画虚线点
       const segDx = hit.x - ox;
       const segDy = hit.y - oy;
       let segLen = Math.sqrt(segDx * segDx + segDy * segDy);
@@ -204,23 +205,21 @@ export default class Launcher {
         ctx.fill();
       }
 
-      // 在碰撞点画一个亮点标记
-      if (bounce < MAX_BOUNCES && hit.type !== 'none') {
+      // 碰撞点亮点标记
+      if (bounce < MAX_BOUNCES && hit.nx !== undefined) {
         ctx.globalAlpha = 0.6 - bounce * 0.15;
         ctx.beginPath();
         ctx.arc(hit.x, hit.y, DOT_R * 1.8, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // 如果没碰到任何东西（射出屏幕），结束
-      if (hit.type === 'none') break;
+      // 没碰到任何东西
+      if (hit.nx === undefined) break;
 
-      // 根据碰撞面反弹方向
-      if (hit.type === 'left' || hit.type === 'right') {
-        dx = -dx;
-      } else {
-        dy = -dy;
-      }
+      // 用法线反射方向
+      const dot = dx * hit.nx + dy * hit.ny;
+      dx = dx - 2 * dot * hit.nx;
+      dy = dy - 2 * dot * hit.ny;
 
       // 下一段起点
       ox = hit.x;
@@ -231,100 +230,180 @@ export default class Launcher {
   }
 
   /**
-   * 射线投射：从 (ox,oy) 沿 (dx,dy) 方向，找到最近的碰撞点
-   * 返回 { x, y, type: 'left'|'right'|'top'|'brick_h'|'brick_v'|'none' }
+   * 射线投射：从 (ox,oy) 沿 (dx,dy) 方向，找到最近碰撞
+   * 返回 { x, y, nx, ny } — nx/ny 为碰撞法线，undefined 表示未碰到
+   * 支持：左右顶墙、矩形砖块/横板、三角形砖块
    */
   _raycast(ox, oy, dx, dy, left, right, top, r, bricks) {
     let minT = 99999;
-    let hitType = 'none';
+    let hitNx, hitNy;
 
-    // 左墙
+    // --- 墙壁碰撞 ---
     if (dx < 0) {
       const t = (left + r - ox) / dx;
-      if (t > 0.1 && t < minT) { minT = t; hitType = 'left'; }
+      if (t > 0.1 && t < minT) { minT = t; hitNx = 1; hitNy = 0; }
     }
-    // 右墙
     if (dx > 0) {
       const t = (right - r - ox) / dx;
-      if (t > 0.1 && t < minT) { minT = t; hitType = 'right'; }
+      if (t > 0.1 && t < minT) { minT = t; hitNx = -1; hitNy = 0; }
     }
-    // 顶墙
     if (dy < 0) {
       const t = (top + r - oy) / dy;
-      if (t > 0.1 && t < minT) { minT = t; hitType = 'top'; }
+      if (t > 0.1 && t < minT) { minT = t; hitNx = 0; hitNy = 1; }
     }
 
-    // 砖块碰撞检测
+    // --- 砖块/横板碰撞 ---
     for (const brick of bricks) {
       if (!brick.isAlive) continue;
 
-      const bx = brick.x;
-      const by = brick.y;
-      const bw = brick.width;
-      const bh = brick.height;
-
-      // 扩展砖块边界（球半径）
-      const ex = bx - r;
-      const ey = by - r;
-      const ew = bw + r * 2;
-      const eh = bh + r * 2;
-
-      // 射线 vs 扩展 AABB
-      let tNear = -99999;
-      let tFar = 99999;
-      let nearSide = '';
-
-      // X 轴
-      if (Math.abs(dx) > 0.0001) {
-        let t1 = (ex - ox) / dx;
-        let t2 = (ex + ew - ox) / dx;
-        let s1 = 'left';
-        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; s1 = 'right'; }
-        if (t1 > tNear) { tNear = t1; nearSide = s1; }
-        if (t2 < tFar) tFar = t2;
+      if (brick.type === 'triangle') {
+        // 三角形砖块：逐边检测
+        const result = this._rayTriangle(ox, oy, dx, dy, r, brick);
+        if (result && result.t > 0.1 && result.t < minT) {
+          minT = result.t;
+          hitNx = result.nx;
+          hitNy = result.ny;
+        }
       } else {
-        if (ox < ex || ox > ex + ew) continue;
-      }
-
-      // Y 轴
-      if (Math.abs(dy) > 0.0001) {
-        let t1 = (ey - oy) / dy;
-        let t2 = (ey + eh - oy) / dy;
-        let s1 = 'top';
-        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; s1 = 'bottom'; }
-        if (t1 > tNear) { tNear = t1; nearSide = s1; }
-        if (t2 < tFar) tFar = t2;
-      } else {
-        if (oy < ey || oy > ey + eh) continue;
-      }
-
-      if (tNear > tFar || tFar < 0) continue;
-      if (tNear < 0.1) continue; // 忽略起点附近
-
-      if (tNear < minT) {
-        minT = tNear;
-        hitType = (nearSide === 'left' || nearSide === 'right') ? 'brick_v' : 'brick_h';
+        // 矩形砖块/横板：AABB
+        const result = this._rayRect(ox, oy, dx, dy, r, brick);
+        if (result && result.t > 0.1 && result.t < minT) {
+          minT = result.t;
+          hitNx = result.nx;
+          hitNy = result.ny;
+        }
       }
     }
 
-    if (hitType === 'none' || minT > 9999) {
-      // 没碰到，延伸到足够远
-      return { x: ox + dx * 500, y: oy + dy * 500, type: 'none' };
+    if (minT > 9999) {
+      return { x: ox + dx * 500, y: oy + dy * 500 };
     }
 
-    // 碰撞面映射到反弹方向
-    let finalType;
-    if (hitType === 'left' || hitType === 'right' || hitType === 'brick_v') {
-      finalType = hitType === 'right' ? 'right' : 'left';
+    return { x: ox + dx * minT, y: oy + dy * minT, nx: hitNx, ny: hitNy };
+  }
+
+  /**
+   * 射线与扩展矩形（Minkowski Sum）碰撞
+   */
+  _rayRect(ox, oy, dx, dy, r, brick) {
+    const ex = brick.x - r;
+    const ey = brick.y - r;
+    const ew = brick.width + r * 2;
+    const eh = brick.height + r * 2;
+
+    let tNear = -99999, tFar = 99999;
+    let nx = 0, ny = 0;
+
+    // X 轴
+    if (Math.abs(dx) > 0.0001) {
+      let t1 = (ex - ox) / dx;
+      let t2 = (ex + ew - ox) / dx;
+      let n1 = -1;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; n1 = 1; }
+      if (t1 > tNear) { tNear = t1; nx = n1; ny = 0; }
+      if (t2 < tFar) tFar = t2;
     } else {
-      finalType = 'top';
+      if (ox < ex || ox > ex + ew) return null;
     }
 
-    return {
-      x: ox + dx * minT,
-      y: oy + dy * minT,
-      type: finalType,
-    };
+    // Y 轴
+    if (Math.abs(dy) > 0.0001) {
+      let t1 = (ey - oy) / dy;
+      let t2 = (ey + eh - oy) / dy;
+      let n1 = -1;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; n1 = 1; }
+      if (t1 > tNear) { tNear = t1; nx = 0; ny = n1; }
+      if (t2 < tFar) tFar = t2;
+    } else {
+      if (oy < ey || oy > ey + eh) return null;
+    }
+
+    if (tNear > tFar || tFar < 0) return null;
+    if (tNear < 0) return null;
+
+    return { t: tNear, nx, ny };
+  }
+
+  /**
+   * 射线与三角形砖块碰撞
+   * 逐边检测：射线点与膨胀边（外扩 r）的碰撞
+   */
+  _rayTriangle(ox, oy, dx, dy, r, brick) {
+    const pts = brick._getTrianglePoints(brick.x, brick.y, brick.width, brick.height);
+    const cx = (pts[0].x + pts[1].x + pts[2].x) / 3;
+    const cy = (pts[0].y + pts[1].y + pts[2].y) / 3;
+
+    const edges = [
+      { a: pts[0], b: pts[1] },
+      { a: pts[1], b: pts[2] },
+      { a: pts[2], b: pts[0] },
+    ];
+
+    let bestT = Infinity;
+    let bestNx = 0, bestNy = 0;
+
+    for (const edge of edges) {
+      const ax = edge.a.x, ay = edge.a.y;
+      const bx = edge.b.x, by = edge.b.y;
+
+      const edx = bx - ax;
+      const edy = by - ay;
+      const edLen = Math.sqrt(edx * edx + edy * edy);
+      if (edLen < 0.001) continue;
+
+      // 边的外法线
+      let nx = -edy / edLen;
+      let ny = edx / edLen;
+      if (nx * (cx - ax) + ny * (cy - ay) > 0) { nx = -nx; ny = -ny; }
+
+      // 膨胀平面 D
+      const D = nx * (ax + nx * r) + ny * (ay + ny * r);
+      const dist0 = nx * ox + ny * oy - D;
+      const velN = nx * dx + ny * dy;
+
+      if (dist0 > 0 && velN < -0.0001) {
+        const t = dist0 / (-velN);
+        if (t > 0 && t < bestT) {
+          // 验证碰撞点在边的投影范围内
+          const hitX = ox + dx * t;
+          const hitY = oy + dy * t;
+          const proj = (hitX - ax) * (edx / edLen) + (hitY - ay) * (edy / edLen);
+          if (proj >= -r && proj <= edLen + r) {
+            bestT = t;
+            bestNx = nx;
+            bestNy = ny;
+          }
+        }
+      }
+    }
+
+    // 顶点碰撞
+    for (const pt of pts) {
+      const pdx = ox - pt.x;
+      const pdy = oy - pt.y;
+      const a = dx * dx + dy * dy;
+      const b = 2 * (pdx * dx + pdy * dy);
+      const c = pdx * pdx + pdy * pdy - r * r;
+      if (a < 0.0001) continue;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) continue;
+      const t = (-b - Math.sqrt(disc)) / (2 * a);
+      if (t > 0 && t < bestT) {
+        const hitX = ox + dx * t;
+        const hitY = oy + dy * t;
+        const dnx = hitX - pt.x;
+        const dny = hitY - pt.y;
+        const dLen = Math.sqrt(dnx * dnx + dny * dny);
+        if (dLen > 0.001) {
+          bestT = t;
+          bestNx = dnx / dLen;
+          bestNy = dny / dLen;
+        }
+      }
+    }
+
+    if (bestT === Infinity) return null;
+    return { t: bestT, nx: bestNx, ny: bestNy };
   }
 
   renderBalls(ctx) {
