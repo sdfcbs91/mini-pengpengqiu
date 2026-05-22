@@ -28,7 +28,43 @@ export default class Main {
 
     // 启动游戏主循环
     this.raf = null;
+
+    // 通过云函数获取用户信息并缓存
+    this._fetchUserFromCloud();
+
     this.loop();
+  }
+
+  /**
+   * 通过云函数获取用户openid和信息，缓存到本地
+   */
+  _fetchUserFromCloud() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+
+    try {
+      const cached = wx.getStorageSync('ppq_user_info');
+      if (cached && cached.openid) return; // 已有完整缓存
+    } catch (e) { /* ignore */ }
+
+    wx.cloud.callFunction({
+      name: 'getUserInfo',
+      data: {},
+      success: (res) => {
+        const result = res.result;
+        if (result && result.code === 0) {
+          const userInfo = {
+            openid: result.openid,
+            nickName: result.nickName || '',
+            avatarUrl: result.avatarUrl || '',
+          };
+          wx.setStorageSync('ppq_user_info', userInfo);
+          console.log('用户信息获取成功:', result);
+        }
+      },
+      fail: (err) => {
+        console.error('获取用户信息失败:', err);
+      },
+    });
   }
 
   /**
@@ -41,7 +77,7 @@ export default class Main {
     // 创建游戏场景
     this.gameScene = new GameScene();
     this.gameScene.onBackToMenu = this.onBackToMenu.bind(this);
-    this.gameScene.onGameOver = () => {};
+    this.gameScene.onGameOver = () => { };
     this.gameScene.onLevelComplete = (level, stars) => {
       // 保存通关进度
       this.levelSelect.completeLevel(level, stars);

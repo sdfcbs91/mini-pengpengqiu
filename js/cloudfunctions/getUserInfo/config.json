@@ -1,0 +1,5 @@
+{
+  "name": "getUserInfo",
+  "timeout": 10,
+  "runtime": "Nodejs16"
+}

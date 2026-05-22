@@ -277,35 +277,23 @@ export default class LevelSelect {
     const maxLevel = this.progress.getMaxUnlocked();
     const levelProgress = this.progress.getAllData();
 
-    // 获取用户信息后一并上传
-    wx.getUserInfo({
-      success: (userRes) => {
-        console.log('userRes:', userRes)
-        wx.cloud.callFunction({
-          name: 'saveUserProgress',
-          data: {
-            action: 'save',
-            maxLevel,
-            levelProgress,
-            userInfo: userRes.userInfo,
-          },
-          success: () => { },
-          fail: () => { },
-        });
+    // 尝试获取已授权的用户信息
+    let userInfo = null;
+    try {
+      const setting = wx.getStorageSync('ppq_user_info');
+      if (setting) userInfo = setting;
+    } catch (e) { /* ignore */ }
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: {
+        action: 'save',
+        maxLevel,
+        levelProgress,
+        userInfo,
       },
-      fail: () => {
-        // 用户未授权，不传 userInfo，仅同步进度
-        wx.cloud.callFunction({
-          name: 'saveUserProgress',
-          data: {
-            action: 'save',
-            maxLevel,
-            levelProgress,
-          },
-          success: () => { },
-          fail: () => { },
-        });
-      },
+      success: (res) => { console.log('上传进度成功:', res); },
+      fail: (err) => { console.error('上传进度失败:', err); },
     });
   }
 
