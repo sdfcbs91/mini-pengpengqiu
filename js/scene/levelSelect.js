@@ -54,6 +54,11 @@ export default class LevelSelect {
     this.showRank = false;
     this._openDataCanvas = null;
 
+    // 设置面板状态
+    this.showSettings = false;
+    this.soundOn = true; // 声音开关
+    this.showGameIntro = false; // 游戏介绍弹窗
+
     // 绑定触摸事件
     this._bindTouch();
 
@@ -186,6 +191,12 @@ export default class LevelSelect {
   }
 
   _handleTap(x, y) {
+    // 游戏介绍弹窗优先处理（点击任意位置关闭）
+    if (this.showGameIntro) {
+      this.showGameIntro = false;
+      return;
+    }
+
     // 检测底部导航栏点击
     if (y >= this.navY) {
       const itemW = SCREEN_WIDTH / this.navItems.length;
@@ -194,6 +205,12 @@ export default class LevelSelect {
         this.navItems.forEach((item, i) => { item.active = i === idx; });
         this._onNavChange(idx);
       }
+      return;
+    }
+
+    // 设置面板按钮点击
+    if (this.showSettings) {
+      this._handleSettingsTap(x, y);
       return;
     }
 
@@ -355,8 +372,14 @@ export default class LevelSelect {
     const label = this.navItems[idx].label;
     if (label === '排行') {
       this.showRank = true;
+      this.showSettings = false;
       this._showRankBoard();
+    } else if (label === '设置') {
+      this.showSettings = true;
+      this.showRank = false;
+      this._hideRankBoard();
     } else {
+      this.showSettings = false;
       if (this.showRank) {
         this.showRank = false;
         this._hideRankBoard();
@@ -425,11 +448,17 @@ export default class LevelSelect {
     this._drawTitle(ctx);
 
     if (this.showRank) {
-      // 排行榜模式：绘制开放数据域 canvas
       this._drawRankBoard(ctx);
+    } else if (this.showSettings) {
+      this._drawSettings(ctx);
     } else {
       this._drawPageIndicator(ctx);
       this._drawLevelGrid(ctx);
+    }
+
+    // 游戏介绍弹窗（覆盖在最上层）
+    if (this.showGameIntro) {
+      this._drawGameIntro(ctx);
     }
 
     this._drawNavBar(ctx);
@@ -449,6 +478,200 @@ export default class LevelSelect {
       0, 0, this._openDataCanvas.width, this._openDataCanvas.height,
       0, top, SCREEN_WIDTH, height
     );
+  }
+
+  /**
+   * 绘制设置面板
+   */
+  _drawSettings(ctx) {
+    const s = SCALE;
+    const top = this.gridTop + 20 * s;
+    const centerX = SCREEN_WIDTH / 2;
+    const btnW = 200 * s;
+    const btnH = 44 * s;
+    const gap = 16 * s;
+
+    const buttons = [
+      { label: '分享游戏', color: '#00d4ff' },
+      { label: this.soundOn ? '声音（开）' : '声音（关）', color: this.soundOn ? '#39ff14' : '#ff4444' },
+      { label: '同步数据', color: '#f0e130' },
+      { label: '游戏介绍', color: '#8b5cf6' },
+    ];
+
+    // 存储按钮位置（供点击检测用）
+    this._settingBtns = [];
+
+    buttons.forEach((btn, i) => {
+      const y = top + i * (btnH + gap);
+      const x = centerX - btnW / 2;
+
+      // 按钮背景
+      ctx.fillStyle = 'rgba(20,30,60,0.8)';
+      ctx.beginPath();
+      const r = 8 * s;
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + btnW - r, y);
+      ctx.arcTo(x + btnW, y, x + btnW, y + r, r);
+      ctx.arcTo(x + btnW, y + btnH, x + btnW - r, y + btnH, r);
+      ctx.lineTo(x + r, y + btnH);
+      ctx.arcTo(x, y + btnH, x, y + btnH - r, r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.closePath();
+      ctx.fill();
+
+      // 边框发光
+      ctx.strokeStyle = btn.color;
+      ctx.lineWidth = 1.5 * s;
+      ctx.shadowColor = btn.color;
+      ctx.shadowBlur = 6 * s;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 文字
+      ctx.fillStyle = btn.color;
+      ctx.font = `bold ${14 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(btn.label, centerX, y + btnH / 2);
+
+      this._settingBtns.push({ x, y, w: btnW, h: btnH });
+    });
+  }
+
+  /**
+   * 处理设置面板按钮点击
+   */
+  _handleSettingsTap(x, y) {
+    if (!this._settingBtns) return;
+
+    for (let i = 0; i < this._settingBtns.length; i++) {
+      const btn = this._settingBtns[i];
+      if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+        switch (i) {
+          case 0: this._doShare(); break;
+          case 1: this._toggleSound(); break;
+          case 2: this._doSyncData(); break;
+          case 3: this.showGameIntro = true; break;
+        }
+        return;
+      }
+    }
+  }
+
+  /**
+   * 分享游戏
+   */
+  _doShare() {
+    if (typeof wx === 'undefined') return;
+    wx.shareAppMessage({
+      title: '碰碰球 — 超爽弹球粉碎游戏！快来挑战！',
+      imageUrl: 'images/welcome.jpg',
+    });
+  }
+
+  /**
+   * 切换声音开关
+   */
+  _toggleSound() {
+    this.soundOn = !this.soundOn;
+    try {
+      wx.setStorageSync('ppq_sound', this.soundOn);
+    } catch (e) { /* ignore */ }
+  }
+
+  /**
+   * 同步数据到云端
+   */
+  _doSyncData() {
+    this._uploadProgressToCloud();
+  }
+
+  /**
+   * 绘制游戏介绍弹窗
+   */
+  _drawGameIntro(ctx) {
+    const s = SCALE;
+
+    // 半透明遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const padX = 20 * s;
+    const padY = 60 * s;
+    const boxW = SCREEN_WIDTH - padX * 2;
+    const boxH = SCREEN_HEIGHT - padY * 2;
+    const boxX = padX;
+    const boxY = padY;
+
+    // 弹窗背景
+    ctx.fillStyle = '#0c1435';
+    ctx.strokeStyle = '#00d4ff';
+    ctx.lineWidth = 1.5 * s;
+    const r = 10 * s;
+    ctx.beginPath();
+    ctx.moveTo(boxX + r, boxY);
+    ctx.lineTo(boxX + boxW - r, boxY);
+    ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + r, r);
+    ctx.arcTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH, r);
+    ctx.lineTo(boxX + r, boxY + boxH);
+    ctx.arcTo(boxX, boxY + boxH, boxX, boxY + boxH - r, r);
+    ctx.arcTo(boxX, boxY, boxX + r, boxY, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 8 * s;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 标题
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = `bold ${16 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('游戏介绍', SCREEN_WIDTH / 2, boxY + 12 * s);
+
+    // 内容
+    const lines = [
+      '【基础操作】',
+      '滑动屏幕调整弹球发射角度，松手发射。',
+      '弹球碰到砖块反弹，数字归零即粉碎！',
+      '',
+      '【核心目标】',
+      '消灭所有数字砖块即可通关！',
+      '用更少弹球通关，获得更高评价～',
+      '',
+      '【道具与机关】',
+      '⚡ 闪电：清掉一整片砖块',
+      '🔮 多球：额外增加弹球数量',
+      '△ 三角/障碍：利用反射打出巧妙路线',
+      '',
+      '【小技巧】',
+      '利用墙壁和砖块反弹，让弹球在缝隙',
+      '来回穿梭，打出更高消除效率！',
+    ];
+
+    ctx.fillStyle = '#ccddff';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.textAlign = 'left';
+    const lineH = 16 * s;
+    const contentTop = boxY + 38 * s;
+
+    lines.forEach((line, i) => {
+      if (line.startsWith('【')) {
+        ctx.fillStyle = '#ffdd00';
+        ctx.font = `bold ${11.5 * s}px Arial`;
+      } else {
+        ctx.fillStyle = '#ccddff';
+        ctx.font = `${11 * s}px Arial`;
+      }
+      ctx.fillText(line, boxX + 16 * s, contentTop + i * lineH);
+    });
+
+    // 底部提示
+    ctx.fillStyle = '#888899';
+    ctx.font = `${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText('点击任意位置关闭', SCREEN_WIDTH / 2, boxY + boxH - 14 * s);
   }
 
   _drawBackground(ctx) {
