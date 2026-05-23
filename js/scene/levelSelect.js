@@ -723,7 +723,7 @@ export default class LevelSelect {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const padX = 20 * s;
-    const padY = 90 * s;
+    const padY = 148 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxH = SCREEN_HEIGHT - padY * 2;
     const boxX = padX;
@@ -911,7 +911,7 @@ export default class LevelSelect {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const padX = 24 * s;
-    const padY = 100 * s;
+    const padY = 148 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxH = SCREEN_HEIGHT - padY * 2;
     const boxX = padX;
@@ -989,7 +989,7 @@ export default class LevelSelect {
   _handlePropsGuideTap(x, y) {
     const s = SCALE;
     const padX = 24 * s;
-    const padY = 100 * s;
+    const padY = 148 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxX = padX;
     const props = this._getPropsData();
