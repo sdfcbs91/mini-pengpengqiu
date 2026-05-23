@@ -438,16 +438,35 @@ export default class GameScene {
         }
       }
 
-      // 5.2 消单行道具碰撞（球穿过该行Y范围即触发，任意方向均可）
+      // 5.2 消单行道具碰撞（球经过道具位置触发）
       if (ball.active) {
-        const halfRow = this.grid.rowHeight / 2;
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
-          if (ball.usedWarps.has(rc)) continue; // 本次飞行已触发过此道具
-          // 检测球Y是否在消单行道具所在行的范围内
-          if (Math.abs(ball.y - rc.y) < halfRow + ball.radius) {
+          if (ball.usedWarps.has(rc)) continue;
+          // 球心与道具的距离检测（圆形碰撞 + 扫描路径补偿）
+          const rdx = ball.x - rc.x;
+          const rdy = ball.y - rc.y;
+          const rcHitR = ball.radius + rc.radius + 4;
+          if (rdx * rdx + rdy * rdy < rcHitR * rcHitR) {
             ball.usedWarps.add(rc);
             this._executeRowClear(rc);
+            break;
+          }
+        }
+      }
+
+      // 5.3 消单列道具碰撞（球经过道具位置触发）
+      if (ball.active) {
+        for (const cc of this.grid.colClears) {
+          if (cc.collected) continue;
+          if (ball.usedWarps.has(cc)) continue;
+          // 球心与道具的距离检测（圆形碰撞 + 扫描路径补偿）
+          const dx = ball.x - cc.x;
+          const dy = ball.y - cc.y;
+          const hitR = ball.radius + cc.radius + 4;
+          if (dx * dx + dy * dy < hitR * hitR) {
+            ball.usedWarps.add(cc);
+            this._executeColClear(cc);
             break;
           }
         }
@@ -691,6 +710,39 @@ export default class GameScene {
     const remaining = this.grid.bricks.filter(b => b.isAlive && b.row === targetRow);
     if (remaining.length === 0) {
       rc.collect();
+    }
+  }
+
+  /**
+   * 执行消单列：对同列砖块造成伤害
+   * 整列清除后道具消失
+   */
+  _executeColClear(cc) {
+    const targetCol = cc.col;
+    const damage = this.atkLevel;
+
+    const colBricks = this.grid.bricks.filter(b => b.isAlive && b.col === targetCol);
+
+    for (const brick of colBricks) {
+      const destroyed = brick.hit(damage);
+      if (destroyed) {
+        this.score += brick.maxHp;
+        this.destroyedThisRound++;
+        this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+        this._spawnBrickParticles(brick);
+      }
+    }
+
+    // 红色纵向激光特效
+    this._colClearEffect = {
+      x: cc.x,
+      timer: 20,
+    };
+
+    // 检查整列是否已全部清除
+    const remaining = this.grid.bricks.filter(b => b.isAlive && b.col === targetCol);
+    if (remaining.length === 0) {
+      cc.collect();
     }
   }
 
@@ -947,6 +999,11 @@ export default class GameScene {
       this._renderRowClearEffect(ctx);
     }
 
+    // 消单列激光特效
+    if (this._colClearEffect && this._colClearEffect.timer > 0) {
+      this._renderColClearEffect(ctx);
+    }
+
     // 暂停覆盖层
     if (this.gameState === 'paused') {
       this._renderPauseOverlay(ctx);
@@ -1177,6 +1234,35 @@ export default class GameScene {
     // 外扩光晕
     ctx.fillStyle = 'rgba(255,50,50,0.3)';
     ctx.fillRect(left, e.y - lineH * 2, right - left, lineH * 4);
+
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * 渲染消单列红色激光特效（纵向）
+   */
+  _renderColClearEffect(ctx) {
+    const e = this._colClearEffect;
+    e.timer--;
+    const progress = e.timer / 20;
+    const s = SCALE;
+
+    const top = GAME_AREA_TOP;
+    const bottom = LAUNCH_Y;
+    const lineW = 4 * s * progress;
+
+    ctx.globalAlpha = progress * 0.9;
+
+    // 主光线
+    ctx.fillStyle = '#ff3333';
+    ctx.shadowColor = '#ff3333';
+    ctx.shadowBlur = 12 * s * progress;
+    ctx.fillRect(e.x - lineW / 2, top, lineW, bottom - top);
+
+    // 外扩光晕
+    ctx.fillStyle = 'rgba(255,50,50,0.3)';
+    ctx.fillRect(e.x - lineW * 2, top, lineW * 4, bottom - top);
 
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;

@@ -3,6 +3,7 @@ import Pickup from './pickup';
 import Plank from './plank';
 import Warp from './warp';
 import RowClear from './rowClear';
+import ColClear from './colClear';
 import {
   GRID_COLS, BRICK_GAP, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_TOP,
@@ -20,6 +21,7 @@ export default class Grid {
     this.planks = [];
     this.warps = [];            // 空心白洞（穿越道具）
     this.rowClears = [];        // 消单行道具
+    this.colClears = [];        // 消单列道具
     this.rowHeight = BRICK_H + BRICK_GAP;
     this.levelConfig = null;
     this.gapCol = -1;          // 持续空列（垂直通道）
@@ -41,6 +43,7 @@ export default class Grid {
     this.planks = [];
     this.warps = [];
     this.rowClears = [];
+    this.colClears = [];
     this.levelConfig = getLevelConfig(stage);
     this.gapCol = -1;
     this.gapColLife = 0;
@@ -174,13 +177,21 @@ export default class Grid {
       }
     }
 
-    // 消单行道具生成（第10关起，约15%概率每行出现）
-    // 不能与砖块、加球器、横板、白洞在同一格
-    if (stage >= 10 && Math.random() < 0.15) {
-      const usedCols2 = new Set(cols);
-      for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]);
-      for (const pc of plankCols) usedCols2.add(pc);
-      if (warpCol >= 0) usedCols2.add(warpCol);
+    // 消单行道具生成（第5关起，同行必须有砖块）
+    // 不能与砖块、加球器、横板（白板）、白洞、已有消单行在同一格
+    if (stage >= 5 && cols.length > 0 && Math.random() < 0.15) {
+      const usedCols2 = new Set(cols); // 砖块列
+      for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]); // 加球器列
+      for (const pc of plankCols) usedCols2.add(pc); // 横板列
+      if (warpCol >= 0) usedCols2.add(warpCol); // 白洞列
+      // 排除同行已有的消单行
+      this.rowClears.forEach(r => {
+        if (r.row === rowIndex) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (Math.abs(r.x - (this.getColX(c) + BRICK_W / 2)) < 1) usedCols2.add(c);
+          }
+        }
+      });
       const rcCols = [];
       for (let c = 0; c < GRID_COLS; c++) {
         if (!usedCols2.has(c)) rcCols.push(c);
@@ -194,6 +205,49 @@ export default class Grid {
           rowIndex
         );
         this.rowClears.push(rc);
+      }
+    }
+
+    // 消单列道具生成（第7关起，该列整体必须有砖块存在）
+    // 不能与本行砖块、加球器、横板、白洞、消单行在同一格
+    // 每局至少保证有一个（前几行没生成则强制生成）
+    const shouldGenColClear = stage >= 7 && cols.length > 0;
+    const forceColClear = shouldGenColClear && this.colClears.length === 0 && this.rowCounter >= 3;
+    if (shouldGenColClear && (forceColClear || Math.random() < 0.12)) {
+      // 收集所有不能放的列
+      const usedCols3 = new Set(cols); // 本行砖块列不能放
+      for (let i = 0; i < pickupCount; i++) usedCols3.add(shuffled[i]);
+      for (const pc of plankCols) usedCols3.add(pc);
+      if (warpCol >= 0) usedCols3.add(warpCol);
+      this.rowClears.forEach(r => {
+        if (r.row === rowIndex) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (Math.abs(r.x - (this.getColX(c) + BRICK_W / 2)) < 1) usedCols3.add(c);
+          }
+        }
+      });
+      // 找出该列整体有砖块的列（其他行存在砖块即可）
+      const colsWithBricks = new Set();
+      for (const b of this.bricks) {
+        if (b.isAlive) colsWithBricks.add(b.col);
+      }
+      // 当前行的砖块列也算有砖块
+      for (const c of cols) colsWithBricks.add(c);
+
+      // 消单列放在空格且该列有砖块的位置
+      const ccCols = [];
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (!usedCols3.has(c) && colsWithBricks.has(c)) ccCols.push(c);
+      }
+      if (ccCols.length > 0) {
+        const ccCol = ccCols[Math.floor(Math.random() * ccCols.length)];
+        const cc = new ColClear();
+        cc.init(
+          this.getColX(ccCol) + BRICK_W / 2,
+          this.getRowY(rowIndex) + BRICK_H / 2,
+          ccCol
+        );
+        this.colClears.push(cc);
       }
     }
   }
@@ -291,6 +345,11 @@ export default class Grid {
       if (!rc.collected) rc.moveDown(this.rowHeight);
     });
 
+    // 消单列道具下移
+    this.colClears.forEach(cc => {
+      if (!cc.collected) cc.moveDown(this.rowHeight);
+    });
+
     return gameOver;
   }
 
@@ -300,6 +359,7 @@ export default class Grid {
     this.planks = this.planks.filter(p => p.targetY < GAME_AREA_TOP + this.rowHeight * 15);
     this.warps = this.warps.filter(w => w.active && w.targetY < GAME_AREA_TOP + this.rowHeight * 15);
     this.rowClears = this.rowClears.filter(rc => !rc.collected && rc.targetY < GAME_AREA_TOP + this.rowHeight * 15);
+    this.colClears = this.colClears.filter(cc => !cc.collected && cc.targetY < GAME_AREA_TOP + this.rowHeight * 15);
   }
 
   checkGameOver(bottomLimit) {
@@ -312,6 +372,7 @@ export default class Grid {
     this.planks.forEach(p => { p.update(); });
     this.warps.forEach(w => { if (w.active) w.update(); });
     this.rowClears.forEach(rc => { if (!rc.collected) rc.update(); });
+    this.colClears.forEach(cc => { if (!cc.collected) cc.update(); });
   }
 
   render(ctx, glowPhase) {
@@ -320,5 +381,6 @@ export default class Grid {
     this.warps.forEach(w => { w.render(ctx); });
     this.pickups.forEach(p => { p.render(ctx); });
     this.rowClears.forEach(rc => { rc.render(ctx); });
+    this.colClears.forEach(cc => { cc.render(ctx); });
   }
 }
