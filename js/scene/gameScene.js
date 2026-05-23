@@ -1416,16 +1416,16 @@ export default class GameScene {
     ctx.font = `bold ${24 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('PAUSED', centerX, centerY - 60 * s);
+    ctx.fillText('暂停', centerX, centerY - 60 * s);
 
     // 继续按钮
-    this._drawButton(ctx, centerX, centerY, 120 * s, 40 * s, 'CONTINUE', COLORS.neonCyan);
+    this._drawButton(ctx, centerX, centerY, 120 * s, 40 * s, '继续', COLORS.neonCyan);
 
     // 重试按钮
-    this._drawButton(ctx, centerX, centerY + 60 * s, 120 * s, 40 * s, 'RETRY', COLORS.neonYellow);
+    this._drawButton(ctx, centerX, centerY + 60 * s, 120 * s, 40 * s, '重试', COLORS.neonYellow);
 
     // 返回菜单按钮
-    this._drawButton(ctx, centerX, centerY + 120 * s, 120 * s, 40 * s, 'MENU', COLORS.neonRed);
+    this._drawButton(ctx, centerX, centerY + 120 * s, 120 * s, 40 * s, '菜单', COLORS.neonRed);
   }
 
   _renderGameOverOverlay(ctx) {
@@ -1445,21 +1445,21 @@ export default class GameScene {
     ctx.textBaseline = 'middle';
     ctx.shadowColor = COLORS.neonRed;
     ctx.shadowBlur = 10 * s;
-    ctx.fillText('GAME OVER', centerX, centerY - 80 * s);
+    ctx.fillText('游戏结束', centerX, centerY - 80 * s);
     ctx.shadowBlur = 0;
 
     // 分数
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `${16 * s}px Arial`;
-    ctx.fillText(`Score: ${this.score}`, centerX, centerY - 30 * s);
-    ctx.fillText(`Stage: ${this.stage}`, centerX, centerY);
-    ctx.fillText(`Rounds: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
+    ctx.fillText(`得分: ${this.score}`, centerX, centerY - 30 * s);
+    ctx.fillText(`关卡: ${this.stage}`, centerX, centerY);
+    ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
 
     // 重试按钮
-    this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, 'RETRY', COLORS.neonCyan);
+    this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, '重试', COLORS.neonCyan);
 
     // 返回菜单
-    this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, 'MENU', COLORS.neonRed);
+    this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, '菜单', COLORS.neonRed);
   }
 
   _renderWinOverlay(ctx) {
@@ -1478,7 +1478,7 @@ export default class GameScene {
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#39ff14';
     ctx.shadowBlur = 12 * s;
-    ctx.fillText('STAGE CLEAR!', centerX, centerY - 100 * s);
+    ctx.fillText('通关！', centerX, centerY - 100 * s);
     ctx.shadowBlur = 0;
 
     // 星星
@@ -1507,14 +1507,14 @@ export default class GameScene {
     // 分数信息
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `${15 * s}px Arial`;
-    ctx.fillText(`Score: ${this.score}`, centerX, centerY - 15 * s);
-    ctx.fillText(`Rounds: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
+    ctx.fillText(`得分: ${this.score}`, centerX, centerY - 15 * s);
+    ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
 
     // 下一关按钮
-    this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, 'NEXT LEVEL', '#39ff14');
+    this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#39ff14');
 
     // 返回菜单
-    this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, 'MENU', COLORS.neonCyan);
+    this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
   }
 
   _handleWinTap(x, y) {
