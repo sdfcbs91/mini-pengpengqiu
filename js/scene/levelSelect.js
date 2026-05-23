@@ -827,9 +827,7 @@ export default class LevelSelect {
     const isSelected = this.selectedLevel === levelIdx;
 
     if (data.unlocked) {
-      // 已解锁关卡 — 透明背景，只有边框
-
-      // 边框
+      // 已解锁关卡 — 透明背景 + 发光边框
       const cellGlow = isSelected ? 1.0 : (0.4 + 0.2 * Math.sin(this.glowPhase + levelIdx * 0.3));
       ctx.strokeStyle = '#4499cc';
       ctx.lineWidth = isSelected ? 2.5 : 1;
@@ -838,6 +836,7 @@ export default class LevelSelect {
       this._roundRect(ctx, x, y, w, h, 6 * s);
       ctx.stroke();
       ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
 
       // 关卡号
       ctx.fillStyle = COLORS.textWhite;
@@ -850,22 +849,12 @@ export default class LevelSelect {
       this._drawStars(ctx, x + w / 2, y + h - 12 * s, data.stars, 3, 6 * s);
 
     } else {
-      // 锁定关卡 — 透明背景
-
-      ctx.strokeStyle = COLORS.lockedBorder;
-      ctx.lineWidth = 1;
-      this._roundRect(ctx, x, y, w, h, 6 * s);
-      ctx.stroke();
-
-      // 关卡号（灰色）+ 未解锁文字
-      ctx.fillStyle = COLORS.textGray;
-      ctx.font = `bold ${13 * s}px Arial`;
+      // 未解锁关卡 — 纯灰白色文字，无任何装饰
+      ctx.fillStyle = '#555566';
+      ctx.font = `${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 6 * s);
-
-      ctx.font = `${8 * s}px Arial`;
-      ctx.fillText('未解锁', x + w / 2, y + h / 2 + 8 * s);
+      ctx.fillText(String(levelNum), x + w / 2, y + h / 2);
     }
   }
 

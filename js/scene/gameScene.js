@@ -956,7 +956,10 @@ export default class GameScene {
     // 砖块和道具
     this.grid.render(ctx, this.glowPhase);
 
-    // 球
+    // 球（重置状态确保白球不被前面渲染的shadow/alpha污染）
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
     this.launcher.renderBalls(ctx);
 
     // 穿越白洞特效
