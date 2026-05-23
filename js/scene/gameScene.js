@@ -115,7 +115,7 @@ export default class GameScene {
   }
 
   /**
-   * 150球模式专用布局：密集砖块 + 斜向通道 + 顶部空行
+   * 150球模式专用布局：密集砖块 + 随机方向斜向通道 + 顶部空行
    */
   _generate150Layout() {
     const grid = this.grid;
@@ -132,10 +132,20 @@ export default class GameScene {
     // HP梯度（从上到下递增）
     const hpByRow = [45, 54, 58, 63, 67, 72, 80, 90];
 
-    // 斜向通道判定：从左下到右上的对角线空隙
+    // 随机选择斜坡方向：左侧（左下→右上）或 右侧（右下→左上）
+    const goRight = Math.random() > 0.5;
+
+    // 斜向通道判定
     const isInChannel = (row, col) => {
-      const target = (ROWS - 1 - row) * (COLS - 1) / (ROWS - 1);
-      return Math.abs(col - target) < 1.2;
+      if (goRight) {
+        // 左下→右上：row=7时col≈0，row=1时col≈6
+        const target = (ROWS - 1 - row) * (COLS - 1) / (ROWS - 1);
+        return Math.abs(col - target) < 1.2;
+      } else {
+        // 右下→左上：row=7时col≈6，row=1时col≈0
+        const target = (COLS - 1) - (ROWS - 1 - row) * (COLS - 1) / (ROWS - 1);
+        return Math.abs(col - target) < 1.2;
+      }
     };
 
     for (let row = 0; row < ROWS; row++) {

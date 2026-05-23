@@ -135,6 +135,10 @@ export default class Main {
 
     // 重新绑定关卡选择触摸
     this.levelSelect._bindTouch();
+    // 重置导航栏选中态为"闯关"
+    this.levelSelect.navItems.forEach((item, i) => { item.active = i === 0; });
+    this.levelSelect.showSettings = false;
+    this.levelSelect.showRank = false;
     this.databus.goToLevelSelect();
   }
 
