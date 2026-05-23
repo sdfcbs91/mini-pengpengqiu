@@ -723,6 +723,7 @@ export default class GameScene {
         warp.cachedDestX = nx;
         warp.cachedDestY = ny;
         warp.cachedAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
+        warp.startDestTimer();
         return;
       }
     }
@@ -731,6 +732,7 @@ export default class GameScene {
     warp.cachedDestX = (left + right) / 2;
     warp.cachedDestY = top + (bottom - top) * 0.3;
     warp.cachedAngle = -Math.PI / 2;
+    warp.startDestTimer();
   }
 
   /**

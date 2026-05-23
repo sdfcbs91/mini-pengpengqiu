@@ -154,6 +154,7 @@ export default class Grid {
     // 空心白洞生成（第18关起，概率约每关1~2个）
     // 不能与砖块、加球器、横板在同一格
     const warpRate = cfg.warpRate || 0;
+    let warpCol = -1;
     if (warpRate > 0 && Math.random() < warpRate) {
       const usedCols = new Set(cols); // 砖块列
       for (let i = 0; i < pickupCount; i++) usedCols.add(shuffled[i]); // 加球器列
@@ -163,10 +164,10 @@ export default class Grid {
         if (!usedCols.has(c)) warpCols.push(c);
       }
       if (warpCols.length > 0) {
-        const wCol = warpCols[Math.floor(Math.random() * warpCols.length)];
+        warpCol = warpCols[Math.floor(Math.random() * warpCols.length)];
         const warp = new Warp();
         warp.init(
-          this.getColX(wCol) + BRICK_W / 2,
+          this.getColX(warpCol) + BRICK_W / 2,
           this.getRowY(rowIndex) + BRICK_H / 2
         );
         this.warps.push(warp);
@@ -174,10 +175,12 @@ export default class Grid {
     }
 
     // 消单行道具生成（第10关起，约15%概率每行出现）
+    // 不能与砖块、加球器、横板、白洞在同一格
     if (stage >= 10 && Math.random() < 0.15) {
       const usedCols2 = new Set(cols);
       for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]);
       for (const pc of plankCols) usedCols2.add(pc);
+      if (warpCol >= 0) usedCols2.add(warpCol);
       const rcCols = [];
       for (let c = 0; c < GRID_COLS; c++) {
         if (!usedCols2.has(c)) rcCols.push(c);

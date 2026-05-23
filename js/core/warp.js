@@ -18,6 +18,7 @@ export default class Warp {
     this.cachedDestX = -1;
     this.cachedDestY = -1;
     this.cachedAngle = 0;
+    this.destShowTimer = 0;  // 目标点显示倒计时（帧数）
   }
 
   init(x, y) {
@@ -29,6 +30,7 @@ export default class Warp {
     this.cachedDestX = -1;
     this.cachedDestY = -1;
     this.cachedAngle = 0;
+    this.destShowTimer = 0;
   }
 
   /**
@@ -38,6 +40,7 @@ export default class Warp {
     this.cachedDestX = -1;
     this.cachedDestY = -1;
     this.cachedAngle = 0;
+    this.destShowTimer = 0;
   }
 
   /**
@@ -47,6 +50,13 @@ export default class Warp {
     return this.cachedDestX >= 0;
   }
 
+  /**
+   * 设置目标点后启动显示计时（2秒 = 120帧）
+   */
+  startDestTimer() {
+    this.destShowTimer = 120;
+  }
+
   moveDown(amount) {
     this.targetY += amount;
   }
@@ -54,6 +64,11 @@ export default class Warp {
   update() {
     this.phase += 0.06;
     if (this.phase > Math.PI * 2) this.phase -= Math.PI * 2;
+
+    // 目标点显示倒计时
+    if (this.destShowTimer > 0) {
+      this.destShowTimer--;
+    }
 
     // 平滑下移
     if (Math.abs(this.y - this.targetY) > 0.5) {
@@ -94,8 +109,8 @@ export default class Warp {
     ctx.arc(this.x, this.y, 2 * s, 0, Math.PI * 2);
     ctx.fill();
 
-    // 渲染缓存的穿越目标位置标记
-    if (this.hasCachedDest()) {
+    // 渲染缓存的穿越目标位置标记（仅在计时器内显示）
+    if (this.hasCachedDest() && this.destShowTimer > 0) {
       this._renderDestMarker(ctx, s);
     }
   }
