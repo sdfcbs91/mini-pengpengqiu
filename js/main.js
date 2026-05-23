@@ -9,6 +9,15 @@ const ctx = canvas.getContext('2d');
 // 高清适配：缩放 context，后续所有绘图坐标使用逻辑像素
 ctx.scale(DPR, DPR);
 
+// 关闭图片平滑（像素画/小图标更清晰；大图片不受影响因为用原始分辨率）
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = 'high';
+
+// 文字渲染优化提示（部分环境支持）
+if (ctx.textDrawingMode !== undefined) {
+  ctx.textDrawingMode = 'glyph';
+}
+
 GameGlobal.databus = new DataBus();
 
 /**
@@ -131,6 +140,8 @@ export default class Main {
    * 游戏主循环
    */
   loop() {
+    // 重置变换矩阵再缩放，确保高清渲染无累积误差
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // 开屏画面
