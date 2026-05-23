@@ -2,6 +2,7 @@ import Brick from './brick';
 import Pickup from './pickup';
 import Plank from './plank';
 import Warp from './warp';
+import RowClear from './rowClear';
 import {
   GRID_COLS, BRICK_GAP, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_TOP,
@@ -18,6 +19,7 @@ export default class Grid {
     this.pickups = [];
     this.planks = [];
     this.warps = [];            // 空心白洞（穿越道具）
+    this.rowClears = [];        // 消单行道具
     this.rowHeight = BRICK_H + BRICK_GAP;
     this.levelConfig = null;
     this.gapCol = -1;          // 持续空列（垂直通道）
@@ -38,6 +40,7 @@ export default class Grid {
     this.pickups = [];
     this.planks = [];
     this.warps = [];
+    this.rowClears = [];
     this.levelConfig = getLevelConfig(stage);
     this.gapCol = -1;
     this.gapColLife = 0;
@@ -169,6 +172,27 @@ export default class Grid {
         this.warps.push(warp);
       }
     }
+
+    // 消单行道具生成（第10关起，约15%概率每行出现）
+    if (stage >= 10 && Math.random() < 0.15) {
+      const usedCols2 = new Set(cols);
+      for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]);
+      for (const pc of plankCols) usedCols2.add(pc);
+      const rcCols = [];
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (!usedCols2.has(c)) rcCols.push(c);
+      }
+      if (rcCols.length > 0) {
+        const rcCol = rcCols[Math.floor(Math.random() * rcCols.length)];
+        const rc = new RowClear();
+        rc.init(
+          this.getColX(rcCol) + BRICK_W / 2,
+          this.getRowY(rowIndex) + BRICK_H / 2,
+          rowIndex
+        );
+        this.rowClears.push(rc);
+      }
+    }
   }
 
   /**
@@ -259,6 +283,11 @@ export default class Grid {
       }
     });
 
+    // 消单行道具下移
+    this.rowClears.forEach(rc => {
+      if (!rc.collected) rc.moveDown(this.rowHeight);
+    });
+
     return gameOver;
   }
 
@@ -267,6 +296,7 @@ export default class Grid {
     this.pickups = this.pickups.filter(p => !p.collected);
     this.planks = this.planks.filter(p => p.targetY < GAME_AREA_TOP + this.rowHeight * 15);
     this.warps = this.warps.filter(w => w.active && w.targetY < GAME_AREA_TOP + this.rowHeight * 15);
+    this.rowClears = this.rowClears.filter(rc => !rc.collected && rc.targetY < GAME_AREA_TOP + this.rowHeight * 15);
   }
 
   checkGameOver(bottomLimit) {
@@ -278,6 +308,7 @@ export default class Grid {
     this.pickups.forEach(p => { if (!p.collected) p.update(); });
     this.planks.forEach(p => { p.update(); });
     this.warps.forEach(w => { if (w.active) w.update(); });
+    this.rowClears.forEach(rc => { if (!rc.collected) rc.update(); });
   }
 
   render(ctx, glowPhase) {
@@ -285,5 +316,6 @@ export default class Grid {
     this.planks.forEach(p => { p.render(ctx, glowPhase); });
     this.warps.forEach(w => { w.render(ctx); });
     this.pickups.forEach(p => { p.render(ctx); });
+    this.rowClears.forEach(rc => { rc.render(ctx); });
   }
 }
