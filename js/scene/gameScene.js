@@ -978,6 +978,10 @@ export default class GameScene {
 
     // 删除超出底部的横板（只删除完全超出发射线的）
     this.grid.planks = this.grid.planks.filter(p => p.targetY < LAUNCH_Y);
+    // 删除超出底部的白洞、消单行、消单列
+    this.grid.warps = this.grid.warps.filter(w => w.active && w.targetY < LAUNCH_Y);
+    this.grid.rowClears = this.grid.rowClears.filter(rc => !rc.collected && rc.targetY < LAUNCH_Y);
+    this.grid.colClears = this.grid.colClears.filter(cc => !cc.collected && cc.targetY < LAUNCH_Y);
 
     // 达到目标回合后不再生成新砖块
     if (!reachedTarget) {
