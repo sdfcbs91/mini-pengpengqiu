@@ -476,38 +476,42 @@ export default class LevelSelect {
   }
 
   /**
-   * 渲染 Toast 提示
+   * 渲染 Toast 提示（统一样式）
    */
   _drawToast(ctx) {
     this._toastTimer--;
     const s = SCALE;
-    const alpha = this._toastTimer > 70 ? (90 - this._toastTimer) / 20 :
-                  this._toastTimer < 20 ? this._toastTimer / 20 : 1;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT * 0.35;
+
+    // 淡入淡出
+    let alpha = 1;
+    if (this._toastTimer > 70) alpha = (90 - this._toastTimer) / 20;
+    else if (this._toastTimer < 20) alpha = this._toastTimer / 20;
 
     ctx.globalAlpha = alpha * 0.9;
+
     const tw = 180 * s;
     const th = 36 * s;
-    const tx = (SCREEN_WIDTH - tw) / 2;
-    const ty = SCREEN_HEIGHT * 0.4;
     const r = th / 2;
 
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.beginPath();
-    ctx.moveTo(tx + r, ty);
-    ctx.lineTo(tx + tw - r, ty);
-    ctx.arcTo(tx + tw, ty, tx + tw, ty + r, r);
-    ctx.arcTo(tx + tw, ty + th, tx + tw - r, ty + th, r);
-    ctx.lineTo(tx + r, ty + th);
-    ctx.arcTo(tx, ty + th, tx, ty + r, r);
-    ctx.arcTo(tx, ty, tx + r, ty, r);
+    ctx.moveTo(centerX - tw / 2 + r, centerY - th / 2);
+    ctx.lineTo(centerX + tw / 2 - r, centerY - th / 2);
+    ctx.arcTo(centerX + tw / 2, centerY - th / 2, centerX + tw / 2, centerY, r);
+    ctx.arcTo(centerX + tw / 2, centerY + th / 2, centerX + tw / 2 - r, centerY + th / 2, r);
+    ctx.lineTo(centerX - tw / 2 + r, centerY + th / 2);
+    ctx.arcTo(centerX - tw / 2, centerY + th / 2, centerX - tw / 2, centerY, r);
+    ctx.arcTo(centerX - tw / 2, centerY - th / 2, centerX - tw / 2 + r, centerY - th / 2, r);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `${12 * s}px Arial`;
+    ctx.font = `bold ${14 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this._toastText || '', SCREEN_WIDTH / 2, ty + th / 2);
+    ctx.fillText(this._toastText || '', centerX, centerY);
     ctx.globalAlpha = 1;
   }
 

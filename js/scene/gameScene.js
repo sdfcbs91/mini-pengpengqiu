@@ -1168,15 +1168,15 @@ export default class GameScene {
     // 淡入淡出
     let alpha = 1;
     if (this.speedTipTimer > 105) alpha = (120 - this.speedTipTimer) / 15;
-    else if (this.speedTipTimer < 25) alpha = this.speedTipTimer / 25;
+    else if (this.speedTipTimer < 20) alpha = this.speedTipTimer / 20;
 
-    ctx.globalAlpha = alpha * 0.95;
+    ctx.globalAlpha = alpha * 0.9;
 
     // 背景圆角矩形
-    const tw = 160 * s;
-    const th = 40 * s;
+    const tw = 140 * s;
+    const th = 36 * s;
     const r = th / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.beginPath();
     ctx.moveTo(centerX - tw / 2 + r, centerY - th / 2);
     ctx.lineTo(centerX + tw / 2 - r, centerY - th / 2);
@@ -1188,14 +1188,9 @@ export default class GameScene {
     ctx.closePath();
     ctx.fill();
 
-    // 边框发光
-    ctx.strokeStyle = '#ffcc00';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // 文字
-    ctx.fillStyle = '#ffcc00';
-    ctx.font = `bold ${18 * s}px Arial`;
+    // 白色文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${14 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(this.speedTipText, centerX, centerY);
