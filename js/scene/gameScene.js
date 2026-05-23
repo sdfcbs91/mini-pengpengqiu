@@ -500,25 +500,27 @@ export default class GameScene {
         }
       }
 
-      // 5. 道具碰撞（使用线段-圆碰撞，防止高速穿越漏检）
+      // 5. 道具碰撞（使用帧内完整路径做线段-圆碰撞，防止反弹中间穿越漏检）
       if (ball.active) {
+        const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const pickup of this.grid.pickups) {
           if (pickup.collected) continue;
           const hitR = ball.radius + pickup.radius + 4 * SCALE;
-          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, pickup.x, pickup.y, hitR)) {
+          if (this._pathCircleHit(path, pickup.x, pickup.y, hitR)) {
             pickup.collect();
             this.nextBallCount++;
           }
         }
       }
 
-      // 5.2 消单行道具碰撞（线段-圆碰撞）
+      // 5.2 消单行道具碰撞（帧内完整路径）
       if (ball.active) {
+        const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
           if (ball.usedWarps.has(rc)) continue;
           const hitR = ball.radius + rc.radius + 4 * SCALE;
-          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, rc.x, rc.y, hitR)) {
+          if (this._pathCircleHit(path, rc.x, rc.y, hitR)) {
             ball.usedWarps.add(rc);
             this._executeRowClear(rc);
             break;
@@ -526,13 +528,14 @@ export default class GameScene {
         }
       }
 
-      // 5.3 消单列道具碰撞（线段-圆碰撞）
+      // 5.3 消单列道具碰撞（帧内完整路径）
       if (ball.active) {
+        const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const cc of this.grid.colClears) {
           if (cc.collected) continue;
           if (ball.usedWarps.has(cc)) continue;
           const hitR = ball.radius + cc.radius + 4 * SCALE;
-          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, cc.x, cc.y, hitR)) {
+          if (this._pathCircleHit(path, cc.x, cc.y, hitR)) {
             ball.usedWarps.add(cc);
             this._executeColClear(cc);
             break;
@@ -540,15 +543,14 @@ export default class GameScene {
         }
       }
 
-      // 5.5 白洞碰撞（每个白洞每次飞行只传送一次，防止死循环）
+      // 5.5 白洞碰撞（帧内完整路径检测）
       if (ball.active) {
+        const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const warp of this.grid.warps) {
           if (!warp.active) continue;
-          if (ball.usedWarps.has(warp)) continue; // 已穿过此白洞，跳过
-          const dx = ball.x - warp.x;
-          const dy = ball.y - warp.y;
+          if (ball.usedWarps.has(warp)) continue;
           const warpHitR = ball.radius + warp.radius + 4 * SCALE;
-          if (dx * dx + dy * dy < warpHitR * warpHitR) {
+          if (this._pathCircleHit(path, warp.x, warp.y, warpHitR)) {
             // 标记已使用
             ball.usedWarps.add(warp);
             // 记录白洞碰撞用于循环检测
@@ -867,7 +869,6 @@ export default class GameScene {
 
   /**
    * 线段-圆碰撞检测：球从(ax,ay)移动到(bx,by)，是否与圆心(cx,cy)半径r相交
-   * 计算线段到圆心的最短距离是否 < r
    */
   _segCircleHit(ax, ay, bx, by, cx, cy, r) {
     const dx = bx - ax;
@@ -877,19 +878,29 @@ export default class GameScene {
 
     const lenSq = dx * dx + dy * dy;
     if (lenSq < 0.001) {
-      // 球没动，退化为点-圆判断
       return fx * fx + fy * fy < r * r;
     }
 
-    // 投影参数 t（0~1 表示线段范围）
     let t = -(fx * dx + fy * dy) / lenSq;
     if (t < 0) t = 0;
     if (t > 1) t = 1;
 
-    // 线段上最近点到圆心的距离
     const nearX = ax + t * dx - cx;
     const nearY = ay + t * dy - cy;
     return nearX * nearX + nearY * nearY < r * r;
+  }
+
+  /**
+   * 多段路径-圆碰撞检测：检查完整路径（多个线段）是否与圆相交
+   * path = [{x,y}, {x,y}, ...] 路径点序列
+   */
+  _pathCircleHit(path, cx, cy, r) {
+    for (let i = 0; i < path.length - 1; i++) {
+      if (this._segCircleHit(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y, cx, cy, r)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

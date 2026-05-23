@@ -257,6 +257,7 @@ function findClosestEdgePush(px, py, pts, cx, cy) {
 /**
  * 移动球并处理砖块碰撞（扫描方式，不会穿透）
  * 返回碰撞到的砖块列表
+ * ball._pathPoints 记录帧内完整路径点（供道具碰撞检测用）
  */
 export function moveBallWithCollision(ball, vx, vy, bricks) {
   const hitBricks = [];
@@ -264,6 +265,9 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
   let remainVy = vy;
   const maxBounces = 4;
   let lastHitBrick = null;
+
+  // 记录路径起点
+  ball._pathPoints = [{ x: ball.x, y: ball.y }];
 
   for (let bounce = 0; bounce < maxBounces; bounce++) {
     let earliest = null;
@@ -279,6 +283,7 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
     if (!earliest || earliest.t >= 1) {
       ball.x += remainVx;
       ball.y += remainVy;
+      ball._pathPoints.push({ x: ball.x, y: ball.y });
       break;
     }
 
@@ -286,6 +291,7 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
     const safeT = Math.max(0, earliest.t - 0.01);
     ball.x += remainVx * safeT;
     ball.y += remainVy * safeT;
+    ball._pathPoints.push({ x: ball.x, y: ball.y });
 
     if (!hitBricks.includes(earliest.brick)) {
       hitBricks.push(earliest.brick);
