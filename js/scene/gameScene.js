@@ -438,16 +438,15 @@ export default class GameScene {
         }
       }
 
-      // 5.2 消单行道具碰撞（白球穿过时触发，道具持续存在直到整行清除）
+      // 5.2 消单行道具碰撞（球穿过该行Y范围即触发，任意方向均可）
       if (ball.active) {
+        const halfRow = this.grid.rowHeight / 2;
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
           if (ball.usedWarps.has(rc)) continue; // 本次飞行已触发过此道具
-          const rdx = ball.x - rc.x;
-          const rdy = ball.y - rc.y;
-          const rcHitR = ball.radius + rc.radius + 4 * SCALE;
-          if (rdx * rdx + rdy * rdy < rcHitR * rcHitR) {
-            ball.usedWarps.add(rc); // 复用 usedWarps 防止同次飞行重复触发
+          // 检测球Y是否在消单行道具所在行的范围内
+          if (Math.abs(ball.y - rc.y) < halfRow + ball.radius) {
+            ball.usedWarps.add(rc);
             this._executeRowClear(rc);
             break;
           }
