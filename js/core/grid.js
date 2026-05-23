@@ -55,8 +55,9 @@ export default class Grid {
     // 初始行数 = 配置值 + 1 + 关卡/20（渐进增加）
     const baseRows = this.levelConfig.initRows;
     const rows = Math.min(baseRows + 1 + Math.floor(stage / 20), 8);
+    // 从第1行开始生成（第0行留空，给球顶部弹跳空间）
     for (let i = 0; i < rows; i++) {
-      this.generateRow(stage - i, i);
+      this.generateRow(stage - i, i + 1);
     }
   }
 
