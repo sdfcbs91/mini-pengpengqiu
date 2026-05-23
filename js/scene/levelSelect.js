@@ -57,6 +57,9 @@ export default class LevelSelect {
     this.showSettings = false;
     this.soundOn = true; // 声音开关
     this.showGameIntro = false; // 游戏介绍弹窗
+    this.showPropsGuide = false; // 道具介绍弹窗
+    this._propsGuidePage = 0; // 当前道具页码
+    this._propsSwipeStartX = 0; // 滑动起始X
 
     // 绑定触摸事件
     this._bindTouch();
@@ -146,6 +149,21 @@ export default class LevelSelect {
       this.isDragging = false;
 
       const elapsed = Date.now() - this.touchStartTime;
+      const touch = e.changedTouches[0];
+      const totalDx = touch.clientX - this.touchStartX;
+
+      // 道具介绍弹窗左右滑动翻页
+      if (this.showPropsGuide && Math.abs(totalDx) > 30 && elapsed < 500) {
+        const props = this._getPropsData();
+        if (totalDx < -30 && this._propsGuidePage < props.length - 1) {
+          this._propsGuidePage++;
+        } else if (totalDx > 30 && this._propsGuidePage > 0) {
+          this._propsGuidePage--;
+        }
+        this.slideOffset = 0;
+        this.isSwiping = false;
+        return;
+      }
 
       if (this.isSwiping) {
         // 计算松手速度
@@ -193,6 +211,12 @@ export default class LevelSelect {
     // 游戏介绍弹窗优先处理（点击任意位置关闭）
     if (this.showGameIntro) {
       this.showGameIntro = false;
+      return;
+    }
+
+    // 道具介绍弹窗（点击左右切换，点击上下区域关闭）
+    if (this.showPropsGuide) {
+      this._handlePropsGuideTap(x, y);
       return;
     }
 
@@ -467,6 +491,11 @@ export default class LevelSelect {
       this._drawGameIntro(ctx);
     }
 
+    // 道具介绍弹窗
+    if (this.showPropsGuide) {
+      this._drawPropsGuide(ctx);
+    }
+
     this._drawNavBar(ctx);
 
     // Toast 提示
@@ -551,6 +580,7 @@ export default class LevelSelect {
       { label: '分享游戏', color: '#ffffff' },
       { label: this.soundOn ? '声音（开）' : '声音（关）', color: this.soundOn ? '#ffffff' : '#888899' },
       { label: '同步数据', color: '#ffffff' },
+      { label: '道具介绍', color: '#ffffff' },
       { label: '游戏介绍', color: '#ffffff' },
     ];
 
@@ -604,7 +634,8 @@ export default class LevelSelect {
           case 0: this._doShare(); break;
           case 1: this._toggleSound(); break;
           case 2: this._doSyncData(); break;
-          case 3: this.showGameIntro = true; break;
+          case 3: this.showPropsGuide = true; this._propsGuidePage = 0; break;
+          case 4: this.showGameIntro = true; break;
         }
         return;
       }
@@ -768,6 +799,215 @@ export default class LevelSelect {
     ctx.font = `${10 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.fillText('点击任意位置关闭', SCREEN_WIDTH / 2, boxY + boxH - 14 * s);
+  }
+
+  /**
+   * 道具介绍数据
+   */
+  _getPropsData() {
+    return [
+      {
+        name: '单列消除',
+        icon: '|',
+        iconColor: '#ff3333',
+        desc: [
+          '红色外圈 + 红色竖条',
+          '',
+          '白球经过道具时触发，',
+          '对同列所有砖块造成伤害。',
+          '伤害 = 当前攻击力等级。',
+          '',
+          '整列砖块全部消除后道具消失。',
+          '可被多次触发直到列清空。',
+        ],
+      },
+      {
+        name: '单行消除',
+        icon: '—',
+        iconColor: '#ff3333',
+        desc: [
+          '红色外圈 + 红色横条',
+          '',
+          '白球经过道具时触发，',
+          '对同行所有砖块造成伤害。',
+          '伤害 = 当前攻击力等级。',
+          '',
+          '整行砖块全部消除后道具消失。',
+          '可被多次触发直到行清空。',
+        ],
+      },
+      {
+        name: '空心白洞',
+        icon: '◎',
+        iconColor: '#ffffff',
+        desc: [
+          '白色空心圆环，脉动发光',
+          '',
+          '白球碰到后传送到随机位置。',
+          '每颗球每次飞行只触发一次，',
+          '防止来回传送死循环。',
+          '',
+          '第18关起出现。',
+          '传送目标会短暂显示标记。',
+        ],
+      },
+      {
+        name: '闪电',
+        icon: '⚡',
+        iconColor: '#ffcc00',
+        desc: [
+          '瞄准阶段点击左上角闪电按钮',
+          '',
+          '立即清除最底一行所有砖块。',
+          '适合在砖块快要触底时使用，',
+          '紧急情况的救命技能！',
+          '',
+          '每局初始4次机会。',
+        ],
+      },
+      {
+        name: '多球',
+        icon: '●●',
+        iconColor: '#ff6688',
+        desc: [
+          '瞄准阶段点击左上角多球按钮',
+          '',
+          '本轮发射的球数量翻倍！',
+          '多球 = 多消除 = 更高分。',
+          '',
+          '每局初始5次机会。',
+          '可叠加使用（2→4→8...）',
+        ],
+      },
+      {
+        name: '攻击增幅',
+        icon: '⚔',
+        iconColor: '#ff9900',
+        desc: [
+          '瞄准阶段点击左上角攻击按钮',
+          '',
+          '白球攻击力永久+1。',
+          '默认攻击力1（每碰扣1HP），',
+          '升级后每碰扣2、3、4...HP。',
+          '',
+          '每局初始5次机会。',
+          '对消行/消列伤害也生效。',
+        ],
+      },
+    ];
+  }
+
+  /**
+   * 绘制道具介绍 banner 弹窗
+   */
+  _drawPropsGuide(ctx) {
+    const s = SCALE;
+    const props = this._getPropsData();
+    const page = this._propsGuidePage;
+    const prop = props[page];
+
+    // 遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const padX = 24 * s;
+    const padY = 100 * s;
+    const boxW = SCREEN_WIDTH - padX * 2;
+    const boxH = SCREEN_HEIGHT - padY * 2;
+    const boxX = padX;
+    const boxY = padY;
+    const r = 10 * s;
+
+    // 弹窗背景
+    ctx.fillStyle = '#0c1435';
+    ctx.strokeStyle = '#4499cc';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(boxX + r, boxY);
+    ctx.lineTo(boxX + boxW - r, boxY);
+    ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + r, r);
+    ctx.arcTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH, r);
+    ctx.lineTo(boxX + r, boxY + boxH);
+    ctx.arcTo(boxX, boxY + boxH, boxX, boxY + boxH - r, r);
+    ctx.arcTo(boxX, boxY, boxX + r, boxY, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 图标
+    ctx.fillStyle = prop.iconColor;
+    ctx.font = `bold ${36 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(prop.icon, SCREEN_WIDTH / 2, boxY + 40 * s);
+
+    // 名称
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${16 * s}px Arial`;
+    ctx.fillText(prop.name, SCREEN_WIDTH / 2, boxY + 72 * s);
+
+    // 描述
+    ctx.fillStyle = '#ccddff';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.textAlign = 'left';
+    const descTop = boxY + 95 * s;
+    const lineH = 16 * s;
+    prop.desc.forEach((line, i) => {
+      ctx.fillText(line, boxX + 16 * s, descTop + i * lineH);
+    });
+
+    // 页码指示器
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#888899';
+    ctx.font = `${10 * s}px Arial`;
+    ctx.fillText(`${page + 1} / ${props.length}`, SCREEN_WIDTH / 2, boxY + boxH - 30 * s);
+
+    // 左右箭头提示
+    if (page > 0) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${20 * s}px Arial`;
+      ctx.textAlign = 'left';
+      ctx.fillText('‹', boxX + 6 * s, SCREEN_HEIGHT / 2);
+    }
+    if (page < props.length - 1) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${20 * s}px Arial`;
+      ctx.textAlign = 'right';
+      ctx.fillText('›', boxX + boxW - 6 * s, SCREEN_HEIGHT / 2);
+    }
+
+    // 底部提示
+    ctx.fillStyle = '#666677';
+    ctx.font = `${9 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText('← 左右点击翻页 | 点击上下区域关闭 →', SCREEN_WIDTH / 2, boxY + boxH - 12 * s);
+  }
+
+  /**
+   * 道具介绍弹窗点击处理
+   */
+  _handlePropsGuideTap(x, y) {
+    const s = SCALE;
+    const padX = 24 * s;
+    const padY = 100 * s;
+    const boxW = SCREEN_WIDTH - padX * 2;
+    const boxX = padX;
+    const props = this._getPropsData();
+
+    // 点击弹窗外（上下区域）关闭
+    if (y < padY || y > SCREEN_HEIGHT - padY) {
+      this.showPropsGuide = false;
+      return;
+    }
+
+    // 左半边点击 → 上一页
+    if (x < boxX + boxW / 2) {
+      if (this._propsGuidePage > 0) this._propsGuidePage--;
+    } else {
+      // 右半边点击 → 下一页
+      if (this._propsGuidePage < props.length - 1) this._propsGuidePage++;
+      else this.showPropsGuide = false; // 最后一页再点右边关闭
+    }
   }
 
   _drawBackground(ctx) {
