@@ -19,9 +19,25 @@ export default class Main {
   constructor() {
     this.databus = GameGlobal.databus;
 
-    // 初始化关卡选择场景
+    // 开屏状态
+    this.splashDone = false;
+    this.splashTimer = 0;
+    this.splashDuration = 120; // 2秒（60fps × 2）
+    this.splashImg = wx.createImage();
+    this.splashImg.src = 'images/welcome.jpg';
+    this.splashFadeOut = false;
+    this.splashAlpha = 1;
+
+    // 开屏点击跳过
+    this._splashTapHandler = () => {
+      this.splashFadeOut = true;
+    };
+    wx.onTouchStart(this._splashTapHandler);
+
+    // 初始化关卡选择场景（延迟绑定触摸，等开屏结束）
     this.levelSelect = new LevelSelect();
     this.levelSelect.onLevelSelected = this.onLevelSelected.bind(this);
+    this.levelSelect.unbindTouch(); // 开屏期间不响应关卡触摸
 
     // 初始化游戏场景（延迟创建）
     this.gameScene = null;
@@ -33,6 +49,15 @@ export default class Main {
     this._fetchUserFromCloud();
 
     this.loop();
+  }
+
+  /**
+   * 开屏结束，进入关卡选择
+   */
+  _endSplash() {
+    this.splashDone = true;
+    wx.offTouchStart(this._splashTapHandler);
+    this.levelSelect._bindTouch();
   }
 
   /**
@@ -107,6 +132,61 @@ export default class Main {
    */
   loop() {
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // 开屏画面
+    if (!this.splashDone) {
+      this.splashTimer++;
+
+      // 到时间或点击后开始淡出
+      if (this.splashTimer >= this.splashDuration) {
+        this.splashFadeOut = true;
+      }
+
+      if (this.splashFadeOut) {
+        this.splashAlpha -= 0.05;
+        if (this.splashAlpha <= 0) {
+          this._endSplash();
+        }
+      }
+
+      // 绘制开屏图片
+      if (!this.splashDone) {
+        ctx.globalAlpha = this.splashAlpha;
+        if (this.splashImg.width > 0) {
+          // 居中铺满绘制
+          const imgRatio = this.splashImg.width / this.splashImg.height;
+          const screenRatio = SCREEN_WIDTH / SCREEN_HEIGHT;
+          let dw, dh, dx, dy;
+          if (imgRatio > screenRatio) {
+            dh = SCREEN_HEIGHT;
+            dw = dh * imgRatio;
+            dx = (SCREEN_WIDTH - dw) / 2;
+            dy = 0;
+          } else {
+            dw = SCREEN_WIDTH;
+            dh = dw / imgRatio;
+            dx = 0;
+            dy = (SCREEN_HEIGHT - dh) / 2;
+          }
+          ctx.drawImage(this.splashImg, dx, dy, dw, dh);
+        } else {
+          // 图片还没加载完，显示黑屏
+          ctx.fillStyle = '#0a0e27';
+          ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        }
+
+        // 底部提示文字
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${12 * (SCREEN_WIDTH / 375)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('点击屏幕开始游戏', SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40 * (SCREEN_WIDTH / 375));
+        ctx.globalAlpha = 1;
+
+        this.raf = requestAnimationFrame(this.loop.bind(this));
+        return;
+      }
+    }
 
     const scene = this.databus.scene;
 
