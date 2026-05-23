@@ -40,11 +40,11 @@ export default class Brick {
   }
 
   /**
-   * 被击中，HP-1
+   * 被击中，HP减少damage点（默认1）
    */
-  hit() {
+  hit(damage = 1) {
     if (!this.isAlive) return false;
-    this.hp--;
+    this.hp -= damage;
     this.shakeTimer = 6; // 抖动6帧
     if (this.hp <= 0) {
       this.hp = 0;

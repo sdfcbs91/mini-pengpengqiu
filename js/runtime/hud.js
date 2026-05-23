@@ -18,6 +18,7 @@ export default class HUD {
     this.pauseX = 24 * s;
     this.lightningX = 62 * s;
     this.multiBallX = 100 * s;
+    this.atkBoostX = 138 * s;  // 攻击力按钮
   }
 
   update() {
@@ -27,7 +28,7 @@ export default class HUD {
 
   render(ctx, data) {
     const s = SCALE;
-    const { stage, score, lightningCount, multiBallCount } = data;
+    const { stage, score, lightningCount, multiBallCount, atkBoostCount, atkLevel } = data;
     const y = this.rowY;
 
     // ---- 暂停按钮（最左） ----
@@ -50,8 +51,11 @@ export default class HUD {
     this._drawSkillButton(ctx, this.multiBallX, y, this.btnR, s, multiBallCount);
     this._drawMultiBall(ctx, this.multiBallX, y - 2 * s, 7 * s);
 
+    // ---- 攻击力提升按钮 ----
+    this._drawAtkButton(ctx, this.atkBoostX, y, this.btnR, s, atkBoostCount || 0, atkLevel || 1);
+
     // ---- 信息显示（放在按钮右侧） ----
-    const infoX = 130 * s;
+    const infoX = 172 * s;
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `bold ${11 * s}px Arial`;
     ctx.textAlign = 'left';
@@ -123,6 +127,39 @@ export default class HUD {
     ctx.shadowBlur = 0;
   }
 
+  _drawAtkButton(ctx, cx, cy, r, s, count, level) {
+    const glow = 0.6 + 0.3 * Math.sin(this.glowPhase + 1);
+
+    // 按钮圈
+    ctx.strokeStyle = '#ff9900';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(255,153,0,0.6)';
+    ctx.shadowBlur = 6 * s * glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = 'rgba(100,50,0,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 剑/攻击力图标
+    ctx.fillStyle = '#ff9900';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`⚔${level}`, cx, cy - 2 * s);
+
+    // 剩余次数
+    ctx.fillStyle = COLORS.textWhite;
+    ctx.font = `bold ${7 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`x${count}`, cx, cy + r * 0.4);
+  }
+
   hitAimButton() { return false; }
 
   hitPauseButton(x, y) {
@@ -139,6 +176,12 @@ export default class HUD {
 
   hitMultiBallButton(x, y) {
     const dx = x - this.multiBallX;
+    const dy = y - this.rowY;
+    return dx * dx + dy * dy <= this.btnR * this.btnR;
+  }
+
+  hitAtkBoostButton(x, y) {
+    const dx = x - this.atkBoostX;
     const dy = y - this.rowY;
     return dx * dx + dy * dy <= this.btnR * this.btnR;
   }

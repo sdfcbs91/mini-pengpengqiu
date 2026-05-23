@@ -41,6 +41,8 @@ export default class GameScene {
     this.multiBallCount = MULTIBALL_INITIAL;
     this.energy = 0;
     this.showAimLine = true;
+    this.atkBoostCount = 5;      // 攻击力提升次数（默认5次）
+    this.atkLevel = 1;           // 当前白球攻击力
 
     // 球相关
     this.ballCount = 1;
@@ -57,6 +59,12 @@ export default class GameScene {
     this.totalBricksThisRound = 0;
     this.destroyedThisRound = 0;
     this.starProgress = 0;
+
+    // 快进系统
+    this._fastForwardTarget = null;  // 正在反复击打的砖块
+    this._fastForwardHits = 0;       // 连续击打次数
+    this._showFastForward = false;   // 是否显示快进按钮
+    this._particles = [];            // 粒子效果数组
 
     // 回调
     this.onGameOver = null;
@@ -132,6 +140,14 @@ export default class GameScene {
         return;
       }
 
+      // 快进按钮点击（running 状态下）
+      if (this._showFastForward && (this.gameState === 'running' || this.gameState === 'launching')) {
+        if (this._hitFastForwardBtn(clientX, clientY)) {
+          this._executeFastForward();
+          return;
+        }
+      }
+
       // 检查技能按钮（仅在瞄准阶段）
       if (this.gameState === 'aiming') {
         if (this.hud.hitLightningButton(clientX, clientY)) {
@@ -140,6 +156,10 @@ export default class GameScene {
         }
         if (this.hud.hitMultiBallButton(clientX, clientY)) {
           this._useMultiBall();
+          return;
+        }
+        if (this.hud.hitAtkBoostButton(clientX, clientY)) {
+          this._useAtkBoost();
           return;
         }
       }
@@ -192,6 +212,10 @@ export default class GameScene {
       this.launcher.startLaunch();
       this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
       this.destroyedThisRound = 0;
+      // 重置快进状态
+      this._fastForwardTarget = null;
+      this._fastForwardHits = 0;
+      this._showFastForward = false;
       this.launchStartTime = Date.now();
       // runningFrames 跨轮累计，不在每次发射时重置
       this.speedTipText = '';
@@ -231,6 +255,12 @@ export default class GameScene {
     this.multiBallCount--;
     this.ballCount *= 2;
     this.launcher.ballCount = this.ballCount;
+  }
+
+  _useAtkBoost() {
+    if (this.atkBoostCount <= 0) return;
+    this.atkBoostCount--;
+    this.atkLevel++;
   }
 
   /**
@@ -358,13 +388,22 @@ export default class GameScene {
       // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹
       const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, allObstacles);
 
-      // 2. 处理被击中的砖块
+      // 2. 处理被击中的砖块（攻击力影响伤害）
       for (const brick of hitBricks) {
-        const destroyed = brick.hit();
+        const destroyed = brick.hit(this.atkLevel);
         if (destroyed) {
           this.score += brick.maxHp;
           this.destroyedThisRound++;
           this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+          // 砖块被消除，重置快进检测
+          if (brick === this._fastForwardTarget) {
+            this._fastForwardTarget = null;
+            this._fastForwardHits = 0;
+            this._showFastForward = false;
+          }
+        } else {
+          // 砖块未消除，追踪连续击打
+          this._trackFastForward(brick);
         }
       }
 
@@ -508,6 +547,101 @@ export default class GameScene {
 
     // 找不到空位就强制往下弹
     ball.vy = Math.abs(ball.vy);
+  }
+
+  /**
+   * 追踪快进条件：单球反复击打同一砖块
+   */
+  _trackFastForward(brick) {
+    // 只有1颗活跃球时才触发
+    const activeBalls = this.launcher.balls.filter(b => b.active);
+    if (activeBalls.length !== 1) {
+      this._fastForwardHits = 0;
+      this._showFastForward = false;
+      return;
+    }
+
+    if (brick === this._fastForwardTarget) {
+      this._fastForwardHits++;
+    } else {
+      this._fastForwardTarget = brick;
+      this._fastForwardHits = 1;
+    }
+
+    // 连续击打同一砖块 5 次以上，且砖块 HP >= 20，显示快进
+    if (this._fastForwardHits >= 5 && brick.hp >= 20) {
+      this._showFastForward = true;
+    }
+  }
+
+  /**
+   * 快进按钮点击检测
+   */
+  _hitFastForwardBtn(x, y) {
+    const s = SCALE;
+    const btnW = 80 * s;
+    const btnH = 32 * s;
+    const btnX = SCREEN_WIDTH / 2 - btnW / 2;
+    const btnY = LAUNCH_Y + 10 * s;
+    return x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH;
+  }
+
+  /**
+   * 执行快进：直接消除目标砖块，生成粒子效果，球直接落地
+   */
+  _executeFastForward() {
+    const brick = this._fastForwardTarget;
+    if (!brick || !brick.isAlive) return;
+
+    // 生成粒子爆炸
+    this._spawnBrickParticles(brick);
+
+    // 消除砖块
+    this.score += brick.hp;
+    brick.hp = 0;
+    brick.isAlive = false;
+    this.destroyedThisRound++;
+    this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+
+    // 球直接落地
+    this.launcher.balls.forEach(b => {
+      if (b.active) {
+        b.active = false;
+        b.landed = true;
+        b.landX = b.x;
+        b.slideDone = true;
+      }
+    });
+
+    // 重置快进状态
+    this._fastForwardTarget = null;
+    this._fastForwardHits = 0;
+    this._showFastForward = false;
+  }
+
+  /**
+   * 砖块分裂粒子效果
+   */
+  _spawnBrickParticles(brick) {
+    const cx = brick.x + brick.width / 2;
+    const cy = brick.y + brick.height / 2;
+    const count = 20 + Math.floor(Math.random() * 10);
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 4;
+      const size = 2 + Math.random() * 4;
+      this._particles.push({
+        x: cx + (Math.random() - 0.5) * brick.width,
+        y: cy + (Math.random() - 0.5) * brick.height,
+        vx: Math.cos(angle) * speed * SCALE,
+        vy: Math.sin(angle) * speed * SCALE,
+        size: size * SCALE,
+        life: 40 + Math.floor(Math.random() * 20),
+        maxLife: 60,
+        color: brick.getColorScheme().border,
+      });
+    }
   }
 
   /**
@@ -729,7 +863,7 @@ export default class GameScene {
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
     this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
 
-    // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球）
+    // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球 | 攻击力）
     this.hud.render(ctx, {
       stage: this.stage,
       line: this.line,
@@ -737,11 +871,23 @@ export default class GameScene {
       score: this.score,
       lightningCount: this.lightningCount,
       multiBallCount: this.multiBallCount,
+      atkBoostCount: this.atkBoostCount,
+      atkLevel: this.atkLevel,
     });
 
     // 加速提示
     if (this.speedTipTimer > 0) {
       this._renderSpeedTip(ctx);
+    }
+
+    // 快进按钮
+    if (this._showFastForward) {
+      this._renderFastForwardBtn(ctx);
+    }
+
+    // 粒子效果
+    if (this._particles.length > 0) {
+      this._updateAndRenderParticles(ctx);
     }
 
     // 暂停覆盖层
@@ -865,6 +1011,87 @@ export default class GameScene {
     ctx.textBaseline = 'middle';
     ctx.fillText(this.speedTipText, centerX, centerY);
 
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * 渲染快进按钮
+   */
+  _renderFastForwardBtn(ctx) {
+    const s = SCALE;
+    const btnW = 80 * s;
+    const btnH = 32 * s;
+    const btnX = SCREEN_WIDTH / 2 - btnW / 2;
+    const btnY = LAUNCH_Y + 10 * s;
+    const r = btnH / 2;
+
+    // 呼吸动画
+    const pulse = 0.7 + 0.3 * Math.sin(this.glowPhase * 3);
+
+    // 背景
+    ctx.fillStyle = `rgba(0,200,255,${0.15 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(btnX + r, btnY);
+    ctx.lineTo(btnX + btnW - r, btnY);
+    ctx.arcTo(btnX + btnW, btnY, btnX + btnW, btnY + r, r);
+    ctx.arcTo(btnX + btnW, btnY + btnH, btnX + btnW - r, btnY + btnH, r);
+    ctx.lineTo(btnX + r, btnY + btnH);
+    ctx.arcTo(btnX, btnY + btnH, btnX, btnY + r, r);
+    ctx.arcTo(btnX, btnY, btnX + r, btnY, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // 边框
+    ctx.strokeStyle = `rgba(0,212,255,${0.6 + 0.4 * pulse})`;
+    ctx.lineWidth = 1.5 * s;
+    ctx.shadowColor = '#00d4ff';
+    ctx.shadowBlur = 6 * s * pulse;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 文字
+    ctx.fillStyle = '#00d4ff';
+    ctx.font = `bold ${13 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ 快进', btnX + btnW / 2, btnY + btnH / 2);
+  }
+
+  /**
+   * 更新和渲染粒子效果
+   */
+  _updateAndRenderParticles(ctx) {
+    for (let i = this._particles.length - 1; i >= 0; i--) {
+      const p = this._particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.15 * SCALE; // 重力
+      p.life--;
+
+      if (p.life <= 0) {
+        this._particles.splice(i, 1);
+        continue;
+      }
+
+      const alpha = p.life / p.maxLife;
+      const size = p.size * (0.5 + 0.5 * alpha);
+
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 4 * SCALE * alpha;
+
+      // 随机形状：方块或圆
+      if (i % 3 === 0) {
+        ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.shadowBlur = 0;
+    }
     ctx.globalAlpha = 1;
   }
 
