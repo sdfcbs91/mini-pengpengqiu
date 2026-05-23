@@ -468,6 +468,47 @@ export default class LevelSelect {
     }
 
     this._drawNavBar(ctx);
+
+    // Toast 提示
+    if (this._toastTimer > 0) {
+      this._drawToast(ctx);
+    }
+  }
+
+  /**
+   * 渲染 Toast 提示
+   */
+  _drawToast(ctx) {
+    this._toastTimer--;
+    const s = SCALE;
+    const alpha = this._toastTimer > 70 ? (90 - this._toastTimer) / 20 :
+                  this._toastTimer < 20 ? this._toastTimer / 20 : 1;
+
+    ctx.globalAlpha = alpha * 0.9;
+    const tw = 180 * s;
+    const th = 36 * s;
+    const tx = (SCREEN_WIDTH - tw) / 2;
+    const ty = SCREEN_HEIGHT * 0.4;
+    const r = th / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(tx + r, ty);
+    ctx.lineTo(tx + tw - r, ty);
+    ctx.arcTo(tx + tw, ty, tx + tw, ty + r, r);
+    ctx.arcTo(tx + tw, ty + th, tx + tw - r, ty + th, r);
+    ctx.lineTo(tx + r, ty + th);
+    ctx.arcTo(tx, ty + th, tx, ty + r, r);
+    ctx.arcTo(tx, ty, tx + r, ty, r);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${12 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this._toastText || '', SCREEN_WIDTH / 2, ty + th / 2);
+    ctx.globalAlpha = 1;
   }
 
   /**
@@ -498,10 +539,10 @@ export default class LevelSelect {
     const gap = 16 * s;
 
     const buttons = [
-      { label: '分享游戏', color: '#00d4ff' },
-      { label: this.soundOn ? '声音（开）' : '声音（关）', color: this.soundOn ? '#39ff14' : '#ff4444' },
-      { label: '同步数据', color: '#f0e130' },
-      { label: '游戏介绍', color: '#8b5cf6' },
+      { label: '分享游戏', color: '#ffffff' },
+      { label: this.soundOn ? '声音（开）' : '声音（关）', color: this.soundOn ? '#ffffff' : '#888899' },
+      { label: '同步数据', color: '#ffffff' },
+      { label: '游戏介绍', color: '#ffffff' },
     ];
 
     // 存储按钮位置（供点击检测用）
@@ -586,10 +627,37 @@ export default class LevelSelect {
   }
 
   /**
-   * 同步数据到云端
+   * 同步数据到云端（带提示）
    */
   _doSyncData() {
-    this._uploadProgressToCloud();
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+
+    const maxLevel = this.progress.getMaxUnlocked();
+    const levelProgress = this.progress.getAllData();
+
+    let userInfo = null;
+    try {
+      const setting = wx.getStorageSync('ppq_user_info');
+      if (setting) userInfo = setting;
+    } catch (e) { /* ignore */ }
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: {
+        action: 'save',
+        maxLevel,
+        levelProgress,
+        userInfo,
+      },
+      success: () => {
+        this._toastText = '数据同步云端成功';
+        this._toastTimer = 90; // 1.5秒
+      },
+      fail: () => {
+        this._toastText = '同步失败，请检查网络';
+        this._toastTimer = 90;
+      },
+    });
   }
 
   /**
