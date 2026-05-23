@@ -535,6 +535,11 @@ export default class LevelSelect {
    * 绘制设置面板
    */
   _drawSettings(ctx) {
+    // 重置渲染状态，防止被其他模块污染
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
     const s = SCALE;
     const top = this.gridTop + 20 * s;
     const centerX = SCREEN_WIDTH / 2;
@@ -555,11 +560,12 @@ export default class LevelSelect {
     buttons.forEach((btn, i) => {
       const y = top + i * (btnH + gap);
       const x = centerX - btnW / 2;
-
-      // 按钮背景
-      ctx.fillStyle = 'rgba(20,30,60,0.8)';
-      ctx.beginPath();
       const r = 8 * s;
+
+      // 透明背景 + 白色边框
+      ctx.strokeStyle = btn.color;
+      ctx.lineWidth = 1 * s;
+      ctx.beginPath();
       ctx.moveTo(x + r, y);
       ctx.lineTo(x + btnW - r, y);
       ctx.arcTo(x + btnW, y, x + btnW, y + r, r);
@@ -568,15 +574,7 @@ export default class LevelSelect {
       ctx.arcTo(x, y + btnH, x, y + btnH - r, r);
       ctx.arcTo(x, y, x + r, y, r);
       ctx.closePath();
-      ctx.fill();
-
-      // 边框发光
-      ctx.strokeStyle = btn.color;
-      ctx.lineWidth = 1.5 * s;
-      ctx.shadowColor = btn.color;
-      ctx.shadowBlur = 6 * s;
       ctx.stroke();
-      ctx.shadowBlur = 0;
 
       // 文字
       ctx.fillStyle = btn.color;
@@ -587,6 +585,10 @@ export default class LevelSelect {
 
       this._settingBtns.push({ x, y, w: btnW, h: btnH });
     });
+
+    // 渲染结束后清除状态
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
   }
 
   /**
@@ -631,31 +633,46 @@ export default class LevelSelect {
   }
 
   /**
-   * 同步数据到云端（带提示）
+   * 同步数据（双向对比，以 maxLevel 大的为准）
    */
   _doSyncData() {
     if (typeof wx === 'undefined' || !wx.cloud) return;
 
-    const maxLevel = this.progress.getMaxUnlocked();
-    const levelProgress = this.progress.getAllData();
-
-    let userInfo = null;
-    try {
-      const setting = wx.getStorageSync('ppq_user_info');
-      if (setting) userInfo = setting;
-    } catch (e) { /* ignore */ }
+    this._toastText = '同步中...';
+    this._toastTimer = 60;
 
     wx.cloud.callFunction({
       name: 'saveUserProgress',
-      data: {
-        action: 'save',
-        maxLevel,
-        levelProgress,
-        userInfo,
-      },
-      success: () => {
-        this._toastText = '数据同步云端成功';
-        this._toastTimer = 90; // 1.5秒
+      data: { action: 'get' },
+      success: (res) => {
+        const result = res.result;
+        if (!result || result.code !== 0) {
+          // 云端无数据，直接上传本地
+          this._uploadProgressToCloud();
+          this._toastText = '数据已上传到云端';
+          this._toastTimer = 90;
+          return;
+        }
+
+        const localMax = this.progress.getMaxUnlocked();
+        const cloudMax = result.maxLevel || 0;
+        const cloudProgress = result.levelProgress;
+
+        if (cloudMax > localMax && cloudProgress) {
+          // 云端更新：拉取云端数据覆盖本地
+          this._applyCloudProgress(cloudProgress, cloudMax);
+          this._toastText = `已从云端同步（第${cloudMax}关）`;
+          this._toastTimer = 90;
+        } else if (localMax > cloudMax) {
+          // 本地更新：上传本地数据到云端
+          this._uploadProgressToCloud();
+          this._toastText = `数据已同步到云端（第${localMax}关）`;
+          this._toastTimer = 90;
+        } else {
+          // 数据一致
+          this._toastText = '数据已是最新';
+          this._toastTimer = 90;
+        }
       },
       fail: () => {
         this._toastText = '同步失败，请检查网络';
@@ -675,7 +692,7 @@ export default class LevelSelect {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const padX = 20 * s;
-    const padY = 60 * s;
+    const padY = 90 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxH = SCREEN_HEIGHT - padY * 2;
     const boxX = padX;

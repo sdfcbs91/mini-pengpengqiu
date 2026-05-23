@@ -442,6 +442,10 @@ export default class GameScene {
 
       if (!ball.active) return;
 
+      // 记录移动前位置（用于道具扫描碰撞）
+      const prevBX = ball.x;
+      const prevBY = ball.y;
+
       const vx = ball.vx;
       const vy = ball.vy;
 
@@ -496,30 +500,25 @@ export default class GameScene {
         }
       }
 
-      // 5. 道具碰撞（一步内可收集多个，碰撞半径加容差让擦边也能触发）
+      // 5. 道具碰撞（使用线段-圆碰撞，防止高速穿越漏检）
       if (ball.active) {
         for (const pickup of this.grid.pickups) {
           if (pickup.collected) continue;
-          const pdx = ball.x - pickup.x;
-          const pdy = ball.y - pickup.y;
-          const pickupHitR = ball.radius + pickup.radius + 4 * SCALE;
-          if (pdx * pdx + pdy * pdy < pickupHitR * pickupHitR) {
+          const hitR = ball.radius + pickup.radius + 4 * SCALE;
+          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, pickup.x, pickup.y, hitR)) {
             pickup.collect();
             this.nextBallCount++;
           }
         }
       }
 
-      // 5.2 消单行道具碰撞（球经过道具位置触发）
+      // 5.2 消单行道具碰撞（线段-圆碰撞）
       if (ball.active) {
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
           if (ball.usedWarps.has(rc)) continue;
-          // 球心与道具的距离检测（圆形碰撞 + 扫描路径补偿）
-          const rdx = ball.x - rc.x;
-          const rdy = ball.y - rc.y;
-          const rcHitR = ball.radius + rc.radius + 4;
-          if (rdx * rdx + rdy * rdy < rcHitR * rcHitR) {
+          const hitR = ball.radius + rc.radius + 4 * SCALE;
+          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, rc.x, rc.y, hitR)) {
             ball.usedWarps.add(rc);
             this._executeRowClear(rc);
             break;
@@ -527,16 +526,13 @@ export default class GameScene {
         }
       }
 
-      // 5.3 消单列道具碰撞（球经过道具位置触发）
+      // 5.3 消单列道具碰撞（线段-圆碰撞）
       if (ball.active) {
         for (const cc of this.grid.colClears) {
           if (cc.collected) continue;
           if (ball.usedWarps.has(cc)) continue;
-          // 球心与道具的距离检测（圆形碰撞 + 扫描路径补偿）
-          const dx = ball.x - cc.x;
-          const dy = ball.y - cc.y;
-          const hitR = ball.radius + cc.radius + 4;
-          if (dx * dx + dy * dy < hitR * hitR) {
+          const hitR = ball.radius + cc.radius + 4 * SCALE;
+          if (this._segCircleHit(prevBX, prevBY, ball.x, ball.y, cc.x, cc.y, hitR)) {
             ball.usedWarps.add(cc);
             this._executeColClear(cc);
             break;
@@ -867,6 +863,33 @@ export default class GameScene {
       if (b.isAlive) rows.add(b.row);
     }
     return rows.size;
+  }
+
+  /**
+   * 线段-圆碰撞检测：球从(ax,ay)移动到(bx,by)，是否与圆心(cx,cy)半径r相交
+   * 计算线段到圆心的最短距离是否 < r
+   */
+  _segCircleHit(ax, ay, bx, by, cx, cy, r) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const fx = ax - cx;
+    const fy = ay - cy;
+
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 0.001) {
+      // 球没动，退化为点-圆判断
+      return fx * fx + fy * fy < r * r;
+    }
+
+    // 投影参数 t（0~1 表示线段范围）
+    let t = -(fx * dx + fy * dy) / lenSq;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+
+    // 线段上最近点到圆心的距离
+    const nearX = ax + t * dx - cx;
+    const nearY = ay + t * dy - cy;
+    return nearX * nearX + nearY * nearY < r * r;
   }
 
   /**
