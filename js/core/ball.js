@@ -186,13 +186,17 @@ export default class Ball {
   render(ctx) {
     // 飞行中
     if (this.active) {
+      // 确保状态干净（防止被前面特效残留影响）
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
       // 外发光圈
       ctx.fillStyle = 'rgba(200,220,255,0.2)';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 1.8, 0, Math.PI * 2);
       ctx.fill();
 
-      // 纯白实心球
+      // 纯白实心球（始终白色，不变色）
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -202,8 +206,9 @@ export default class Ball {
 
     // 滑动回收中
     if (this.sliding && !this.slideDone) {
-      ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.7;
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2);
       ctx.fill();

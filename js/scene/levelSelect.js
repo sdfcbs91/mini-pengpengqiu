@@ -45,7 +45,6 @@ export default class LevelSelect {
     // 底部导航栏项
     this.navItems = [
       { label: '闯关', active: true },
-      { label: '排行' },
       { label: '150球' },
       { label: '设置' },
     ];
@@ -828,12 +827,7 @@ export default class LevelSelect {
     const isSelected = this.selectedLevel === levelIdx;
 
     if (data.unlocked) {
-      // 已解锁关卡 — 统一淡蓝色
-      ctx.fillStyle = '#1a3050';
-      ctx.globalAlpha = 0.75;
-      this._roundRect(ctx, x, y, w, h, 6 * s);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      // 已解锁关卡 — 透明背景，只有边框
 
       // 边框
       const cellGlow = isSelected ? 1.0 : (0.4 + 0.2 * Math.sin(this.glowPhase + levelIdx * 0.3));
@@ -856,12 +850,7 @@ export default class LevelSelect {
       this._drawStars(ctx, x + w / 2, y + h - 12 * s, data.stars, 3, 6 * s);
 
     } else {
-      // 锁定关卡
-      ctx.fillStyle = COLORS.lockedBg;
-      ctx.globalAlpha = 0.5;
-      this._roundRect(ctx, x, y, w, h, 6 * s);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      // 锁定关卡 — 透明背景
 
       ctx.strokeStyle = COLORS.lockedBorder;
       ctx.lineWidth = 1;
@@ -915,50 +904,32 @@ export default class LevelSelect {
     const s = SCALE;
     const y = this.navY;
 
-    // 背景
-    ctx.fillStyle = COLORS.navBg;
-    ctx.globalAlpha = 0.95;
-    ctx.fillRect(0, y, SCREEN_WIDTH, this.navHeight);
-    ctx.globalAlpha = 1;
-
-    // 顶部分割线（霓虹）
-    ctx.strokeStyle = COLORS.neonBlue;
+    // 顶部细分割线
+    ctx.strokeStyle = 'rgba(100,100,150,0.3)';
     ctx.lineWidth = 1;
-    ctx.shadowColor = COLORS.neonBlue;
-    ctx.shadowBlur = 4 * s;
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(SCREEN_WIDTH, y);
     ctx.stroke();
-    ctx.shadowBlur = 0;
 
-    // 导航项
+    // 导航项（简洁灰白色文字）
     const itemW = SCREEN_WIDTH / this.navItems.length;
 
     this.navItems.forEach((item, i) => {
       const ix = itemW * i + itemW / 2;
       const isActive = item.active;
 
-      ctx.fillStyle = isActive ? COLORS.navActive : COLORS.navInactive;
-
-      // 标签文字
-      ctx.font = `bold ${13 * s}px Arial`;
+      ctx.fillStyle = isActive ? '#ffffff' : '#888899';
+      ctx.font = `${isActive ? 'bold ' : ''}${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-
-      if (isActive) {
-        ctx.shadowColor = COLORS.navActive;
-        ctx.shadowBlur = 4 * s;
-      }
       ctx.fillText(item.label, ix, y + this.navHeight * 0.4);
-      ctx.shadowBlur = 0;
 
-      // 激活指示条
+      // 激活下划线
       if (isActive) {
-        ctx.fillStyle = COLORS.navActive;
-        ctx.fillRect(ix - 20 * s, y + 2, 40 * s, 2.5 * s);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(ix - 16 * s, y + this.navHeight * 0.7, 32 * s, 2 * s);
       }
-
     });
   }
 
