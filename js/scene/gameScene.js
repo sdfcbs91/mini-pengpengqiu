@@ -1,10 +1,12 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import {
-  COLORS, SCALE,
+  COLORS, SCALE, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_RIGHT, GAME_AREA_TOP,
   LAUNCH_Y, LIGHTNING_INITIAL, MULTIBALL_INITIAL, MAX_ENERGY, ENERGY_PER_BRICK,
+  GRID_COLS,
 } from '../config';
 import Grid from '../core/grid';
+import Brick from '../core/brick';
 import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
 import { moveBallWithCollision } from '../core/collision';
@@ -81,7 +83,7 @@ export default class GameScene {
    */
   initLevel(levelNum) {
     this.initialLevel = levelNum;
-    this.stage = levelNum;
+    this.stage = Math.abs(levelNum);
     this.score = 0;
     this.line = 0;
     this.gameState = 'aiming';
@@ -96,12 +98,72 @@ export default class GameScene {
     this.destroyedThisRound = 0;
     this.starProgress = 0;
 
-    const cfg = getLevelConfig(levelNum);
-    this.maxRounds = cfg.maxRounds || 20;
-    this.ballCount = cfg.defaultBalls || (1 + levelNum);
+    if (levelNum === -150) {
+      // 150球特殊模式
+      this.maxRounds = 1; // 不生成新行，只有初始布局
+      this.ballCount = 150;
+      this.grid.initLevel(1);
+      this._generate150Layout();
+    } else {
+      const cfg = getLevelConfig(levelNum);
+      this.maxRounds = cfg.maxRounds || 20;
+      this.ballCount = cfg.defaultBalls || (1 + levelNum);
+      this.grid.initLevel(this.stage);
+    }
 
-    this.grid.initLevel(this.stage);
     this.launcher.init(SCREEN_WIDTH / 2, this.ballCount);
+  }
+
+  /**
+   * 150球模式专用布局：密集砖块 + 斜向通道 + 顶部空行
+   */
+  _generate150Layout() {
+    const grid = this.grid;
+    const COLS = GRID_COLS;
+    const ROWS = 8;
+
+    grid.bricks = [];
+    grid.pickups = [];
+    grid.planks = [];
+    grid.warps = [];
+    grid.rowClears = [];
+    grid.colClears = [];
+
+    // HP梯度（从上到下递增）
+    const hpByRow = [45, 54, 58, 63, 67, 72, 80, 90];
+
+    // 斜向通道判定：从左下到右上的对角线空隙
+    const isInChannel = (row, col) => {
+      const target = (ROWS - 1 - row) * (COLS - 1) / (ROWS - 1);
+      return Math.abs(col - target) < 1.2;
+    };
+
+    for (let row = 0; row < ROWS; row++) {
+      // 第0行（顶部）留空，给球自由弹跳
+      if (row === 0) continue;
+
+      const baseHp = hpByRow[row] || 50;
+
+      for (let col = 0; col < COLS; col++) {
+        if (isInChannel(row, col)) continue;
+
+        // 通道相邻的砖块HP降低（弱点）
+        let hp = baseHp;
+        if (isInChannel(row, col - 1) || isInChannel(row, col + 1)) {
+          hp = 2;
+        }
+
+        const brick = new Brick();
+        brick.init(
+          row, col,
+          grid.getColX(col),
+          grid.getRowY(row),
+          BRICK_W, BRICK_H,
+          hp, 'normal', ''
+        );
+        grid.bricks.push(brick);
+      }
+    }
   }
 
   _bindTouch() {

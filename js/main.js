@@ -113,8 +113,10 @@ export default class Main {
     this.gameScene.onBackToMenu = this.onBackToMenu.bind(this);
     this.gameScene.onGameOver = () => { };
     this.gameScene.onLevelComplete = (level, stars) => {
-      // 保存通关进度
-      this.levelSelect.completeLevel(level, stars);
+      // 特殊模式不保存进度
+      if (level > 0) {
+        this.levelSelect.completeLevel(level, stars);
+      }
     };
     this.gameScene.initLevel(levelNum);
 

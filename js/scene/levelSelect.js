@@ -377,6 +377,13 @@ export default class LevelSelect {
       this.showSettings = true;
       this.showRank = false;
       this._hideRankBoard();
+    } else if (label === '150球') {
+      // 启动150球特殊模式
+      this.showSettings = false;
+      this.showRank = false;
+      if (this.onLevelSelected) {
+        this.onLevelSelected(-150); // 用负数标记150球模式
+      }
     } else {
       this.showSettings = false;
       if (this.showRank) {
