@@ -1571,13 +1571,6 @@ export default class GameScene {
     const bw = 120 * s;
     const bh = 40 * s;
 
-    // 继续按钮
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= centerY - bh / 2 && y <= centerY + bh / 2) {
-      this.gameState = this.prevState || 'aiming';
-      return;
-    }
-
     // 重试按钮
     const retryY = centerY + 60 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
@@ -1593,6 +1586,9 @@ export default class GameScene {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }
+
+    // 点击其他任意区域 = 继续游戏
+    this.gameState = this.prevState || 'aiming';
   }
 
   _handleOverTap(x, y) {
