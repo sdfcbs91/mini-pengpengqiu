@@ -992,6 +992,11 @@ export default class LevelSelect {
   }
 
   _drawNavBar(ctx) {
+    // 重置渲染状态，防止前面模块残留影响
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
     const s = SCALE;
     const y = this.navY;
 
