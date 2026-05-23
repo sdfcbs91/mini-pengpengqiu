@@ -850,6 +850,9 @@ export default class LevelSelect {
 
     } else {
       // 未解锁关卡 — 纯灰白色文字，无任何装饰
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
       ctx.fillStyle = '#555566';
       ctx.font = `${13 * s}px Arial`;
       ctx.textAlign = 'center';
@@ -874,6 +877,8 @@ export default class LevelSelect {
       ctx.fill();
       ctx.shadowBlur = 0;
     }
+    // 彻底清除阴影残留
+    ctx.shadowColor = 'transparent';
   }
 
   _drawStar(ctx, cx, cy, outerR, innerR) {
