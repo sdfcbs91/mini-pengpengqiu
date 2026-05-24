@@ -283,8 +283,9 @@ export default class LevelSelect {
   /**
    * 通关更新
    */
-  completeLevel(levelNum, stars) {
+  completeLevel(levelNum, stars, score) {
     this.progress.completeLevel(levelNum, stars);
+    if (score) this.progress.saveScore(levelNum, score);
     this.levelData = this.progress.getAllData();
     // 通关后同步到云端
     this._uploadProgressToCloud();
@@ -357,7 +358,7 @@ export default class LevelSelect {
       const setting = wx.getStorageSync('ppq_user_info');
       if (setting) userInfo = setting;
     } catch (e) { /* ignore */ }
-
+    console.log('levelProgress:', levelProgress);
     wx.cloud.callFunction({
       name: 'saveUserProgress',
       data: {

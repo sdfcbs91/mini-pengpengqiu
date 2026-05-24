@@ -851,8 +851,8 @@ export default class GameScene {
         level,
         score,
       },
-      success: () => { /* 静默 */ },
-      fail: () => { /* 静默 */ },
+      success: (res) => { console.log('关卡分数上传:', res.result); },
+      fail: (err) => { console.error('关卡分数上传失败:', err); },
     });
   }
 
@@ -1122,7 +1122,7 @@ export default class GameScene {
       this.gameState = 'win';
       this._uploadLevelScore();
       if (this.onLevelComplete) {
-        this.onLevelComplete(this.initialLevel, stars);
+        this.onLevelComplete(this.initialLevel, stars, this.score);
       }
       return;
     }
@@ -1187,7 +1187,7 @@ export default class GameScene {
       this.gameState = 'win';
       this._uploadLevelScore();
       if (this.onLevelComplete) {
-        this.onLevelComplete(this.initialLevel, stars);
+        this.onLevelComplete(this.initialLevel, stars, this.score);
       }
       return;
     }

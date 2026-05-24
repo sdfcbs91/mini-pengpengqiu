@@ -61,7 +61,10 @@ exports.main = async (event, context) => {
       const { data } = await collection.where({ _openid: openid }).get();
       if (data.length > 0) {
         const doc = data[0];
-        const progress = doc.levelProgress || [];
+        let progress = doc.levelProgress;
+        if (!progress || !Array.isArray(progress)) {
+          progress = [];
+        }
         const idx = level - 1;
         // 确保数组长度足够
         while (progress.length <= idx) {
@@ -74,10 +77,11 @@ exports.main = async (event, context) => {
           await collection.doc(doc._id).update({
             data: { levelProgress: progress },
           });
+          return { code: 0, msg: 'score_updated', level, score, oldBest };
         }
-        return { code: 0, msg: 'score_saved', level, score, oldBest };
+        return { code: 0, msg: 'score_not_higher', level, score, oldBest };
       } else {
-        // 新用户
+        // 新用户：创建记录
         const progress = [];
         for (let i = 0; i < level; i++) {
           progress.push({ unlocked: i === 0, stars: 0 });
@@ -116,9 +120,20 @@ exports.main = async (event, context) => {
         updateData.maxLevel = maxLevel;
       }
 
-      // 更新完整关卡进度
+      // 更新完整关卡进度（合并：保留云端的 score/scoreTime 不被覆盖）
       if (levelProgress) {
-        updateData.levelProgress = levelProgress;
+        const existingProgress = doc.levelProgress || [];
+        const merged = levelProgress.map((item, idx) => {
+          const existing = existingProgress[idx];
+          const result = { ...item };
+          // 保留云端已有的 score 和 scoreTime
+          if (existing && existing.score) {
+            result.score = existing.score;
+            result.scoreTime = existing.scoreTime;
+          }
+          return result;
+        });
+        updateData.levelProgress = merged;
       }
 
       // 更新150球模式成绩（保留最高分）

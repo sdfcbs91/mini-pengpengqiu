@@ -198,6 +198,20 @@ export class LevelProgress {
     this.save();
   }
 
+  /**
+   * 保存关卡最高分（仅本地，云端由云函数处理）
+   */
+  saveScore(levelNum, score) {
+    const idx = levelNum - 1;
+    if (idx < 0 || idx >= TOTAL_LEVELS) return;
+    const oldScore = this.data[idx].score || 0;
+    if (score > oldScore) {
+      this.data[idx].score = score;
+      this.data[idx].scoreTime = new Date().toISOString();
+      this.save();
+    }
+  }
+
   unlock(levelNum) {
     const idx = levelNum - 1;
     if (idx >= 0 && idx < TOTAL_LEVELS) {
