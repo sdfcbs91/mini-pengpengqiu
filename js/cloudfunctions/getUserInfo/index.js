@@ -48,7 +48,6 @@ exports.main = async (event, context) => {
         levelProgress: null,
         lastLoginTime: db.serverDate(),
         createTime: db.serverDate(),
-        updateCount: 0,
       },
     });
 

@@ -21,10 +21,9 @@ const db = cloud.database();
  *   _openid: string
  *   userInfo: object
  *   maxLevel: number
- *   levelProgress: Array（完整关卡进度数据）
+ *   levelProgress: Array（完整关卡进度数据，含 score）
  *   lastLoginTime: Date
  *   createTime: Date
- *   updateCount: number
  */
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
@@ -57,7 +56,7 @@ exports.main = async (event, context) => {
       }
     }
 
-    // 保存关卡最高分（存入 levelProgress 对应关卡的 score 字段）
+    // 保存关卡最高分（存入 levelProgress 对应关卡的 score + scoreTime）
     if (action === 'saveScore' && level && score) {
       const { data } = await collection.where({ _openid: openid }).get();
       if (data.length > 0) {
@@ -71,6 +70,7 @@ exports.main = async (event, context) => {
         const oldBest = progress[idx].score || 0;
         if (score > oldBest) {
           progress[idx].score = score;
+          progress[idx].scoreTime = new Date().toISOString();
           await collection.doc(doc._id).update({
             data: { levelProgress: progress },
           });
@@ -83,6 +83,7 @@ exports.main = async (event, context) => {
           progress.push({ unlocked: i === 0, stars: 0 });
         }
         progress[level - 1].score = score;
+        progress[level - 1].scoreTime = new Date().toISOString();
         await collection.add({
           data: {
             _openid: openid,
@@ -90,7 +91,6 @@ exports.main = async (event, context) => {
             maxLevel: level,
             lastLoginTime: db.serverDate(),
             createTime: db.serverDate(),
-            updateCount: 0,
           },
         });
         return { code: 0, msg: 'score_created', level, score };
@@ -105,7 +105,6 @@ exports.main = async (event, context) => {
       const doc = data[0];
       const updateData = {
         lastLoginTime: db.serverDate(),
-        updateCount: (doc.updateCount || 0) + 1,
       };
 
       if (userInfo) {
@@ -150,7 +149,6 @@ exports.main = async (event, context) => {
           levelProgress: levelProgress || null,
           lastLoginTime: db.serverDate(),
           createTime: db.serverDate(),
-          updateCount: 0,
         },
       });
 
