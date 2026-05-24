@@ -591,30 +591,30 @@ export default class GameScene {
         }
       }
 
-      // 5.2 消单行道具碰撞（帧内完整路径）
+      // 5.2 消单行道具碰撞（可重复触发，但同一帧内不重复）
       if (ball.active) {
         const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
-          if (ball.usedWarps.has(rc)) continue;
+          if (rc._lastHitFrame === this.runningFrames) continue; // 同一帧不重复
           const hitR = ball.radius + rc.radius + 8 * SCALE;
           if (this._pathCircleHit(path, rc.x, rc.y, hitR)) {
-            ball.usedWarps.add(rc);
+            rc._lastHitFrame = this.runningFrames;
             this._executeRowClear(rc);
             break;
           }
         }
       }
 
-      // 5.3 消单列道具碰撞（帧内完整路径）
+      // 5.3 消单列道具碰撞（可重复触发，但同一帧内不重复）
       if (ball.active) {
         const path = ball._pathPoints || [{ x: prevBX, y: prevBY }, { x: ball.x, y: ball.y }];
         for (const cc of this.grid.colClears) {
           if (cc.collected) continue;
-          if (ball.usedWarps.has(cc)) continue;
+          if (cc._lastHitFrame === this.runningFrames) continue; // 同一帧不重复
           const hitR = ball.radius + cc.radius + 8 * SCALE;
           if (this._pathCircleHit(path, cc.x, cc.y, hitR)) {
-            ball.usedWarps.add(cc);
+            cc._lastHitFrame = this.runningFrames;
             this._executeColClear(cc);
             break;
           }
