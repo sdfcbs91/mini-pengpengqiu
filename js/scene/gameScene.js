@@ -107,11 +107,18 @@ export default class GameScene {
     this.atkBoostCount = 2;
 
     if (levelNum === -150) {
-      // 150球特殊模式
+      // 150球特殊模式：使用预设地形
       this.maxRounds = 1;
       this.ballCount = 150;
       this.grid.initLevel(1);
-      this._generate150Layout();
+      // 强制使用预设模板
+      this.grid.bricks = [];
+      this.grid.pickups = [];
+      this.grid.planks = [];
+      this.grid.warps = [];
+      this.grid.rowClears = [];
+      this.grid.colClears = [];
+      this.grid._applyTemplate(30); // 用30关级别的HP
     } else {
       const cfg = getLevelConfig(levelNum);
       this.maxRounds = cfg.maxRounds || 20;
@@ -1058,6 +1065,12 @@ export default class GameScene {
     // 结算：清理已消除砖块和已收集道具
     this.grid.cleanup();
 
+    // 150球模式：只发射一次，球全部回来后直接结算
+    if (this.initialLevel === -150) {
+      this._settle150Mode();
+      return;
+    }
+
     // 白洞缓存重置（下一轮重新计算传送位置）
     this.grid.warps.forEach(w => { if (w.active) w.resetCache(); });
 
@@ -1153,6 +1166,41 @@ export default class GameScene {
     }
 
     this.gameState = 'aiming';
+  }
+
+  /**
+   * 150球模式结算：记录得分和用时，上传云函数
+   */
+  _settle150Mode() {
+    const elapsed = Math.round((Date.now() - this.launchStartTime) / 1000); // 秒
+    const bricksDestroyed = this.grid.bricks.filter(b => !b.isAlive).length;
+    const bricksTotal = this.grid.bricks.length + bricksDestroyed;
+
+    this.winStars = this.score > 500 ? 3 : this.score > 200 ? 2 : 1;
+    this.gameState = 'win';
+
+    // 上传150球模式成绩到云函数
+    if (typeof wx !== 'undefined' && wx.cloud) {
+      wx.cloud.callFunction({
+        name: 'saveUserProgress',
+        data: {
+          action: 'save',
+          mode150: {
+            score: this.score,
+            time: elapsed,
+            destroyed: bricksDestroyed,
+            total: bricksTotal,
+            date: new Date().toISOString(),
+          },
+        },
+        success: () => { console.log('150球成绩已上传'); },
+        fail: () => { /* 静默 */ },
+      });
+    }
+
+    if (this.onLevelComplete) {
+      this.onLevelComplete(this.initialLevel, this.winStars);
+    }
   }
 
   /**
@@ -1664,13 +1712,18 @@ export default class GameScene {
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `${15 * s}px Arial`;
     ctx.fillText(`得分: ${this.score}`, centerX, centerY - 15 * s);
-    ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
+    if (this.initialLevel !== -150) {
+      ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
+    }
 
-    // 下一关按钮
-    this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#39ff14');
-
-    // 返回菜单
-    this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
+    if (this.initialLevel === -150) {
+      // 150球模式：只显示菜单按钮
+      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
+    } else {
+      // 普通模式：下一关 + 菜单
+      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#39ff14');
+      this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
+    }
   }
 
   _handleWinTap(x, y) {
@@ -1679,6 +1732,16 @@ export default class GameScene {
     const centerY = SCREEN_HEIGHT / 2;
     const bw = 140 * s;
     const bh = 40 * s;
+
+    if (this.initialLevel === -150) {
+      // 150球模式：菜单按钮在 65*s 位置
+      const menuY = centerY + 65 * s;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+          y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+        if (this.onBackToMenu) this.onBackToMenu();
+      }
+      return;
+    }
 
     // 下一关按钮
     const nextY = centerY + 65 * s;

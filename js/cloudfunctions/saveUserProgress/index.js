@@ -30,7 +30,7 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
 
-  const { action = 'save', userInfo, maxLevel, levelProgress } = event;
+  const { action = 'save', userInfo, maxLevel, levelProgress, mode150 } = event;
 
   const collection = db.collection('user_progress');
 
@@ -80,6 +80,16 @@ exports.main = async (event, context) => {
       // 更新完整关卡进度
       if (levelProgress) {
         updateData.levelProgress = levelProgress;
+      }
+
+      // 更新150球模式成绩（保留最高分）
+      if (mode150) {
+        const oldBest = doc.mode150BestScore || 0;
+        if (mode150.score > oldBest) {
+          updateData.mode150BestScore = mode150.score;
+          updateData.mode150BestTime = mode150.time;
+          updateData.mode150LastRecord = mode150;
+        }
       }
 
       await collection.doc(doc._id).update({ data: updateData });
