@@ -136,12 +136,13 @@ exports.main = async (event, context) => {
         updateData.levelProgress = merged;
       }
 
-      // 更新150球模式成绩（保留最高分）
+      // 更新150球模式成绩（保留最高分，含 score + scoreTime）
       if (mode150) {
         const oldBest = doc.mode150BestScore || 0;
         if (mode150.score > oldBest) {
           updateData.mode150BestScore = mode150.score;
           updateData.mode150BestTime = mode150.time;
+          updateData.mode150ScoreTime = new Date().toISOString();
           updateData.mode150LastRecord = mode150;
         }
       }
