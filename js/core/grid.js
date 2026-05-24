@@ -536,7 +536,7 @@ export default class Grid {
     // 消单行道具生成（第5关起，同行必须有砖块，概率随关卡递增）
     // 不能与砖块、加球器、横板（白板）、白洞、已有消单行在同一格
     const rowClearChance = Math.min(0.30, 0.15 + stage * 0.001);
-    if (stage >= 5 && cols.length > 0 && Math.random() < rowClearChance) {
+    if (stage >= 1 && cols.length > 0 && Math.random() < rowClearChance) {
       const usedCols2 = new Set(cols); // 砖块列
       for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]); // 加球器列
       for (const pc of plankCols) usedCols2.add(pc); // 横板列

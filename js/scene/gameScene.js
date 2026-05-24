@@ -747,8 +747,8 @@ export default class GameScene {
         }
       }
 
-      // 8. 死循环回收：连续反弹10次未碰砖块，回收白球
-      if (ball.active && ball.noBrickBounces >= 10) {
+      // 8. 死循环回收：连续反弹30次未碰砖块，回收白球
+      if (ball.active && ball.noBrickBounces >= 30) {
         this._recycleBall(ball);
       }
     });
