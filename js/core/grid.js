@@ -493,11 +493,11 @@ export default class Grid {
       this.pickups.push(pickup);
     }
 
-    // 横板生成（第5关起，随机在空列中放置）
+    // 横板生成（第5关起，随机在空列中放置，不能放在保留通道列上）
     const plankRate = cfg.plankRate || 0;
     const plankCols = []; // 记录放了横板的列
     if (plankRate > 0 && emptyCols.length > pickupCount) {
-      const remainCols = shuffled.slice(pickupCount);
+      const remainCols = shuffled.slice(pickupCount).filter(c => c !== this.reservedEmptyCol && c !== this.gapCol);
       for (const col of remainCols) {
         if (Math.random() < plankRate) {
           const plank = new Plank();
