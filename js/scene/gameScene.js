@@ -125,10 +125,12 @@ export default class GameScene {
     this.atkBoostCount = 2;
 
     if (levelNum === -150) {
-      // 150球特殊模式：使用预设地形
+      // 150球特殊模式：使用预设地形，baseHp从200起
       this.maxRounds = 1;
       this.ballCount = 150;
       this.grid.initLevel(1);
+      // 临时设置 levelConfig 使模板用高HP
+      this.grid.levelConfig = { baseHp: 265, triangleRate: 0, pickupMin: 1, pickupMax: 1, plankRate: 0, warpRate: 0.1 };
       // 强制使用预设模板
       this.grid.bricks = [];
       this.grid.pickups = [];
@@ -136,7 +138,7 @@ export default class GameScene {
       this.grid.warps = [];
       this.grid.rowClears = [];
       this.grid.colClears = [];
-      this.grid._applyTemplate(30); // 用30关级别的HP
+      this.grid._applyTemplate(150); // stage=150 触发道具生成
     } else {
       const cfg = getLevelConfig(levelNum);
       this.maxRounds = cfg.maxRounds || 20;
