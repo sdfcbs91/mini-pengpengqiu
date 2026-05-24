@@ -155,11 +155,12 @@ export default class Grid {
       }
     }
 
-    // 空心白洞生成（第18关起，概率约每关1~2个）
+    // 空心白洞生成（第18关起，概率随关卡递增）
     // 不能与砖块、加球器、横板在同一格
     const warpRate = cfg.warpRate || 0;
+    const warpChance = warpRate > 0 ? Math.min(0.25, warpRate + stage * 0.001) : 0;
     let warpCol = -1;
-    if (warpRate > 0 && Math.random() < warpRate) {
+    if (warpChance > 0 && Math.random() < warpChance) {
       const usedCols = new Set(cols); // 砖块列
       for (let i = 0; i < pickupCount; i++) usedCols.add(shuffled[i]); // 加球器列
       for (const pc of plankCols) usedCols.add(pc); // 横板列
@@ -178,9 +179,10 @@ export default class Grid {
       }
     }
 
-    // 消单行道具生成（第5关起，同行必须有砖块）
+    // 消单行道具生成（第5关起，同行必须有砖块，概率随关卡递增）
     // 不能与砖块、加球器、横板（白板）、白洞、已有消单行在同一格
-    if (stage >= 5 && cols.length > 0 && Math.random() < 0.15) {
+    const rowClearChance = Math.min(0.30, 0.15 + stage * 0.001);
+    if (stage >= 5 && cols.length > 0 && Math.random() < rowClearChance) {
       const usedCols2 = new Set(cols); // 砖块列
       for (let i = 0; i < pickupCount; i++) usedCols2.add(shuffled[i]); // 加球器列
       for (const pc of plankCols) usedCols2.add(pc); // 横板列
@@ -214,7 +216,8 @@ export default class Grid {
     // 每局至少保证有一个（前几行没生成则强制生成）
     const shouldGenColClear = stage >= 7 && cols.length > 0;
     const forceColClear = shouldGenColClear && this.colClears.length === 0 && this.rowCounter >= 3;
-    if (shouldGenColClear && (forceColClear || Math.random() < 0.12)) {
+    const colClearChance = Math.min(0.25, 0.12 + stage * 0.001);
+    if (shouldGenColClear && (forceColClear || Math.random() < colClearChance)) {
       // 收集所有不能放的列
       const usedCols3 = new Set(cols); // 本行砖块列不能放
       for (let i = 0; i < pickupCount; i++) usedCols3.add(shuffled[i]);

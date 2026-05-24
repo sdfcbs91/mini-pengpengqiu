@@ -13,9 +13,10 @@ export default class LevelSelect {
     this.progress = new LevelProgress();
     this.levelData = this.progress.getAllData();
 
-    // 当前页（从0开始）
-    this.currentPage = 0;
+    // 当前页（根据最高解锁关卡定位）
     this.totalPages = Math.ceil(TOTAL_LEVELS / LEVELS_PER_PAGE);
+    const maxUnlocked = this.progress.getMaxUnlocked();
+    this.currentPage = Math.min(Math.floor((maxUnlocked - 1) / LEVELS_PER_PAGE), this.totalPages - 1);
 
     // 滑动相关
     this.touchStartX = 0;

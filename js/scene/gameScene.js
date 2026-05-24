@@ -100,14 +100,24 @@ export default class GameScene {
 
     if (levelNum === -150) {
       // 150球特殊模式
-      this.maxRounds = 1; // 不生成新行，只有初始布局
+      this.maxRounds = 1;
       this.ballCount = 150;
       this.grid.initLevel(1);
       this._generate150Layout();
     } else {
       const cfg = getLevelConfig(levelNum);
       this.maxRounds = cfg.maxRounds || 20;
-      this.ballCount = cfg.defaultBalls || (1 + levelNum);
+      const rawBalls = cfg.defaultBalls || (1 + levelNum);
+
+      // 白球数封顶60，超出部分转为攻击力
+      if (rawBalls > 60) {
+        this.ballCount = 60;
+        this.atkLevel = Math.floor(rawBalls / 60) + 1;
+      } else {
+        this.ballCount = rawBalls;
+        this.atkLevel = 1;
+      }
+
       this.grid.initLevel(this.stage);
     }
 
