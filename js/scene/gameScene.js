@@ -1639,7 +1639,7 @@ export default class GameScene {
     // 红色横向激光线
     const left = GAME_AREA_LEFT;
     const right = GAME_AREA_RIGHT;
-    const lineH = 4 * s * progress;
+    const lineH = 3.2 * s * progress;
 
     ctx.globalAlpha = progress * 0.9;
 
@@ -1668,7 +1668,7 @@ export default class GameScene {
 
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
-    const lineW = 4 * s * progress;
+    const lineW = 3.2 * s * progress;
 
     ctx.globalAlpha = progress * 0.9;
 
