@@ -43,7 +43,7 @@ export default class GameScene {
     this.multiBallCount = MULTIBALL_INITIAL;
     this.energy = 0;
     this.showAimLine = true;
-    this.atkBoostCount = 5;      // 攻击力提升次数（默认5次）
+    this.atkBoostCount = 2;      // 攻击力提升次数（每关2次）
     this.atkLevel = 1;           // 当前白球攻击力
 
     // 球相关
@@ -97,6 +97,14 @@ export default class GameScene {
     this.totalBricksThisRound = 0;
     this.destroyedThisRound = 0;
     this.starProgress = 0;
+
+    // 开局拖拽提示（首次触摸后隐藏）
+    this._showDragHint = true;
+
+    // 重置技能次数（每关/重试时重置）
+    this.lightningCount = LIGHTNING_INITIAL;
+    this.multiBallCount = MULTIBALL_INITIAL;
+    this.atkBoostCount = 2;
 
     if (levelNum === -150) {
       // 150球特殊模式
@@ -194,6 +202,7 @@ export default class GameScene {
     this._touchStartHandler = (e) => {
       if (GameGlobal.databus.scene !== 'playing') return;
       this._touching = true;
+      this._showDragHint = false; // 任何操作隐藏拖拽提示
       const { clientX, clientY } = e.touches[0];
 
       if (this.gameState === 'over') {
@@ -359,14 +368,17 @@ export default class GameScene {
   _useMultiBall() {
     if (this.multiBallCount <= 0) return;
     this.multiBallCount--;
-    this.ballCount *= 2;
+    // 增加弹球数量 = 当前球数 × 1.1（向上取整）
+    const addBalls = Math.ceil(this.ballCount * 0.1);
+    this.ballCount += addBalls;
     this.launcher.ballCount = this.ballCount;
   }
 
   _useAtkBoost() {
     if (this.atkBoostCount <= 0) return;
     this.atkBoostCount--;
-    this.atkLevel++;
+    // 攻击力 = 当前攻击力 × 1.1 + 1
+    this.atkLevel = Math.floor(this.atkLevel * 1.1) + 1;
   }
 
   /**
@@ -1170,6 +1182,11 @@ export default class GameScene {
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
     this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
 
+    // 开局拖拽提示（左右箭头）
+    if (this._showDragHint && this.gameState === 'aiming') {
+      this._renderDragHint(ctx);
+    }
+
     // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球 | 攻击力）
     this.hud.render(ctx, {
       stage: this.stage,
@@ -1284,6 +1301,55 @@ export default class GameScene {
       ctx.arc(e.dx, e.dy, 3 * s * appear, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * 渲染开局拖拽提示：白球两侧的左右箭头
+   */
+  _renderDragHint(ctx) {
+    const s = SCALE;
+    const x = this.launcher.x;
+    const y = this.launcher.y;
+    const pulse = 0.5 + 0.5 * Math.sin(this.glowPhase * 3);
+
+    ctx.globalAlpha = 0.6 * pulse;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2 * s;
+
+    const arrowLen = 18 * s;
+    const arrowHead = 6 * s;
+    const gap = 20 * s;
+
+    // 左箭头
+    const lx = x - gap;
+    ctx.beginPath();
+    ctx.moveTo(lx, y);
+    ctx.lineTo(lx - arrowLen, y);
+    ctx.moveTo(lx - arrowLen, y);
+    ctx.lineTo(lx - arrowLen + arrowHead, y - arrowHead);
+    ctx.moveTo(lx - arrowLen, y);
+    ctx.lineTo(lx - arrowLen + arrowHead, y + arrowHead);
+    ctx.stroke();
+
+    // 右箭头
+    const rx = x + gap;
+    ctx.beginPath();
+    ctx.moveTo(rx, y);
+    ctx.lineTo(rx + arrowLen, y);
+    ctx.moveTo(rx + arrowLen, y);
+    ctx.lineTo(rx + arrowLen - arrowHead, y - arrowHead);
+    ctx.moveTo(rx + arrowLen, y);
+    ctx.lineTo(rx + arrowLen - arrowHead, y + arrowHead);
+    ctx.stroke();
+
+    // 提示文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${9 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('← 拖拽移动白球 →', x, y + 16 * s);
 
     ctx.globalAlpha = 1;
   }

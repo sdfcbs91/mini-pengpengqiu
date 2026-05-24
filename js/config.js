@@ -43,8 +43,8 @@ export const BALL_TRAIL_LENGTH = 8;
 export const PICKUP_RADIUS = 10 * SCALE;
 
 // 技能初始数量
-export const LIGHTNING_INITIAL = 4;
-export const MULTIBALL_INITIAL = 5;
+export const LIGHTNING_INITIAL = 2;
+export const MULTIBALL_INITIAL = 2;
 export const MAX_ENERGY = 100;
 export const ENERGY_PER_BRICK = 5;
 
