@@ -186,28 +186,31 @@ export default class Launcher {
       // 沿射线画虚线点
       const segDx = hit.x - ox;
       const segDy = hit.y - oy;
-      let segLen = Math.sqrt(segDx * segDx + segDy * segDy);
-      if (segLen < 1) break;
+      const fullLen = Math.sqrt(segDx * segDx + segDy * segDy);
+      if (fullLen < 1) break;
 
-      // 反弹后的线段最长90px
-      if (bounce > 0) segLen = Math.min(segLen, 90 * s);
+      // 反弹后的线段最长限制（只限最后一段）
+      const maxLen = (bounce === MAX_BOUNCES) ? 80 * s : 9999;
+      const segLen = Math.min(fullLen, maxLen);
+
+      const ndx = segDx / fullLen;
+      const ndy = segDy / fullLen;
 
       const steps = Math.floor(segLen / DOT_GAP);
-      const ndx = segDx / Math.sqrt(segDx * segDx + segDy * segDy);
-      const ndy = segDy / Math.sqrt(segDx * segDx + segDy * segDy);
-
-      for (let i = 1; i <= steps; i++) {
-        const alpha = 0.5 - bounce * 0.12 - (i / steps) * 0.15;
-        if (alpha <= 0.05) break;
+      for (let i = 0; i <= steps; i++) {
+        const dist = i * DOT_GAP;
+        if (dist > segLen) break;
+        const alpha = (0.5 - bounce * 0.1) * (1 - dist / segLen * 0.3);
+        if (alpha <= 0.03) break;
         ctx.globalAlpha = alpha;
         ctx.beginPath();
-        ctx.arc(ox + ndx * DOT_GAP * i, oy + ndy * DOT_GAP * i, DOT_R, 0, Math.PI * 2);
+        ctx.arc(ox + ndx * dist, oy + ndy * dist, DOT_R, 0, Math.PI * 2);
         ctx.fill();
       }
 
       // 碰撞点亮点标记
       if (bounce < MAX_BOUNCES && hit.nx !== undefined) {
-        ctx.globalAlpha = 0.6 - bounce * 0.15;
+        ctx.globalAlpha = 0.5 - bounce * 0.12;
         ctx.beginPath();
         ctx.arc(hit.x, hit.y, DOT_R * 1.8, 0, Math.PI * 2);
         ctx.fill();

@@ -547,6 +547,14 @@ export default class GameScene {
       if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); ball.recordBounce(this._wallRight); }
       if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); ball.recordBounce(this._wallTop); }
 
+      // 将墙壁修正后的最终位置追加到路径（确保道具碰撞检测覆盖完整路径）
+      if (ball._pathPoints) {
+        const lastPt = ball._pathPoints[ball._pathPoints.length - 1];
+        if (lastPt.x !== ball.x || lastPt.y !== ball.y) {
+          ball._pathPoints.push({ x: ball.x, y: ball.y });
+        }
+      }
+
       // 4. 底部落地
       if (ball.vy > 0 && ball.y + r >= bottom) {
         ball.y = bottom - r;
@@ -577,7 +585,7 @@ export default class GameScene {
         for (const rc of this.grid.rowClears) {
           if (rc.collected) continue;
           if (ball.usedWarps.has(rc)) continue;
-          const hitR = ball.radius + rc.radius + 4 * SCALE;
+          const hitR = ball.radius + rc.radius + 8 * SCALE;
           if (this._pathCircleHit(path, rc.x, rc.y, hitR)) {
             ball.usedWarps.add(rc);
             this._executeRowClear(rc);
@@ -592,7 +600,7 @@ export default class GameScene {
         for (const cc of this.grid.colClears) {
           if (cc.collected) continue;
           if (ball.usedWarps.has(cc)) continue;
-          const hitR = ball.radius + cc.radius + 4 * SCALE;
+          const hitR = ball.radius + cc.radius + 8 * SCALE;
           if (this._pathCircleHit(path, cc.x, cc.y, hitR)) {
             ball.usedWarps.add(cc);
             this._executeColClear(cc);
