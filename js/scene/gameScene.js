@@ -478,7 +478,11 @@ export default class GameScene {
       for (const brick of hitBricks) {
         // 球每次击打砖块，累计hitCount并检查升级
         ball.hitCount++;
-        if (ball.hitCount >= 10 && ball.powerLevel < 2) {
+        if (ball.hitCount >= 30 && ball.powerLevel < 4) {
+          ball.powerLevel = 4; // 红光
+        } else if (ball.hitCount >= 20 && ball.powerLevel < 3) {
+          ball.powerLevel = 3; // 黄光
+        } else if (ball.hitCount >= 10 && ball.powerLevel < 2) {
           ball.powerLevel = 2; // 蓝光
         } else if (ball.hitCount >= 5 && ball.powerLevel < 1) {
           ball.powerLevel = 1; // 绿光
@@ -486,7 +490,11 @@ export default class GameScene {
 
         // 计算实际伤害：基础攻击力 * 球升级倍率
         let damage = this.atkLevel;
-        if (ball.powerLevel >= 2) {
+        if (ball.powerLevel >= 4) {
+          damage = Math.floor(this.atkLevel * 10) + 1;
+        } else if (ball.powerLevel >= 3) {
+          damage = Math.floor(this.atkLevel * 6) + 1;
+        } else if (ball.powerLevel >= 2) {
           damage = Math.floor(this.atkLevel * 3) + 1;
         } else if (ball.powerLevel >= 1) {
           damage = Math.floor(this.atkLevel * 1.5) + 1;

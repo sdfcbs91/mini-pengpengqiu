@@ -203,7 +203,15 @@ export default class Ball {
       let glowColor = 'rgba(200,220,255,0.2)';
       let ballShadow = 'transparent';
       let ballBlur = 0;
-      if (this.powerLevel >= 2) {
+      if (this.powerLevel >= 4) {
+        glowColor = 'rgba(255,50,50,0.5)';
+        ballShadow = '#ff3333';
+        ballBlur = 12;
+      } else if (this.powerLevel >= 3) {
+        glowColor = 'rgba(255,200,50,0.45)';
+        ballShadow = '#ffcc00';
+        ballBlur = 10;
+      } else if (this.powerLevel >= 2) {
         glowColor = 'rgba(50,150,255,0.4)';
         ballShadow = '#3399ff';
         ballBlur = 8;

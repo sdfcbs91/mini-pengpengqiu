@@ -52,12 +52,233 @@ export default class Grid {
     // 初始保留空列（整局保持，让球有通道可钻）
     this.reservedEmptyCol = Math.floor(Math.random() * GRID_COLS);
 
+    // 尝试使用预设模板（每5关使用一次，增加趣味性）
+    if (stage >= 3 && stage % 5 === 0 && this._applyTemplate(stage)) {
+      return; // 模板已生成初始布局
+    }
+
     // 初始行数 = 配置值 + 1 + 关卡/20（渐进增加）
     const baseRows = this.levelConfig.initRows;
     const rows = Math.min(baseRows + 1 + Math.floor(stage / 20), 8);
     // 从第1行开始生成（第0行留空，给球顶部弹跳空间）
     for (let i = 0; i < rows; i++) {
       this.generateRow(stage - i, i + 1);
+    }
+  }
+
+  /**
+   * 预设地图模板（保证至少一条通道到顶部）
+   * 0=空, 1=普通砖块, 2=高HP砖块
+   * 第0行始终留空
+   */
+  _applyTemplate(stage) {
+    // 预设模板：每个保证至少1条从底部到顶部的垂直/斜向通道（0列始终贯通）
+    // 0=空, 1=普通, 2=高HP
+    // 9行（row0空+8行砖块），7列
+    const templates = [
+      // 中央通道 + 两翼密集
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [1,1,1,0,1,1,1],
+          [2,1,1,0,1,1,2],
+          [1,2,1,0,1,2,1],
+          [1,1,2,0,2,1,1],
+          [2,1,1,0,1,1,2],
+          [1,2,1,0,1,2,1],
+          [1,1,1,0,1,1,1],
+          [2,2,1,0,1,2,2],
+        ],
+      },
+      // 左通道（col0始终空）
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [0,1,1,1,1,1,1],
+          [0,2,1,1,1,2,1],
+          [0,1,2,1,1,1,2],
+          [0,1,1,2,1,2,1],
+          [0,2,1,1,2,1,1],
+          [0,1,2,1,1,1,2],
+          [0,1,1,1,2,1,1],
+          [0,2,1,2,1,2,1],
+        ],
+      },
+      // 右通道（col6始终空）
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [1,1,1,1,1,1,0],
+          [1,2,1,1,2,1,0],
+          [2,1,2,1,1,2,0],
+          [1,1,1,2,1,1,0],
+          [1,2,1,1,2,1,0],
+          [2,1,1,1,1,2,0],
+          [1,1,2,1,2,1,0],
+          [1,2,1,2,1,1,0],
+        ],
+      },
+      // 双通道（col1和col5空）
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [1,0,1,1,1,0,1],
+          [2,0,2,1,2,0,2],
+          [1,0,1,2,1,0,1],
+          [2,0,1,1,1,0,2],
+          [1,0,2,1,2,0,1],
+          [2,0,1,2,1,0,2],
+          [1,0,1,1,1,0,1],
+          [2,0,2,1,2,0,2],
+        ],
+      },
+      // S形通道（col3为空的S弯道）
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [1,1,1,0,0,1,1],
+          [1,2,0,0,1,2,1],
+          [2,0,0,1,1,1,2],
+          [0,0,1,1,2,1,1],
+          [0,1,1,2,1,0,0],
+          [1,1,2,1,0,0,1],
+          [1,2,1,0,0,1,2],
+          [2,1,0,0,1,1,1],
+        ],
+      },
+      // 棋盘格（间隔空=多条微通道）
+      {
+        map: [
+          [0,0,0,0,0,0,0],
+          [1,0,1,0,1,0,1],
+          [0,2,0,2,0,2,0],
+          [1,0,1,0,1,0,1],
+          [0,2,0,2,0,2,0],
+          [1,0,1,0,1,0,1],
+          [0,2,0,2,0,2,0],
+          [1,0,1,0,1,0,1],
+          [0,1,0,1,0,1,0],
+        ],
+      },
+    ];
+
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    const cfg = this.levelConfig || getLevelConfig(stage);
+    const baseHp = Math.round((cfg.baseHp || stage * 1.5) * 0.95);
+
+    for (let row = 0; row < template.map.length && row < 10; row++) {
+      for (let col = 0; col < GRID_COLS && col < template.map[row].length; col++) {
+        const cell = template.map[row][col];
+        if (cell === 0) continue;
+
+        const hp = cell === 2 ? Math.round(baseHp * 1.5) : baseHp;
+        const brick = new Brick();
+        brick.init(
+          row, col,
+          this.getColX(col),
+          this.getRowY(row),
+          BRICK_W, BRICK_H,
+          hp, 'normal', ''
+        );
+        this.bricks.push(brick);
+      }
+    }
+
+    // 在空位上随机放置道具
+    this._spawnTemplateProps(template.map, stage);
+
+    return true;
+  }
+
+  /**
+   * 在模板空位上随机放置道具（消行、消列、白洞、横板）
+   */
+  _spawnTemplateProps(map, stage) {
+    // 收集所有空位（排除第0行）
+    const emptyCells = [];
+    for (let row = 1; row < map.length && row < 10; row++) {
+      for (let col = 0; col < GRID_COLS && col < map[row].length; col++) {
+        if (map[row][col] === 0) {
+          emptyCells.push({ row, col });
+        }
+      }
+    }
+
+    if (emptyCells.length < 3) return;
+
+    // 随机打乱空位
+    for (let i = emptyCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [emptyCells[i], emptyCells[j]] = [emptyCells[j], emptyCells[i]];
+    }
+
+    let idx = 0;
+
+    // 放1-2个消单行
+    const rowClearCount = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < rowClearCount && idx < emptyCells.length; i++, idx++) {
+      const { row, col } = emptyCells[idx];
+      const rc = new RowClear();
+      rc.init(
+        this.getColX(col) + BRICK_W / 2,
+        this.getRowY(row) + BRICK_H / 2,
+        row
+      );
+      this.rowClears.push(rc);
+    }
+
+    // 放1-2个消单列
+    const colClearCount = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < colClearCount && idx < emptyCells.length; i++, idx++) {
+      const { row, col } = emptyCells[idx];
+      const cc = new ColClear();
+      cc.init(
+        this.getColX(col) + BRICK_W / 2,
+        this.getRowY(row) + BRICK_H / 2,
+        col
+      );
+      this.colClears.push(cc);
+    }
+
+    // 放0-1个空心白洞（第18关起）
+    if (stage >= 18 && idx < emptyCells.length) {
+      const { row, col } = emptyCells[idx]; idx++;
+      const warp = new Warp();
+      warp.init(
+        this.getColX(col) + BRICK_W / 2,
+        this.getRowY(row) + BRICK_H / 2
+      );
+      this.warps.push(warp);
+    }
+
+    // 放1-2个横板（第5关起，不能放在贯通通道列上）
+    if (stage >= 5) {
+      // 找出贯通列（整列在模板中全为0的列=通道，不能放横板）
+      const throughCols = new Set();
+      for (let col = 0; col < GRID_COLS; col++) {
+        let allEmpty = true;
+        for (let row = 1; row < map.length; row++) {
+          if (map[row] && map[row][col] !== 0) { allEmpty = false; break; }
+        }
+        if (allEmpty) throughCols.add(col);
+      }
+
+      // 从剩余空位中找非通道列的位置放横板
+      const plankCandidates = [];
+      for (; idx < emptyCells.length; idx++) {
+        const { row, col } = emptyCells[idx];
+        if (!throughCols.has(col)) {
+          plankCandidates.push({ row, col });
+        }
+      }
+
+      const plankCount = Math.min(1 + Math.floor(Math.random() * 2), plankCandidates.length);
+      for (let i = 0; i < plankCount; i++) {
+        const { row, col } = plankCandidates[i];
+        const plank = new Plank();
+        plank.init(row, col, this.getColX(col), this.getRowY(row));
+        this.planks.push(plank);
+      }
     }
   }
 
