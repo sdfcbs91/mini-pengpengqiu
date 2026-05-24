@@ -474,9 +474,25 @@ export default class GameScene {
       // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹
       const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, allObstacles);
 
-      // 2. 处理被击中的砖块（攻击力影响伤害）
+      // 2. 处理被击中的砖块（攻击力影响伤害 + 球升级加成）
       for (const brick of hitBricks) {
-        const destroyed = brick.hit(this.atkLevel);
+        // 球每次击打砖块，累计hitCount并检查升级
+        ball.hitCount++;
+        if (ball.hitCount >= 10 && ball.powerLevel < 2) {
+          ball.powerLevel = 2; // 蓝光
+        } else if (ball.hitCount >= 5 && ball.powerLevel < 1) {
+          ball.powerLevel = 1; // 绿光
+        }
+
+        // 计算实际伤害：基础攻击力 * 球升级倍率
+        let damage = this.atkLevel;
+        if (ball.powerLevel >= 2) {
+          damage = Math.floor(this.atkLevel * 3) + 1;
+        } else if (ball.powerLevel >= 1) {
+          damage = Math.floor(this.atkLevel * 1.5) + 1;
+        }
+
+        const destroyed = brick.hit(damage);
         if (destroyed) {
           this.score += brick.maxHp;
           this.destroyedThisRound++;

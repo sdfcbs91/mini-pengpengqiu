@@ -30,6 +30,10 @@ export default class Ball {
     this.needWarp = false;       // 是否需要穿越
     this.loopObject = null;      // 导致循环的对象引用
     this.usedWarps = new Set();  // 本次飞行已穿过的白洞
+
+    // 球升级系统（来回击打砖块次数越多，攻击力越高）
+    this.hitCount = 0;           // 本次飞行击打砖块次数
+    this.powerLevel = 0;         // 0=普通, 1=绿光(x1.5+1), 2=蓝光(x3+1)
   }
 
   init(x, y, angle) {
@@ -49,6 +53,8 @@ export default class Ball {
     this.needWarp = false;
     this.loopObject = null;
     this.usedWarps = new Set();
+    this.hitCount = 0;
+    this.powerLevel = 0;
   }
 
   /**
@@ -193,17 +199,37 @@ export default class Ball {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
+      // 根据升级等级选择光环颜色
+      let glowColor = 'rgba(200,220,255,0.2)';
+      let ballShadow = 'transparent';
+      let ballBlur = 0;
+      if (this.powerLevel >= 2) {
+        glowColor = 'rgba(50,150,255,0.4)';
+        ballShadow = '#3399ff';
+        ballBlur = 8;
+      } else if (this.powerLevel >= 1) {
+        glowColor = 'rgba(50,255,100,0.35)';
+        ballShadow = '#33ff66';
+        ballBlur = 6;
+      }
+
       // 外发光圈
-      ctx.fillStyle = 'rgba(200,220,255,0.2)';
+      ctx.fillStyle = glowColor;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius * 1.8, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.radius * (this.powerLevel > 0 ? 2.2 : 1.8), 0, Math.PI * 2);
       ctx.fill();
 
-      // 纯白实心球（始终白色，不变色）
+      // 纯白实心球 + 升级发光
+      if (ballBlur > 0) {
+        ctx.shadowColor = ballShadow;
+        ctx.shadowBlur = ballBlur;
+      }
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
       return;
     }
 

@@ -71,8 +71,8 @@ export default class Grid {
   generateRow(stage, rowIndex = 0) {
     const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
     const baseHp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));
-    // 每新一轮砖块 HP 提高 10%（基于已生成的行数）
-    const hp = Math.round(baseHp * Math.pow(1.1, this.rowCounter));
+    // 每新一轮砖块 HP 提高 10%，整体降低5%平衡难度
+    const hp = Math.round(baseHp * Math.pow(1.1, this.rowCounter) * 0.95);
     const triangleRate = cfg.triangleRate;
     const pickupMin = cfg.pickupMin;
     const pickupMax = cfg.pickupMax;
