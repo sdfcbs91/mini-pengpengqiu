@@ -76,6 +76,11 @@ export default class GameScene {
 
     // 触摸绑定
     this._bindTouch();
+
+    // 碰撞音效（节流：最小间隔80ms，参考业界弹球碰撞声音频率上限约12次/秒）
+    this._lastCollisionSoundTime = 0;
+    this._collisionSoundInterval = 80; // 毫秒
+    this._collisionAudio = null;
   }
 
   /**
@@ -389,6 +394,33 @@ export default class GameScene {
   }
 
   /**
+   * 播放碰撞音效（节流控制，避免密集碰撞时声音过于嘈杂）
+   */
+  _playCollisionSound() {
+    // 检查声音开关
+    try {
+      const soundOn = wx.getStorageSync('ppq_sound');
+      if (soundOn === false) return;
+    } catch (e) { /* 默认开 */ }
+
+    const now = Date.now();
+    if (now - this._lastCollisionSoundTime < this._collisionSoundInterval) return;
+    this._lastCollisionSoundTime = now;
+
+    // 创建或复用音频实例
+    if (!this._collisionAudio) {
+      this._collisionAudio = wx.createInnerAudioContext();
+      this._collisionAudio.src = 'audio/glass_beads_collision.wav';
+      this._collisionAudio.volume = 0.3;
+    }
+
+    // 从头播放
+    this._collisionAudio.stop();
+    this._collisionAudio.seek(0);
+    this._collisionAudio.play();
+  }
+
+  /**
    * 每帧更新
    */
   update() {
@@ -544,6 +576,7 @@ export default class GameScene {
         }
 
         const destroyed = brick.hit(damage);
+        this._playCollisionSound(); // 碰撞音效
         if (destroyed) {
           this.score += brick.maxHp;
           this.destroyedThisRound++;
