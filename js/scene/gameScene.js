@@ -400,13 +400,13 @@ export default class GameScene {
     const cfg = getLevelConfig(this.stage);
     let newMultiplier = 1;
     if (this.runningFrames >= cfg.speedBoostFrame1) {
-      newMultiplier = 2;
+      newMultiplier = 1.5;
     }
 
     if (newMultiplier !== this.speedMultiplier) {
       this.speedMultiplier = newMultiplier;
-      if (newMultiplier === 2) {
-        this.speedTipText = '加速 x2';
+      if (newMultiplier === 1.5) {
+        this.speedTipText = '加速 x1.5';
       }
       this.speedTipTimer = 120; // 显示2秒
 
@@ -461,7 +461,7 @@ export default class GameScene {
 
       // 快速回落检测：球向下飞且路径上没有砖块时，加速3倍回落
       let speedBoost = 1;
-      if (vy > 0 && this.speedMultiplier >= 2) {
+      if (vy > 0 && this.speedMultiplier >= 1.5) {
         const hasBlockAhead = this._hasBrickInPath(ball, allObstacles);
         if (!hasBlockAhead) {
           speedBoost = 3;
