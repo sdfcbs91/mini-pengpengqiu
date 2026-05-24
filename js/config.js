@@ -1,7 +1,7 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from './render';
 
 // 总关卡数
-export const TOTAL_LEVELS = 200;
+export const TOTAL_LEVELS = 600;
 
 // 网格配置
 export const GRID_COLS = 7;
