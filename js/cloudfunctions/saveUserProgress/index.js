@@ -57,28 +57,36 @@ exports.main = async (event, context) => {
       }
     }
 
-    // 保存关卡最高分（仅当超过历史最高分时更新）
+    // 保存关卡最高分（存入 levelProgress 对应关卡的 score 字段）
     if (action === 'saveScore' && level && score) {
       const { data } = await collection.where({ _openid: openid }).get();
       if (data.length > 0) {
         const doc = data[0];
-        const scores = doc.levelScores || {};
-        const oldBest = scores[`lv${level}`] || 0;
+        const progress = doc.levelProgress || [];
+        const idx = level - 1;
+        // 确保数组长度足够
+        while (progress.length <= idx) {
+          progress.push({ unlocked: false, stars: 0 });
+        }
+        const oldBest = progress[idx].score || 0;
         if (score > oldBest) {
-          scores[`lv${level}`] = score;
+          progress[idx].score = score;
           await collection.doc(doc._id).update({
-            data: { levelScores: scores },
+            data: { levelProgress: progress },
           });
         }
         return { code: 0, msg: 'score_saved', level, score, oldBest };
       } else {
         // 新用户
-        const scores = {};
-        scores[`lv${level}`] = score;
+        const progress = [];
+        for (let i = 0; i < level; i++) {
+          progress.push({ unlocked: i === 0, stars: 0 });
+        }
+        progress[level - 1].score = score;
         await collection.add({
           data: {
             _openid: openid,
-            levelScores: scores,
+            levelProgress: progress,
             maxLevel: level,
             lastLoginTime: db.serverDate(),
             createTime: db.serverDate(),
