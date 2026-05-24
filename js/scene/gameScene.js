@@ -1264,11 +1264,6 @@ export default class GameScene {
       this._renderSpeedTip(ctx);
     }
 
-    // 快进按钮
-    if (this._showFastForward) {
-      this._renderFastForwardBtn(ctx);
-    }
-
     // 粒子效果
     if (this._particles.length > 0) {
       this._updateAndRenderParticles(ctx);
@@ -1450,49 +1445,6 @@ export default class GameScene {
     ctx.fillText(this.speedTipText, centerX, centerY);
 
     ctx.globalAlpha = 1;
-  }
-
-  /**
-   * 渲染快进按钮
-   */
-  _renderFastForwardBtn(ctx) {
-    const s = SCALE;
-    const btnW = 80 * s;
-    const btnH = 32 * s;
-    const btnX = SCREEN_WIDTH / 2 - btnW / 2;
-    const btnY = LAUNCH_Y + 10 * s;
-    const r = btnH / 2;
-
-    // 呼吸动画
-    const pulse = 0.7 + 0.3 * Math.sin(this.glowPhase * 3);
-
-    // 背景
-    ctx.fillStyle = `rgba(0,200,255,${0.15 * pulse})`;
-    ctx.beginPath();
-    ctx.moveTo(btnX + r, btnY);
-    ctx.lineTo(btnX + btnW - r, btnY);
-    ctx.arcTo(btnX + btnW, btnY, btnX + btnW, btnY + r, r);
-    ctx.arcTo(btnX + btnW, btnY + btnH, btnX + btnW - r, btnY + btnH, r);
-    ctx.lineTo(btnX + r, btnY + btnH);
-    ctx.arcTo(btnX, btnY + btnH, btnX, btnY + r, r);
-    ctx.arcTo(btnX, btnY, btnX + r, btnY, r);
-    ctx.closePath();
-    ctx.fill();
-
-    // 边框
-    ctx.strokeStyle = `rgba(0,212,255,${0.6 + 0.4 * pulse})`;
-    ctx.lineWidth = 1.5 * s;
-    ctx.shadowColor = '#00d4ff';
-    ctx.shadowBlur = 6 * s * pulse;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // 文字
-    ctx.fillStyle = '#00d4ff';
-    ctx.font = `bold ${13 * s}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚡ 快进', btnX + btnW / 2, btnY + btnH / 2);
   }
 
   /**
