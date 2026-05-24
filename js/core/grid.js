@@ -276,9 +276,31 @@ export default class Grid {
   }
 
   /**
-   * 在模板空位上随机放置道具（消行、消列、白洞、横板）
+   * 在模板空位上随机放置道具
+   * 规则：
+   * - 横板不能放在通道路径上（贯通列或连通顶部的斜路）
+   * - 消单列所在列必须有砖块，否则改为消单行
+   * - 空心白洞放置在靠近砖块的位置
    */
   _spawnTemplateProps(map, stage) {
+    // 找出通道列（整列全空 = 通往顶部的路）
+    const throughCols = new Set();
+    for (let col = 0; col < GRID_COLS; col++) {
+      let allEmpty = true;
+      for (let row = 1; row < map.length; row++) {
+        if (map[row] && map[row][col] !== 0) { allEmpty = false; break; }
+      }
+      if (allEmpty) throughCols.add(col);
+    }
+
+    // 找出有砖块的列
+    const colsWithBricks = new Set();
+    for (let row = 1; row < map.length; row++) {
+      for (let col = 0; col < GRID_COLS && col < map[row].length; col++) {
+        if (map[row][col] !== 0) colsWithBricks.add(col);
+      }
+    }
+
     // 收集所有空位（排除第0行）
     const emptyCells = [];
     for (let row = 1; row < map.length && row < 10; row++) {
@@ -299,7 +321,7 @@ export default class Grid {
 
     let idx = 0;
 
-    // 放1-2个消单行
+    // 放1-2个消单行（放在同行有砖块的空位）
     const rowClearCount = 1 + Math.floor(Math.random() * 2);
     for (let i = 0; i < rowClearCount && idx < emptyCells.length; i++, idx++) {
       const { row, col } = emptyCells[idx];
@@ -312,49 +334,75 @@ export default class Grid {
       this.rowClears.push(rc);
     }
 
-    // 放1-2个消单列
+    // 放1-2个消单列（该列必须有砖块，否则改为消单行）
     const colClearCount = 1 + Math.floor(Math.random() * 2);
     for (let i = 0; i < colClearCount && idx < emptyCells.length; i++, idx++) {
       const { row, col } = emptyCells[idx];
-      const cc = new ColClear();
-      cc.init(
-        this.getColX(col) + BRICK_W / 2,
-        this.getRowY(row) + BRICK_H / 2,
-        col
-      );
-      this.colClears.push(cc);
-    }
-
-    // 放0-1个空心白洞（第18关起）
-    if (stage >= 18 && idx < emptyCells.length) {
-      const { row, col } = emptyCells[idx]; idx++;
-      const warp = new Warp();
-      warp.init(
-        this.getColX(col) + BRICK_W / 2,
-        this.getRowY(row) + BRICK_H / 2
-      );
-      this.warps.push(warp);
-    }
-
-    // 放1-2个横板（第5关起，不能放在贯通通道列上）
-    if (stage >= 5) {
-      // 找出贯通列（整列在模板中全为0的列=通道，不能放横板）
-      const throughCols = new Set();
-      for (let col = 0; col < GRID_COLS; col++) {
-        let allEmpty = true;
-        for (let row = 1; row < map.length; row++) {
-          if (map[row] && map[row][col] !== 0) { allEmpty = false; break; }
-        }
-        if (allEmpty) throughCols.add(col);
+      if (colsWithBricks.has(col)) {
+        // 该列有砖块，正常放消单列
+        const cc = new ColClear();
+        cc.init(
+          this.getColX(col) + BRICK_W / 2,
+          this.getRowY(row) + BRICK_H / 2,
+          col
+        );
+        this.colClears.push(cc);
+      } else {
+        // 该列无砖块，改为消单行
+        const rc = new RowClear();
+        rc.init(
+          this.getColX(col) + BRICK_W / 2,
+          this.getRowY(row) + BRICK_H / 2,
+          row
+        );
+        this.rowClears.push(rc);
       }
+    }
 
-      // 从剩余空位中找非通道列的位置放横板
+    // 放0-1个空心白洞（第18关起，优先靠近砖块的位置）
+    if (stage >= 18) {
+      // 找靠近砖块的空位（相邻有砖块的空格）
+      let warpCell = null;
+      for (let k = idx; k < emptyCells.length; k++) {
+        const { row, col } = emptyCells[k];
+        // 检查上下左右是否有砖块
+        const hasAdjacentBrick =
+          (map[row - 1] && map[row - 1][col] !== 0) ||
+          (map[row + 1] && map[row + 1][col] !== 0) ||
+          (col > 0 && map[row][col - 1] !== 0) ||
+          (col < GRID_COLS - 1 && map[row][col + 1] !== 0);
+        if (hasAdjacentBrick) {
+          warpCell = emptyCells[k];
+          // 移除该元素
+          emptyCells.splice(k, 1);
+          break;
+        }
+      }
+      if (!warpCell && idx < emptyCells.length) {
+        warpCell = emptyCells[idx]; idx++;
+      }
+      if (warpCell) {
+        const warp = new Warp();
+        warp.init(
+          this.getColX(warpCell.col) + BRICK_W / 2,
+          this.getRowY(warpCell.row) + BRICK_H / 2
+        );
+        this.warps.push(warp);
+      }
+    }
+
+    // 放1-2个横板（第5关起，不能放在通道列上，也不能放在斜向通道路径上）
+    if (stage >= 5) {
+      // 横板候选：非通道列 且 该行左右有砖块（说明不在斜路上）
       const plankCandidates = [];
       for (; idx < emptyCells.length; idx++) {
         const { row, col } = emptyCells[idx];
-        if (!throughCols.has(col)) {
-          plankCandidates.push({ row, col });
-        }
+        if (throughCols.has(col)) continue; // 跳过贯通列
+        // 检查该空位是否在斜路上：如果上下行同列也为空则可能是斜路
+        const aboveEmpty = row > 1 && map[row - 1] && map[row - 1][col] === 0;
+        const belowEmpty = row < map.length - 1 && map[row + 1] && map[row + 1][col] === 0;
+        if (aboveEmpty && belowEmpty) continue; // 上下都空=垂直通道的一部分，跳过
+        plankCandidates.push({ row, col });
       }
 
       const plankCount = Math.min(1 + Math.floor(Math.random() * 2), plankCandidates.length);

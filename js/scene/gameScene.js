@@ -187,8 +187,9 @@ export default class GameScene {
   }
 
   _bindTouch() {
-    // 追踪触摸状态：是否有手指在屏幕上
+    // 追踪触摸状态
     this._touching = false;
+    this._isDraggingBall = false;
 
     this._touchStartHandler = (e) => {
       if (GameGlobal.databus.scene !== 'playing') return;
@@ -246,16 +247,25 @@ export default class GameScene {
         }
       }
 
-      // 瞄准 - 任意位置触摸都可以开始瞄准
+      // 瞄准阶段：判断是拖拽白球位置 还是 调整角度
       if (this.gameState === 'aiming') {
-        this.launcher.isAiming = true;
-        this.launcher.setAimAngle(clientX, clientY);
+        const ballDist = Math.abs(clientX - this.launcher.x) + Math.abs(clientY - this.launcher.y);
+        if (ballDist < 40 * SCALE) {
+          // 触摸在白球附近 → 拖拽白球位置
+          this._isDraggingBall = true;
+          this.launcher.isAiming = false;
+        } else {
+          // 其他位置 → 瞄准角度
+          this._isDraggingBall = false;
+          this.launcher.isAiming = true;
+          this.launcher.setAimAngle(clientX, clientY);
+        }
       }
     };
 
     this._touchMoveHandler = (e) => {
       if (GameGlobal.databus.scene !== 'playing') return;
-      if (this.gameState !== 'aiming' || !this.launcher.isAiming) return;
+      if (this.gameState !== 'aiming') return;
 
       if (!e.touches || e.touches.length === 0) {
         this._touching = false;
@@ -263,18 +273,32 @@ export default class GameScene {
       }
 
       const { clientX, clientY } = e.touches[0];
-      this.launcher.setAimAngle(clientX, clientY);
+
+      if (this._isDraggingBall) {
+        // 拖拽白球X位置（限制在游戏区域内）
+        this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, clientX));
+      } else if (this.launcher.isAiming) {
+        this.launcher.setAimAngle(clientX, clientY);
+      }
     };
 
     this._touchEndHandler = () => {
       if (GameGlobal.databus.scene !== 'playing') return;
       this._touching = false;
+      if (this._isDraggingBall) {
+        this._isDraggingBall = false;
+        return; // 拖拽白球松手不发射
+      }
       this._tryLaunch();
     };
 
     this._touchCancelHandler = () => {
       if (GameGlobal.databus.scene !== 'playing') return;
       this._touching = false;
+      if (this._isDraggingBall) {
+        this._isDraggingBall = false;
+        return;
+      }
       this._tryLaunch();
     };
 
@@ -851,21 +875,43 @@ export default class GameScene {
   }
 
   /**
-   * 为白洞计算并缓存传送目标位置（每轮只算一次）
+   * 为白洞计算并缓存传送目标位置
+   * 优先选择靠近砖块的空位（让球传送后能有效命中砖块）
    */
   _calcWarpDest(warp) {
     const left = GAME_AREA_LEFT;
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
-    const r = 8; // 球半径近似
+    const r = 8;
 
-    const allObstacles = [...this.grid.bricks.filter(b => b.isAlive), ...this.grid.planks];
+    const aliveBricks = this.grid.bricks.filter(b => b.isAlive);
+    const allObstacles = [...aliveBricks, ...this.grid.planks];
 
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const nx = left + r + Math.random() * (right - left - r * 2);
-      const ny = top + r + Math.random() * (bottom - top - r * 2) * 0.6;
+    // 策略：在砖块附近（砖块边缘外扩一定距离）随机找空位
+    let bestX = -1, bestY = -1;
 
+    for (let attempt = 0; attempt < 30; attempt++) {
+      let nx, ny;
+
+      if (attempt < 20 && aliveBricks.length > 0) {
+        // 前20次尝试：在随机砖块附近生成目标点
+        const targetBrick = aliveBricks[Math.floor(Math.random() * aliveBricks.length)];
+        const offsetX = (Math.random() - 0.5) * (targetBrick.width * 3);
+        const offsetY = (Math.random() - 0.5) * (targetBrick.height * 3);
+        nx = targetBrick.x + targetBrick.width / 2 + offsetX;
+        ny = targetBrick.y + targetBrick.height / 2 + offsetY;
+      } else {
+        // 后10次：纯随机（兜底）
+        nx = left + r + Math.random() * (right - left - r * 2);
+        ny = top + r + Math.random() * (bottom - top - r * 2) * 0.6;
+      }
+
+      // 边界限制
+      nx = Math.max(left + r, Math.min(right - r, nx));
+      ny = Math.max(top + r, Math.min(bottom - r * 4, ny));
+
+      // 检查是否与障碍物重叠
       let blocked = false;
       for (const ob of allObstacles) {
         if (nx + r > ob.x && nx - r < ob.x + ob.width &&
@@ -875,18 +921,20 @@ export default class GameScene {
         }
       }
       if (!blocked) {
-        warp.cachedDestX = nx;
-        warp.cachedDestY = ny;
-        warp.cachedAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
-        warp.startDestTimer();
-        return;
+        bestX = nx;
+        bestY = ny;
+        break;
       }
     }
 
-    // 兜底：传送到游戏区域中间偏上
-    warp.cachedDestX = (left + right) / 2;
-    warp.cachedDestY = top + (bottom - top) * 0.3;
-    warp.cachedAngle = -Math.PI / 2;
+    if (bestX < 0) {
+      bestX = (left + right) / 2;
+      bestY = top + (bottom - top) * 0.3;
+    }
+
+    warp.cachedDestX = bestX;
+    warp.cachedDestY = bestY;
+    warp.cachedAngle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.6;
     warp.startDestTimer();
   }
 
