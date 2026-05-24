@@ -238,6 +238,24 @@ export default class LevelSelect {
       return;
     }
 
+    // 页码箭头点击检测
+    const s = SCALE;
+    const indicatorY = this.gridTop - 10 * s;
+    const centerX = SCREEN_WIDTH / 2;
+    if (Math.abs(y - indicatorY) < 15 * s) {
+      if (x < centerX - 30 * s && this.currentPage > 0) {
+        // << 跳到第一页
+        this.currentPage = 0;
+        return;
+      }
+      const maxPage = Math.floor((this.progress.getMaxUnlocked() - 1) / LEVELS_PER_PAGE);
+      if (x > centerX + 30 * s && this.currentPage < maxPage) {
+        // >> 跳到最后解锁页
+        this.currentPage = maxPage;
+        return;
+      }
+    }
+
     // 检测关卡格子点击
     const startIdx = this.currentPage * LEVELS_PER_PAGE;
     for (let row = 0; row < LEVEL_GRID_ROWS; row++) {
@@ -1071,14 +1089,14 @@ export default class LevelSelect {
     const y = this.gridTop - 10 * s;
     const centerX = SCREEN_WIDTH / 2;
 
-    // 左箭头 <
+    // 左箭头 << （跳到第一页）
     const arrowPad = 60 * s;
     if (this.currentPage > 0) {
       ctx.fillStyle = '#4499cc';
       ctx.font = `bold ${16 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('<', centerX - arrowPad, y);
+      ctx.fillText('<<', centerX - arrowPad, y);
     }
 
     // 页码 "3 / 8"
@@ -1088,13 +1106,14 @@ export default class LevelSelect {
     ctx.textBaseline = 'middle';
     ctx.fillText(`当前:${this.currentPage + 1}`, centerX, y);
 
-    // 右箭头 >
-    if (this.currentPage < this.totalPages - 1) {
+    // 右箭头 >> （跳到最后解锁页）
+    const maxPage = Math.floor((this.progress.getMaxUnlocked() - 1) / LEVELS_PER_PAGE);
+    if (this.currentPage < maxPage) {
       ctx.fillStyle = '#4499cc';
       ctx.font = `bold ${16 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('>', centerX + arrowPad, y);
+      ctx.fillText('>>', centerX + arrowPad, y);
     }
   }
 
