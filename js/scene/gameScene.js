@@ -62,11 +62,8 @@ export default class GameScene {
     this.destroyedThisRound = 0;
     this.starProgress = 0;
 
-    // 快进系统
-    this._fastForwardTarget = null;  // 正在反复击打的砖块
-    this._fastForwardHits = 0;       // 连续击打次数
-    this._showFastForward = false;   // 是否显示快进按钮
-    this._particles = [];            // 粒子效果数组
+    // 粒子效果数组
+    this._particles = [];
 
     // 回调
     this.onGameOver = null;
@@ -260,14 +257,6 @@ export default class GameScene {
         return;
       }
 
-      // 快进按钮点击（running 状态下）
-      if (this._showFastForward && (this.gameState === 'running' || this.gameState === 'launching')) {
-        if (this._hitFastForwardBtn(clientX, clientY)) {
-          this._executeFastForward();
-          return;
-        }
-      }
-
       // 检查技能按钮（仅在瞄准阶段）
       if (this.gameState === 'aiming') {
         if (this.hud.hitLightningButton(clientX, clientY)) {
@@ -355,10 +344,6 @@ export default class GameScene {
       this.launcher.startLaunch();
       this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
       this.destroyedThisRound = 0;
-      // 重置快进状态
-      this._fastForwardTarget = null;
-      this._fastForwardHits = 0;
-      this._showFastForward = false;
       this.launchStartTime = Date.now();
       // runningFrames 跨轮累计，不在每次发射时重置
       this.speedTipText = '';
@@ -594,15 +579,6 @@ export default class GameScene {
           this.score += brick.maxHp;
           this.destroyedThisRound++;
           this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
-          // 砖块被消除，重置快进检测
-          if (brick === this._fastForwardTarget) {
-            this._fastForwardTarget = null;
-            this._fastForwardHits = 0;
-            this._showFastForward = false;
-          }
-        } else {
-          // 砖块未消除，追踪连续击打
-          this._trackFastForward(brick);
         }
       }
 
@@ -793,76 +769,6 @@ export default class GameScene {
 
     // 找不到空位就强制往下弹
     ball.vy = Math.abs(ball.vy);
-  }
-
-  /**
-   * 追踪快进条件：单球反复击打同一砖块
-   */
-  _trackFastForward(brick) {
-    // 只有1颗活跃球时才触发
-    const activeBalls = this.launcher.balls.filter(b => b.active);
-    if (activeBalls.length !== 1) {
-      this._fastForwardHits = 0;
-      this._showFastForward = false;
-      return;
-    }
-
-    if (brick === this._fastForwardTarget) {
-      this._fastForwardHits++;
-    } else {
-      this._fastForwardTarget = brick;
-      this._fastForwardHits = 1;
-    }
-
-    // 连续击打同一砖块 5 次以上，且砖块 HP >= 20，显示快进
-    if (this._fastForwardHits >= 5 && brick.hp >= 20) {
-      this._showFastForward = true;
-    }
-  }
-
-  /**
-   * 快进按钮点击检测
-   */
-  _hitFastForwardBtn(x, y) {
-    const s = SCALE;
-    const btnW = 80 * s;
-    const btnH = 32 * s;
-    const btnX = SCREEN_WIDTH / 2 - btnW / 2;
-    const btnY = LAUNCH_Y + 10 * s;
-    return x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH;
-  }
-
-  /**
-   * 执行快进：直接消除目标砖块，生成粒子效果，球直接落地
-   */
-  _executeFastForward() {
-    const brick = this._fastForwardTarget;
-    if (!brick || !brick.isAlive) return;
-
-    // 生成粒子爆炸
-    this._spawnBrickParticles(brick);
-
-    // 消除砖块
-    this.score += brick.hp;
-    brick.hp = 0;
-    brick.isAlive = false;
-    this.destroyedThisRound++;
-    this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
-
-    // 球直接落地
-    this.launcher.balls.forEach(b => {
-      if (b.active) {
-        b.active = false;
-        b.landed = true;
-        b.landX = b.x;
-        b.slideDone = true;
-      }
-    });
-
-    // 重置快进状态
-    this._fastForwardTarget = null;
-    this._fastForwardHits = 0;
-    this._showFastForward = false;
   }
 
   /**
