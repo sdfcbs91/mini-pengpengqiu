@@ -77,10 +77,26 @@ export default class GameScene {
     // 触摸绑定
     this._bindTouch();
 
-    // 碰撞音效（节流：最小间隔80ms，参考业界弹球碰撞声音频率上限约12次/秒）
+    // 碰撞音效（预加载 + 对象池，避免首次播放卡顿）
     this._lastCollisionSoundTime = 0;
     this._collisionSoundInterval = 80; // 毫秒
-    this._collisionAudio = null;
+    this._collisionAudioPool = [];
+    this._collisionAudioIdx = 0;
+    this._launcherShakeTimer = 0;
+    this._initCollisionAudio();
+  }
+
+  /**
+   * 预加载碰撞音效对象池（3个实例轮流使用）
+   */
+  _initCollisionAudio() {
+    const POOL_SIZE = 3;
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const audio = wx.createInnerAudioContext();
+      audio.src = 'audio/glass_beads_collision.wav';
+      audio.volume = 0.3;
+      this._collisionAudioPool.push(audio);
+    }
   }
 
   /**
@@ -394,7 +410,7 @@ export default class GameScene {
   }
 
   /**
-   * 播放碰撞音效（节流控制，避免密集碰撞时声音过于嘈杂）
+   * 播放碰撞音效（节流 + 对象池轮换，避免卡顿）
    */
   _playCollisionSound() {
     // 检查声音开关
@@ -407,17 +423,14 @@ export default class GameScene {
     if (now - this._lastCollisionSoundTime < this._collisionSoundInterval) return;
     this._lastCollisionSoundTime = now;
 
-    // 创建或复用音频实例
-    if (!this._collisionAudio) {
-      this._collisionAudio = wx.createInnerAudioContext();
-      this._collisionAudio.src = 'audio/glass_beads_collision.wav';
-      this._collisionAudio.volume = 0.3;
-    }
+    // 从对象池中取下一个音频实例（轮换使用，避免stop/seek卡顿）
+    if (this._collisionAudioPool.length === 0) return;
+    const audio = this._collisionAudioPool[this._collisionAudioIdx];
+    this._collisionAudioIdx = (this._collisionAudioIdx + 1) % this._collisionAudioPool.length;
 
-    // 从头播放
-    this._collisionAudio.stop();
-    this._collisionAudio.seek(0);
-    this._collisionAudio.play();
+    audio.stop();
+    audio.seek(0);
+    audio.play();
   }
 
   /**
@@ -576,7 +589,7 @@ export default class GameScene {
         }
 
         const destroyed = brick.hit(damage);
-        this._playCollisionSound(); // 碰撞音效
+        if (!brick.isPlank) this._playCollisionSound(); // 只有砖块发声，横板不发声
         if (destroyed) {
           this.score += brick.maxHp;
           this.destroyedThisRound++;
@@ -593,11 +606,17 @@ export default class GameScene {
         }
       }
 
+      // 碰到砖块则重置无砖反弹计数
+      if (hitBricks.length > 0) {
+        const hitReal = hitBricks.some(b => !b.isPlank);
+        if (hitReal) ball.noBrickBounces = 0;
+      }
+
       // 3. 墙壁反弹（扫描碰撞后球可能到了墙壁外）
       const r = ball.radius;
-      if (ball.x - r <= left) { ball.x = left + r; ball.vx = Math.abs(ball.vx); ball.recordBounce(this._wallLeft); }
-      if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); ball.recordBounce(this._wallRight); }
-      if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); ball.recordBounce(this._wallTop); }
+      if (ball.x - r <= left) { ball.x = left + r; ball.vx = Math.abs(ball.vx); ball.recordBounce(this._wallLeft); ball.noBrickBounces++; }
+      if (ball.x + r >= right) { ball.x = right - r; ball.vx = -Math.abs(ball.vx); ball.recordBounce(this._wallRight); ball.noBrickBounces++; }
+      if (ball.y - r <= top) { ball.y = top + r; ball.vy = Math.abs(ball.vy); ball.recordBounce(this._wallTop); ball.noBrickBounces++; }
 
       // 将墙壁修正后的最终位置追加到路径（确保道具碰撞检测覆盖完整路径）
       if (ball._pathPoints) {
@@ -726,6 +745,11 @@ export default class GameScene {
           this._warpBall(ball);
           this._warpEffect = { x: fromX, y: fromY, dx: ball.x, dy: ball.y, timer: 30 };
         }
+      }
+
+      // 8. 死循环回收：连续反弹10次未碰砖块，回收白球
+      if (ball.active && ball.noBrickBounces >= 10) {
+        this._recycleBall(ball);
       }
     });
   }
@@ -864,6 +888,43 @@ export default class GameScene {
         color: brick.getColorScheme().border,
       });
     }
+  }
+
+  /**
+   * 回收死循环白球：消散特效 + 发射器抖动
+   */
+  _recycleBall(ball) {
+    // 生成消散粒子（与球当前升级颜色一致）
+    let color = '#ffffff';
+    if (ball.powerLevel >= 4) color = '#ff3333';
+    else if (ball.powerLevel >= 3) color = '#ffcc00';
+    else if (ball.powerLevel >= 2) color = '#3399ff';
+    else if (ball.powerLevel >= 1) color = '#33ff66';
+
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 3;
+      this._particles.push({
+        x: ball.x,
+        y: ball.y,
+        vx: Math.cos(angle) * speed * SCALE,
+        vy: Math.sin(angle) * speed * SCALE,
+        size: (2 + Math.random() * 3) * SCALE,
+        life: 25 + Math.floor(Math.random() * 15),
+        maxLife: 40,
+        color,
+      });
+    }
+
+    // 回收球
+    ball.active = false;
+    ball.landed = true;
+    ball.landX = this.launcher.x;
+    ball.slideDone = true;
+
+    // 发射器抖动效果
+    this._launcherShakeTimer = 15;
   }
 
   /**
@@ -1260,8 +1321,20 @@ export default class GameScene {
       this._renderWarpEffect(ctx);
     }
 
+    // 发射器抖动效果
+    if (this._launcherShakeTimer > 0) {
+      this._launcherShakeTimer--;
+      const shakeX = (Math.random() - 0.5) * 4 * SCALE;
+      ctx.save();
+      ctx.translate(shakeX, 0);
+    }
+
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
     this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
+
+    if (this._launcherShakeTimer >= 0 && this._launcherShakeTimer < 15) {
+      ctx.restore();
+    }
 
     // 开局拖拽提示（左右箭头）
     if (this._showDragHint && this.gameState === 'aiming') {

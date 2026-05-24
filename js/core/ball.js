@@ -34,6 +34,8 @@ export default class Ball {
     // 球升级系统（来回击打砖块次数越多，攻击力越高）
     this.hitCount = 0;           // 本次飞行击打砖块次数
     this.powerLevel = 0;         // 0=普通, 1=绿光(x1.5+1), 2=蓝光(x3+1)
+    this.noBrickBounces = 0;     // 连续未碰砖块的反弹次数（用于死循环检测）
+    this.needRecycle = false;    // 是否需要回收（死循环）
   }
 
   init(x, y, angle) {
@@ -55,6 +57,8 @@ export default class Ball {
     this.usedWarps = new Set();
     this.hitCount = 0;
     this.powerLevel = 0;
+    this.noBrickBounces = 0;
+    this.needRecycle = false;
   }
 
   /**
