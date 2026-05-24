@@ -834,6 +834,29 @@ export default class GameScene {
   }
 
   /**
+   * 上传关卡最高分到云端（仅当超过历史最高分时才更新）
+   */
+  _uploadLevelScore() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+    if (this.initialLevel <= 0) return; // 特殊模式不走这里
+    if (this.score <= 0) return;
+
+    const level = this.initialLevel;
+    const score = this.score;
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: {
+        action: 'saveScore',
+        level,
+        score,
+      },
+      success: () => { /* 静默 */ },
+      fail: () => { /* 静默 */ },
+    });
+  }
+
+  /**
    * 执行消单行：对同行砖块造成伤害
    * 伤害 = 攻击力（atkLevel），每个砖块扣一次
    * 整行清除后道具消失
@@ -1097,6 +1120,7 @@ export default class GameScene {
       const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
       this.winStars = stars;
       this.gameState = 'win';
+      this._uploadLevelScore();
       if (this.onLevelComplete) {
         this.onLevelComplete(this.initialLevel, stars);
       }
@@ -1121,6 +1145,7 @@ export default class GameScene {
       const isOver = this.grid.shiftDown(LAUNCH_Y);
       if (isOver) {
         this.gameState = 'over';
+        this._uploadLevelScore();
         return;
       }
     }
@@ -1151,6 +1176,7 @@ export default class GameScene {
     // 检查游戏结束（砖块触底）
     if (this.grid.checkGameOver(LAUNCH_Y)) {
       this.gameState = 'over';
+      this._uploadLevelScore();
       return;
     }
 
@@ -1159,6 +1185,7 @@ export default class GameScene {
       const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
       this.winStars = stars;
       this.gameState = 'win';
+      this._uploadLevelScore();
       if (this.onLevelComplete) {
         this.onLevelComplete(this.initialLevel, stars);
       }

@@ -30,7 +30,7 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
 
-  const { action = 'save', userInfo, maxLevel, levelProgress, mode150 } = event;
+  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score } = event;
 
   const collection = db.collection('user_progress');
 
@@ -54,6 +54,38 @@ exports.main = async (event, context) => {
           maxLevel: 0,
           levelProgress: null,
         };
+      }
+    }
+
+    // 保存关卡最高分（仅当超过历史最高分时更新）
+    if (action === 'saveScore' && level && score) {
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length > 0) {
+        const doc = data[0];
+        const scores = doc.levelScores || {};
+        const oldBest = scores[`lv${level}`] || 0;
+        if (score > oldBest) {
+          scores[`lv${level}`] = score;
+          await collection.doc(doc._id).update({
+            data: { levelScores: scores },
+          });
+        }
+        return { code: 0, msg: 'score_saved', level, score, oldBest };
+      } else {
+        // 新用户
+        const scores = {};
+        scores[`lv${level}`] = score;
+        await collection.add({
+          data: {
+            _openid: openid,
+            levelScores: scores,
+            maxLevel: level,
+            lastLoginTime: db.serverDate(),
+            createTime: db.serverDate(),
+            updateCount: 0,
+          },
+        });
+        return { code: 0, msg: 'score_created', level, score };
       }
     }
 
