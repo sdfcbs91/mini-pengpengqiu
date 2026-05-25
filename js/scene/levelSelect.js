@@ -1183,6 +1183,7 @@ export default class LevelSelect {
 
           // 记录成功信息和返回数据到 console.log
           console.log('[授权成功]', res);
+          console.log('用户名称：', info.nickName || '');
           this._toastText = '授权成功（查看Dev日志）';
           this._toastTimer = 60;
         },
