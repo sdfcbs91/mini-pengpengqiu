@@ -7,7 +7,7 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT, DPR } from './render';
 
 // ============ 开发调试开关 ============
 // 设置为 false 则不生成 dev 调试工具（提升性能、避免误触）
-const DEV_ENABLED = false; // ← 改这里：true=开启 / false=关闭
+const DEV_ENABLED = true; // ← 改这里：true=开启 / false=关闭
 // ===============================================
 
 // 将开关暴露到全局，供 devLog 读取
