@@ -30,30 +30,30 @@ class DevLog {
     const _origError = console.error;
 
     // 重写 console
-    console.log = function(...args) {
+    console.log = function (...args) {
       self._addLog('log', ...args);
       _origLog.apply(console, args);
     };
 
-    console.error = function(...args) {
+    console.error = function (...args) {
       self._addLog('error', ...args);
       _origError.apply(console, args);
     };
 
     // 确认初始化
-    if (typeof wx !== 'undefined') {
-      wx.showToast({
-        title: 'DevLog初始化成功!',
-        icon: 'none',
-        duration: 2000
-      });
-    }
+    // if (typeof wx !== 'undefined') {
+    //   wx.showToast({
+    //     title: 'DevLog初始化成功!',
+    //     icon: 'none',
+    //     duration: 2000
+    //   });
+    // }
   }
 
   _addLog(type, ...args) {
     const msg = args.map(a => {
       if (typeof a === 'object') {
-        try { return JSON.stringify(a); } catch(e) { return String(a); }
+        try { return JSON.stringify(a); } catch (e) { return String(a); }
       }
       return String(a);
     }).join(' ');
@@ -118,7 +118,7 @@ class DevLog {
     const closeBtnSize = 30 * s;
 
     if (x >= closeBtnX && x <= closeBtnX + closeBtnSize &&
-        y >= closeBtnY && y <= closeBtnY + closeBtnSize) {
+      y >= closeBtnY && y <= closeBtnY + closeBtnSize) {
       this.showPanel = false;
       return;
     }
@@ -130,7 +130,7 @@ class DevLog {
     const clearBtnH = 30 * s;
 
     if (x >= clearBtnX && x <= clearBtnX + clearBtnW &&
-        y >= clearBtnY && y <= clearBtnY + clearBtnH) {
+      y >= clearBtnY && y <= clearBtnY + clearBtnH) {
       this.logs = [];
       this.panelScrollY = 0;
       return;
@@ -314,7 +314,7 @@ class DevLog {
     // 计算每条日志的实际行数（基于文本实际宽度）
     const maxWidth = this.panelWidth - 80 * s; // 消息区域最大宽度
     const lineHeight = this.lineHeight;
-    
+
     // 计算每条日志的行数
     const logLineCounts = this.logs.map(log => {
       if (!log.message) return 1;
@@ -330,12 +330,12 @@ class DevLog {
 
     // 绘制日志（从最新开始，从下往上）
     let currentY = this.contentTop + this.contentHeight + this.panelScrollY;
-    
+
     for (let i = this.logs.length - 1; i >= 0; i--) {
       const log = this.logs[i];
       const lineCount = logLineCounts[i];
       const logHeight = lineCount * lineHeight;
-      
+
       currentY -= logHeight;
 
       // 只绘制可见区域的日志
@@ -364,17 +364,17 @@ class DevLog {
 
       // 使用文本实际宽度进行换行
       const lines = this._wrapText(ctx, msg, maxWidth, s);
-      
+
       // 绘制每一行
       for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
         const lineText = lines[lineIdx];
         const lineY = currentY + lineIdx * lineHeight;
-        
+
         // 只绘制可见行
         if (lineY + lineHeight > this.contentTop && lineY < this.contentTop + this.contentHeight) {
           ctx.fillText(lineText, this.panelX + 75 * s, lineY);
         }
-        
+
         if (lineIdx >= lineCount) break;
       }
     }
@@ -385,16 +385,16 @@ class DevLog {
    */
   _calculateLines(ctx, text, maxWidth, s) {
     if (!text) return 1;
-    
+
     ctx.font = `${11 * s}px Arial`;
     let lineCount = 1;
     let currentLine = '';
-    
+
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const testLine = currentLine + char;
       const metrics = ctx.measureText(testLine);
-      
+
       if (metrics.width > maxWidth) {
         lineCount++;
         currentLine = char;
@@ -402,7 +402,7 @@ class DevLog {
         currentLine = testLine;
       }
     }
-    
+
     return lineCount;
   }
 
@@ -411,16 +411,16 @@ class DevLog {
    */
   _wrapText(ctx, text, maxWidth, s) {
     if (!text) return [''];
-    
+
     ctx.font = `${11 * s}px Arial`;
     const lines = [];
     let currentLine = '';
-    
+
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const testLine = currentLine + char;
       const metrics = ctx.measureText(testLine);
-      
+
       if (metrics.width > maxWidth && currentLine.length > 0) {
         lines.push(currentLine);
         currentLine = char;
@@ -428,11 +428,11 @@ class DevLog {
         currentLine = testLine;
       }
     }
-    
+
     if (currentLine.length > 0) {
       lines.push(currentLine);
     }
-    
+
     return lines;
   }
 
