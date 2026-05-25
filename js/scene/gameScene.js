@@ -71,9 +71,6 @@ export default class GameScene {
     this.onLevelComplete = null;  // (levelNum, stars) => void
     this.winStars = 0;
 
-    // 触摸绑定
-    this._bindTouch();
-
     // 碰撞音效（预加载 + 对象池，避免首次播放卡顿）
     this._lastCollisionSoundTime = 0;
     this._collisionSoundInterval = 80; // 毫秒
@@ -221,136 +218,111 @@ export default class GameScene {
     }
   }
 
-  _bindTouch() {
-    // 追踪触摸状态
+  /**
+   * 触摸开始处理（供 main.js 统一分发器调用）
+   * 注意：dev 组件的触摸拦截已经在 main.js 的 _dispatchTouch 中统一处理
+   */
+  handleTouchStart(x, y) {
+    if (GameGlobal.databus.scene !== 'playing') return;
+
+    this._touching = true;
+    this._showDragHint = false; // 任何操作隐藏拖拽提示
+    this._lastTouchX = x;
+    this._lastTouchY = y;
+
+    if (this.gameState === 'over') {
+      this._handleOverTap(x, y);
+      return;
+    }
+
+    if (this.gameState === 'win') {
+      this._handleWinTap(x, y);
+      return;
+    }
+
+    if (this.gameState === 'paused') {
+      this._handlePauseTap(x, y);
+      return;
+    }
+
+    // 检查HUD按钮
+    if (this.hud.hitAimButton(x, y)) {
+      this.showAimLine = !this.showAimLine;
+      this.launcher.showAimLine = this.showAimLine;
+      return;
+    }
+    if (this.hud.hitPauseButton(x, y)) {
+      this.prevState = this.gameState;
+      this.gameState = 'paused';
+      return;
+    }
+
+    // 检查技能按钮（仅在瞄准阶段）
+    if (this.gameState === 'aiming') {
+      if (this.hud.hitLightningButton(x, y)) {
+        this._useLightning();
+        return;
+      }
+      if (this.hud.hitMultiBallButton(x, y)) {
+        this._useMultiBall();
+        return;
+      }
+      if (this.hud.hitAtkBoostButton(x, y)) {
+        this._useAtkBoost();
+        return;
+      }
+    }
+
+    // 瞄准阶段：判断是拖拽白球位置 还是 调整角度
+    if (this.gameState === 'aiming') {
+      const ballDist = Math.abs(x - this.launcher.x) + Math.abs(y - this.launcher.y);
+      if (ballDist < 40 * SCALE) {
+        // 触摸在白球附近 → 拖拽白球位置
+        this._isDraggingBall = true;
+        this.launcher.isAiming = false;
+      } else {
+        // 其他位置 → 瞄准角度
+        this._isDraggingBall = false;
+        this.launcher.isAiming = true;
+        this.launcher.setAimAngle(x, y);
+      }
+    }
+  }
+
+  /**
+   * 触摸移动处理（供 main.js 统一分发器调用）
+   */
+  handleTouchMove(x, y) {
+    if (GameGlobal.databus.scene !== 'playing') return;
+    if (this.gameState !== 'aiming') return;
+
+    const dx = x - this._lastTouchX;
+    const dy = y - this._lastTouchY;
+    this._lastTouchX = x;
+    this._lastTouchY = y;
+
+    if (this._isDraggingBall) {
+      // 拖拽白球X位置（限制在游戏区域内，使用灵敏度系数）
+      const moveX = dx * this._touchSensitivity;
+      this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, this.launcher.x + moveX));
+    } else if (this.launcher.isAiming) {
+      // 瞄准角度：使用增量调整，更精细
+      // 传递增量dx和dy，launcher内部会乘以不同灵敏度系数
+      this.launcher.setAimAngle(x, y, true, dx, dy);
+    }
+  }
+
+  /**
+   * 触摸结束处理（供 main.js 统一分发器调用）
+   */
+  handleTouchEnd() {
+    if (GameGlobal.databus.scene !== 'playing') return;
     this._touching = false;
-    this._isDraggingBall = false;
-
-    // 触摸灵敏度：手指移动距离 × 此系数 = 游戏内移动距离
-    // < 1 表示更精细控制（手指移动更多，游戏内移动更少）
-    this._touchSensitivity = 1;
-
-    // 记录上一次触摸位置（用于计算增量）
-    this._lastTouchX = 0;
-    this._lastTouchY = 0;
-
-    this._touchStartHandler = (e) => {
-      if (GameGlobal.databus.scene !== 'playing') return;
-      this._touching = true;
-      this._showDragHint = false; // 任何操作隐藏拖拽提示
-      const { clientX, clientY } = e.touches[0];
-      this._lastTouchX = clientX;
-      this._lastTouchY = clientY;
-
-      if (this.gameState === 'over') {
-        this._handleOverTap(clientX, clientY);
-        return;
-      }
-
-      if (this.gameState === 'win') {
-        this._handleWinTap(clientX, clientY);
-        return;
-      }
-
-      if (this.gameState === 'paused') {
-        this._handlePauseTap(clientX, clientY);
-        return;
-      }
-
-      // 检查HUD按钮
-      if (this.hud.hitAimButton(clientX, clientY)) {
-        this.showAimLine = !this.showAimLine;
-        this.launcher.showAimLine = this.showAimLine;
-        return;
-      }
-      if (this.hud.hitPauseButton(clientX, clientY)) {
-        this.prevState = this.gameState;
-        this.gameState = 'paused';
-        return;
-      }
-
-      // 检查技能按钮（仅在瞄准阶段）
-      if (this.gameState === 'aiming') {
-        if (this.hud.hitLightningButton(clientX, clientY)) {
-          this._useLightning();
-          return;
-        }
-        if (this.hud.hitMultiBallButton(clientX, clientY)) {
-          this._useMultiBall();
-          return;
-        }
-        if (this.hud.hitAtkBoostButton(clientX, clientY)) {
-          this._useAtkBoost();
-          return;
-        }
-      }
-
-      // 瞄准阶段：判断是拖拽白球位置 还是 调整角度
-      if (this.gameState === 'aiming') {
-        const ballDist = Math.abs(clientX - this.launcher.x) + Math.abs(clientY - this.launcher.y);
-        if (ballDist < 40 * SCALE) {
-          // 触摸在白球附近 → 拖拽白球位置
-          this._isDraggingBall = true;
-          this.launcher.isAiming = false;
-        } else {
-          // 其他位置 → 瞄准角度
-          this._isDraggingBall = false;
-          this.launcher.isAiming = true;
-          this.launcher.setAimAngle(clientX, clientY);
-        }
-      }
-    };
-
-    this._touchMoveHandler = (e) => {
-      if (GameGlobal.databus.scene !== 'playing') return;
-      if (this.gameState !== 'aiming') return;
-
-      if (!e.touches || e.touches.length === 0) {
-        this._touching = false;
-        return;
-      }
-
-      const { clientX, clientY } = e.touches[0];
-      const dx = clientX - this._lastTouchX;
-      const dy = clientY - this._lastTouchY;
-      this._lastTouchX = clientX;
-      this._lastTouchY = clientY;
-
-      if (this._isDraggingBall) {
-        // 拖拽白球X位置（限制在游戏区域内，使用灵敏度系数）
-        const moveX = dx * this._touchSensitivity;
-        this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, this.launcher.x + moveX));
-      } else if (this.launcher.isAiming) {
-        // 瞄准角度：使用增量调整，更精细
-        // 传递增量dx和dy，launcher内部会乘以不同灵敏度系数
-        this.launcher.setAimAngle(clientX, clientY, true, dx, dy);
-      }
-    };
-
-    this._touchEndHandler = () => {
-      if (GameGlobal.databus.scene !== 'playing') return;
-      this._touching = false;
-      if (this._isDraggingBall) {
-        this._isDraggingBall = false;
-        return; // 拖拽白球松手不发射
-      }
-      this._tryLaunch();
-    };
-
-    this._touchCancelHandler = () => {
-      if (GameGlobal.databus.scene !== 'playing') return;
-      this._touching = false;
-      if (this._isDraggingBall) {
-        this._isDraggingBall = false;
-        return;
-      }
-      this._tryLaunch();
-    };
-
-    wx.onTouchStart(this._touchStartHandler);
-    wx.onTouchMove(this._touchMoveHandler);
-    wx.onTouchEnd(this._touchEndHandler);
-    wx.onTouchCancel(this._touchCancelHandler);
+    if (this._isDraggingBall) {
+      this._isDraggingBall = false;
+      return; // 拖拽白球松手不发射
+    }
+    this._tryLaunch();
   }
 
   /**
@@ -368,13 +340,6 @@ export default class GameScene {
       this.speedTipText = '';
       this.speedTipTimer = 0;
     }
-  }
-
-  unbindTouch() {
-    wx.offTouchStart(this._touchStartHandler);
-    wx.offTouchMove(this._touchMoveHandler);
-    wx.offTouchEnd(this._touchEndHandler);
-    wx.offTouchCancel(this._touchCancelHandler);
   }
 
   _useLightning() {

@@ -3,12 +3,12 @@ import Main from './js/main';
 // 隐私协议授权处理（必须在游戏初始化前完成）
 if (typeof wx !== 'undefined' && wx.requirePrivacyAuthorize) {
   wx.requirePrivacyAuthorize({
-    success: () => {
-      console.log('隐私协议已授权');
+    success: (res) => {
+      console.log('隐私协议已授权', res);
       initGame();
     },
-    fail: () => {
-      console.log('隐私协议未授权');
+    fail: (err) => {
+      console.log('隐私协议未授权', err);
       initGame(); // 仍然初始化游戏，但部分功能可能受限
     },
   });

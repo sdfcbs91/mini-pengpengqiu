@@ -63,9 +63,6 @@ export default class LevelSelect {
     this._propsSwipeStartX = 0; // 滑动起始X
     this._showAuthPrompt = false; // 授权昵称弹窗
 
-    // 绑定触摸事件
-    this._bindTouch();
-
     // 进入菜单时同步本地进度到云端
     this._syncProgressToCloud();
     // 写入开放数据（排行榜数据源）
@@ -106,107 +103,99 @@ export default class LevelSelect {
     this.gridStartY = this.gridTop + this.gridPadY;
   }
 
-  _bindTouch() {
-    this._lastTouchX = 0;
-
-    this._touchStartHandler = (e) => {
-      const { clientX, clientY } = e.touches[0];
-      this.touchStartX = clientX;
-      this.touchStartY = clientY;
-      this._lastTouchX = clientX;
-      this.touchStartTime = Date.now();
-      this.isDragging = true;
-      this.isSwiping = false;
-      this.isSlideAnimating = false; // 按下时中断正在进行的动画
-      this.slideVelocity = 0;
-    };
-
-    this._touchMoveHandler = (e) => {
-      if (!this.isDragging) return;
-      const { clientX, clientY } = e.touches[0];
-      const dx = clientX - this.touchStartX;
-      const dy = clientY - this.touchStartY;
-
-      // 判断滑动方向（首次超过10px时决定）
-      if (!this.isSwiping && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-        this.isSwiping = Math.abs(dx) > Math.abs(dy);
-      }
-
-      if (this.isSwiping) {
-        // 实时跟随手指：用增量更新偏移
-        const moveDelta = clientX - this._lastTouchX;
-        this.slideOffset += moveDelta;
-
-        // 边界阻尼：首页往右拖或末页往左拖时加阻力
-        if ((this.currentPage === 0 && this.slideOffset > 0) ||
-          (this.currentPage >= this.totalPages - 1 && this.slideOffset < 0)) {
-          this.slideOffset *= 0.4; // 强阻尼
-        }
-      }
-      this._lastTouchX = clientX;
-    };
-
-    this._touchEndHandler = (e) => {
-      if (!this.isDragging) return;
-      this.isDragging = false;
-
-      const elapsed = Date.now() - this.touchStartTime;
-      const touch = e.changedTouches[0];
-      const totalDx = touch.clientX - this.touchStartX;
-
-      // 道具介绍弹窗左右滑动翻页
-      if (this.showPropsGuide && Math.abs(totalDx) > 30 && elapsed < 500) {
-        const props = this._getPropsData();
-        if (totalDx < -30 && this._propsGuidePage < props.length - 1) {
-          this._propsGuidePage++;
-        } else if (totalDx > 30 && this._propsGuidePage > 0) {
-          this._propsGuidePage--;
-        }
-        this.slideOffset = 0;
-        this.isSwiping = false;
-        return;
-      }
-
-      if (this.isSwiping) {
-        // 计算松手速度
-        const velocity = this.slideOffset / Math.max(elapsed, 1);
-        const threshold = SCREEN_WIDTH * 0.15;
-
-        // 判断翻页方向
-        if (this.slideOffset < -threshold || velocity < -0.3) {
-          // 向左滑 → 下一页
-          if (this.currentPage < this.totalPages - 1) {
-            this.currentPage++;
-            this.slideOffset += SCREEN_WIDTH; // 偏移加一页宽度（动画起点）
-          }
-        } else if (this.slideOffset > threshold || velocity > 0.3) {
-          // 向右滑 → 上一页
-          if (this.currentPage > 0) {
-            this.currentPage--;
-            this.slideOffset -= SCREEN_WIDTH;
-          }
-        }
-
-        // 启动回弹动画（目标偏移=0）
-        this.isSlideAnimating = true;
-        this.isSwiping = false;
-      } else if (elapsed < 300 && Math.abs(this.slideOffset) < 5) {
-        // 点击事件
-        const touch = e.changedTouches[0];
-        this._handleTap(touch.clientX, touch.clientY);
-        this.slideOffset = 0;
-      }
-    };
-
-    wx.onTouchStart(this._touchStartHandler);
-    wx.onTouchMove(this._touchMoveHandler);
-    wx.onTouchEnd(this._touchEndHandler);
+  /**
+   * 触摸开始处理（供 main.js 统一分发器调用）
+   * 注意：dev 组件的触摸拦截已经在 main.js 的 _dispatchTouch 中统一处理
+   */
+  handleTouchStart(x, y) {
+    this.touchStartX = x;
+    this.touchStartY = y;
+    this._lastTouchX = x;
+    this.touchStartTime = Date.now();
+    this.isDragging = true;
+    this.isSwiping = false;
+    this.isSlideAnimating = false; // 按下时中断正在进行的动画
+    this.slideVelocity = 0;
   }
 
-  unbindTouch() {
-    wx.offTouchStart(this._touchStartHandler);
-    wx.offTouchMove(this._touchMoveHandler);
-    wx.offTouchEnd(this._touchEndHandler);
+  /**
+   * 触摸移动处理（供 main.js 统一分发器调用）
+   */
+  handleTouchMove(x, y) {
+    if (!this.isDragging) return;
+    const dx = x - this.touchStartX;
+    const dy = y - this.touchStartY;
+
+    // 判断滑动方向（首次超过10px时决定）
+    if (!this.isSwiping && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      this.isSwiping = Math.abs(dx) > Math.abs(dy);
+    }
+
+    if (this.isSwiping) {
+      // 实时跟随手指：用增量更新偏移
+      const moveDelta = x - this._lastTouchX;
+      this.slideOffset += moveDelta;
+
+      // 边界阻尼：首页往右拖或末页往左拖时加阻力
+      if ((this.currentPage === 0 && this.slideOffset > 0) ||
+        (this.currentPage >= this.totalPages - 1 && this.slideOffset < 0)) {
+        this.slideOffset *= 0.4; // 强阻尼
+      }
+    }
+    this._lastTouchX = x;
+  }
+
+  /**
+   * 触摸结束处理（供 main.js 统一分发器调用）
+   */
+  handleTouchEnd(x, y) {
+    if (!this.isDragging) return;
+    this.isDragging = false;
+
+    const elapsed = Date.now() - this.touchStartTime;
+    const totalDx = x - this.touchStartX;
+
+    // 道具介绍弹窗左右滑动翻页
+    if (this.showPropsGuide && Math.abs(totalDx) > 30 && elapsed < 500) {
+      const props = this._getPropsData();
+      if (totalDx < -30 && this._propsGuidePage < props.length - 1) {
+        this._propsGuidePage++;
+      } else if (totalDx > 30 && this._propsGuidePage > 0) {
+        this._propsGuidePage--;
+      }
+      this.slideOffset = 0;
+      this.isSwiping = false;
+      return;
+    }
+
+    if (this.isSwiping) {
+      // 计算松手速度
+      const velocity = this.slideOffset / Math.max(elapsed, 1);
+      const threshold = SCREEN_WIDTH * 0.15;
+
+      // 判断翻页方向
+      if (this.slideOffset < -threshold || velocity < -0.3) {
+        // 向左滑 → 下一页
+        if (this.currentPage < this.totalPages - 1) {
+          this.currentPage++;
+          this.slideOffset += SCREEN_WIDTH; // 偏移加一页宽度（动画起点）
+        }
+      } else if (this.slideOffset > threshold || velocity > 0.3) {
+        // 向右滑 → 上一页
+        if (this.currentPage > 0) {
+          this.currentPage--;
+          this.slideOffset -= SCREEN_WIDTH;
+        }
+      }
+
+      // 启动回弹动画（目标偏移=0）
+      this.isSlideAnimating = true;
+      this.isSwiping = false;
+    } else if (elapsed < 300 && Math.abs(this.slideOffset) < 5) {
+      // 点击事件
+      this._handleTap(x, y);
+      this.slideOffset = 0;
+    }
   }
 
   _handleTap(x, y) {
@@ -552,27 +541,39 @@ export default class LevelSelect {
 
     ctx.globalAlpha = alpha * 0.9;
 
-    const tw = 180 * s;
-    const th = 36 * s;
-    const r = th / 2;
+    // 支持多行文本
+    const lines = (this._toastText || '').split('\\n');
+    const lineHeight = 20 * s;
+    const totalHeight = lines.length * lineHeight;
+    const padding = 15 * s;
+    const tw = 250 * s; // 加宽以容纳更多内容
+    const th = totalHeight + padding * 2;
+    const r = 10 * s;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    const boxY = centerY - th / 2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.beginPath();
-    ctx.moveTo(centerX - tw / 2 + r, centerY - th / 2);
-    ctx.lineTo(centerX + tw / 2 - r, centerY - th / 2);
-    ctx.arcTo(centerX + tw / 2, centerY - th / 2, centerX + tw / 2, centerY, r);
-    ctx.arcTo(centerX + tw / 2, centerY + th / 2, centerX + tw / 2 - r, centerY + th / 2, r);
-    ctx.lineTo(centerX - tw / 2 + r, centerY + th / 2);
-    ctx.arcTo(centerX - tw / 2, centerY + th / 2, centerX - tw / 2, centerY, r);
-    ctx.arcTo(centerX - tw / 2, centerY - th / 2, centerX - tw / 2 + r, centerY - th / 2, r);
+    ctx.moveTo(centerX - tw / 2 + r, boxY);
+    ctx.lineTo(centerX + tw / 2 - r, boxY);
+    ctx.arcTo(centerX + tw / 2, boxY, centerX + tw / 2, boxY + r, r);
+    ctx.arcTo(centerX + tw / 2, boxY + th, centerX + tw / 2 - r, boxY + th, r);
+    ctx.lineTo(centerX - tw / 2 + r, boxY + th);
+    ctx.arcTo(centerX - tw / 2, boxY + th, centerX - tw / 2, boxY + th - r, r);
+    ctx.arcTo(centerX - tw / 2, boxY, centerX - tw / 2 + r, boxY, r);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${14 * s}px Arial`;
+    ctx.font = `bold ${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this._toastText || '', centerX, centerY);
+
+    lines.forEach((line, idx) => {
+      const y = boxY + padding + idx * lineHeight + lineHeight / 2;
+      ctx.fillText(line, centerX, y);
+    });
+
     ctx.globalAlpha = 1;
   }
 
@@ -1180,14 +1181,21 @@ export default class LevelSelect {
             });
           }
 
-          this._toastText = '授权成功';
+          // 记录成功信息和返回数据到 console.log
+          console.log('[授权成功]', res);
+          this._toastText = '授权成功（查看Dev日志）';
           this._toastTimer = 60;
         },
-        fail: () => {
+        fail: (err) => {
           // 用户取消了授权弹窗
           try {
             wx.setStorageSync('ppq_auth_refused', true);
           } catch (e) { /* ignore */ }
+          
+          // 记录失败错误信息到 console.log
+          console.error('[授权失败]', err);
+          this._toastText = '授权失败（查看Dev日志）';
+          this._toastTimer = 60;
         },
       });
     };
