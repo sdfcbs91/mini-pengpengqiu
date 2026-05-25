@@ -3,7 +3,7 @@ import {
   COLORS, SCALE, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_RIGHT, GAME_AREA_TOP,
   LAUNCH_Y, LIGHTNING_INITIAL, MULTIBALL_INITIAL, MAX_ENERGY, ENERGY_PER_BRICK,
-  GRID_COLS,
+  GRID_COLS, BALL_RADIUS,
 } from '../config';
 import Grid from '../core/grid';
 import Brick from '../core/brick';
@@ -116,6 +116,9 @@ export default class GameScene {
     // 开局拖拽提示（首次触摸后隐藏）
     this._showDragHint = true;
 
+    // 触摸灵敏度（用于拖动白球）
+    this._touchSensitivity = 1.0;
+
     // 重置技能次数（每关/重试时重置）
     this.lightningCount = LIGHTNING_INITIAL;
     this.multiBallCount = MULTIBALL_INITIAL;
@@ -226,7 +229,6 @@ export default class GameScene {
     if (GameGlobal.databus.scene !== 'playing') return;
 
     this._touching = true;
-    this._showDragHint = false; // 任何操作隐藏拖拽提示
     this._lastTouchX = x;
     this._lastTouchY = y;
 
@@ -280,11 +282,13 @@ export default class GameScene {
         // 触摸在白球附近 → 拖拽白球位置
         this._isDraggingBall = true;
         this.launcher.isAiming = false;
+        this._showDragHint = false; // 开始拖动白球时隐藏提示
       } else {
         // 其他位置 → 瞄准角度
         this._isDraggingBall = false;
         this.launcher.isAiming = true;
         this.launcher.setAimAngle(x, y);
+        this._showDragHint = false; // 开始瞄准时隐藏提示
       }
     }
   }
@@ -1238,7 +1242,7 @@ export default class GameScene {
       this._renderWarpEffect(ctx);
     }
 
-    // 发射器抖动效果
+    // 发射器抖动效果（保存上下文状态）
     if (this._launcherShakeTimer > 0) {
       this._launcherShakeTimer--;
       const shakeX = (Math.random() - 0.5) * 4 * SCALE;
@@ -1249,7 +1253,23 @@ export default class GameScene {
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
     this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
 
+    // 恢复抖动效果的上下文状态
     if (this._launcherShakeTimer >= 0 && this._launcherShakeTimer < 15) {
+      ctx.restore();
+    }
+
+    // 确保白球显示在正确层级（在抖动效果之后，HUD之前）
+    // 如果正在瞄准阶段，额外渲染一次白球确保可见（无论是否拖动）
+    if (this.gameState === 'aiming') {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = COLORS.ballGlow;
+      ctx.shadowBlur = 10 * SCALE;
+      ctx.fillStyle = COLORS.ballColor;
+      ctx.beginPath();
+      ctx.arc(this.launcher.x, this.launcher.y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
     }
 

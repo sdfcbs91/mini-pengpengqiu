@@ -311,19 +311,20 @@ class DevLog {
       return;
     }
 
-    // 计算每行最大字符数（用于自动换行）
-    const maxCharsPerLine = Math.floor((this.panelWidth - 80 * s) / (11 * s * 0.6));
+    // 计算每条日志的实际行数（基于文本实际宽度）
+    const maxWidth = this.panelWidth - 80 * s; // 消息区域最大宽度
+    const lineHeight = this.lineHeight;
     
-    // 计算每条日志的实际行数
+    // 计算每条日志的行数
     const logLineCounts = this.logs.map(log => {
       if (!log.message) return 1;
-      return Math.ceil(log.message.length / maxCharsPerLine) || 1;
+      return this._calculateLines(ctx, log.message, maxWidth, s);
     });
 
     // 计算总高度
     let totalHeight = 0;
     for (let i = 0; i < logLineCounts.length; i++) {
-      totalHeight += logLineCounts[i] * this.lineHeight;
+      totalHeight += logLineCounts[i] * lineHeight;
     }
     this.panelMaxScroll = Math.max(0, totalHeight - this.contentHeight);
 
@@ -333,7 +334,7 @@ class DevLog {
     for (let i = this.logs.length - 1; i >= 0; i--) {
       const log = this.logs[i];
       const lineCount = logLineCounts[i];
-      const logHeight = lineCount * this.lineHeight;
+      const logHeight = lineCount * lineHeight;
       
       currentY -= logHeight;
 
@@ -361,21 +362,78 @@ class DevLog {
       ctx.fillStyle = log.type === 'error' ? '#ff8888' : '#ccddff';
       ctx.font = `${11 * s}px Arial`;
 
-      // 手动换行
-      let lineIndex = 0;
-      for (let start = 0; start < msg.length; start += maxCharsPerLine) {
-        const lineText = msg.substring(start, start + maxCharsPerLine);
-        const lineY = currentY + lineIndex * this.lineHeight;
+      // 使用文本实际宽度进行换行
+      const lines = this._wrapText(ctx, msg, maxWidth, s);
+      
+      // 绘制每一行
+      for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+        const lineText = lines[lineIdx];
+        const lineY = currentY + lineIdx * lineHeight;
         
         // 只绘制可见行
-        if (lineY + this.lineHeight > this.contentTop && lineY < this.contentTop + this.contentHeight) {
+        if (lineY + lineHeight > this.contentTop && lineY < this.contentTop + this.contentHeight) {
           ctx.fillText(lineText, this.panelX + 75 * s, lineY);
         }
         
-        lineIndex++;
-        if (lineIndex >= lineCount) break;
+        if (lineIdx >= lineCount) break;
       }
     }
+  }
+
+  /**
+   * 计算文本需要多少行（基于实际文本宽度）
+   */
+  _calculateLines(ctx, text, maxWidth, s) {
+    if (!text) return 1;
+    
+    ctx.font = `${11 * s}px Arial`;
+    let lineCount = 1;
+    let currentLine = '';
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const testLine = currentLine + char;
+      const metrics = ctx.measureText(testLine);
+      
+      if (metrics.width > maxWidth) {
+        lineCount++;
+        currentLine = char;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    
+    return lineCount;
+  }
+
+  /**
+   * 将文本按照实际宽度换行
+   */
+  _wrapText(ctx, text, maxWidth, s) {
+    if (!text) return [''];
+    
+    ctx.font = `${11 * s}px Arial`;
+    const lines = [];
+    let currentLine = '';
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const testLine = currentLine + char;
+      const metrics = ctx.measureText(testLine);
+      
+      if (metrics.width > maxWidth && currentLine.length > 0) {
+        lines.push(currentLine);
+        currentLine = char;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    
+    if (currentLine.length > 0) {
+      lines.push(currentLine);
+    }
+    
+    return lines;
   }
 
   _renderScrollBar(ctx, s) {
