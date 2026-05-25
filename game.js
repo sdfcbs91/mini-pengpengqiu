@@ -1,5 +1,12 @@
 import Main from './js/main';
-
+if (typeof wx !== 'undefined') {
+  console.log('当前环境：微信小游戏');
+  wx.onNeedPrivacyAuthorization((resolve) => {
+    console.log('直接同意，避免阻塞', resolve);
+    // 直接同意，避免阻塞
+    resolve({ event: 'agree' });
+  });
+}
 // 隐私协议授权处理（必须在游戏初始化前完成）
 if (typeof wx !== 'undefined' && wx.requirePrivacyAuthorize) {
   wx.requirePrivacyAuthorize({
