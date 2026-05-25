@@ -1124,7 +1124,7 @@ export default class LevelSelect {
 
     // "是" 按钮区域
     if (x >= centerX - btnW - 10 * s && x <= centerX - 10 * s &&
-        y >= btnY && y <= btnY + btnH) {
+      y >= btnY && y <= btnY + btnH) {
       this._showAuthPrompt = false;
       this._requestUserProfile();
       return;
@@ -1132,7 +1132,7 @@ export default class LevelSelect {
 
     // "否" 按钮区域
     if (x >= centerX + 10 * s && x <= centerX + btnW + 10 * s &&
-        y >= btnY && y <= btnY + btnH) {
+      y >= btnY && y <= btnY + btnH) {
       this._showAuthPrompt = false;
       // 标记拒绝，下次不再弹窗
       try {
@@ -1155,7 +1155,7 @@ export default class LevelSelect {
     // 先处理隐私协议授权（微信隐私保护指引要求）
     const doGetUserProfile = () => {
       wx.getUserProfile({
-        desc: '用于排行榜展示',
+        desc: '为区分玩家身份，需获取你的头像、昵称，仅用于游戏内个人信息展示。',
         success: (res) => {
           const info = res.userInfo;
           try {
@@ -1191,7 +1191,7 @@ export default class LevelSelect {
           try {
             wx.setStorageSync('ppq_auth_refused', true);
           } catch (e) { /* ignore */ }
-          
+
           // 记录失败错误信息到 console.log
           console.error('[授权失败]', err);
           this._toastText = '授权失败（查看Dev日志）';
