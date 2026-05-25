@@ -2,5 +2,16 @@
   "deviceOrientation": "portrait",
   "cloud": true,
   "openDataContext": "open-data-context",
-  "__usePrivacyCheck__": true
+  "__usePrivacyCheck__": true,
+
+  "privacy": {
+    "prompt": "custom",
+    "requiredPrivateInfos": ["backgroundFetch"]
+  },
+  
+  "permissions": {
+    "scope.backgroundFetch": {
+      "desc": "用于在后台同步最新数据"
+    }
+  }
 }
