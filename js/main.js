@@ -7,7 +7,7 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT, DPR } from './render';
 
 // ============ 开发调试开关 ============
 // 设置为 false 则不生成 dev 调试工具（提升性能、避免误触）
-const DEV_ENABLED = true; // ← 改这里：true=开启 / false=关闭
+const DEV_ENABLED = false; // ← 改这里：true=开启 / false=关闭
 // ===============================================
 
 // 将开关暴露到全局，供 devLog 读取
@@ -82,9 +82,6 @@ export default class Main {
 
     // 启动游戏主循环
     this.raf = null;
-
-    // 通过云函数获取用户信息并缓存
-    this._fetchUserFromCloud();
 
     this.loop();
   }
@@ -180,6 +177,9 @@ export default class Main {
     this.levelSelect.showSettings = false;
     this.levelSelect.showRank = false;
     this.databus.goToLevelSelect();
+
+    // 显示关卡选择界面，检查是否需要获取用户信息
+    this.levelSelect.show();
   }
 
   /**

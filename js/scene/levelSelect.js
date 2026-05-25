@@ -69,6 +69,18 @@ export default class LevelSelect {
     this._updateOpenData();
   }
 
+  /**
+   * 显示关卡选择界面
+   * 检查是否需要获取用户信息
+   */
+  show() {
+    // 检查游戏结束后是否需要获取用户信息
+    if (GameGlobal._needAuthPrompt) {
+      GameGlobal._needAuthPrompt = false;
+      this._requestUserProfile();
+    }
+  }
+
   _calculateLayout() {
     const s = SCALE;
 
@@ -698,12 +710,16 @@ export default class LevelSelect {
 
   /**
    * 同步数据（双向对比，以 maxLevel 大的为准）
+   * 同时检查是否需要获取用户信息
    */
   _doSyncData() {
     if (typeof wx === 'undefined' || !wx.cloud) return;
 
     this._toastText = '同步中...';
     this._toastTimer = 60;
+
+    // 检查是否需要获取用户信息
+    this._checkAndRequestUserProfile();
 
     wx.cloud.callFunction({
       name: 'saveUserProgress',
@@ -743,6 +759,22 @@ export default class LevelSelect {
         this._toastTimer = 90;
       },
     });
+  }
+
+  /**
+   * 检查并请求用户信息
+   * 如果没有 nickName，直接触发 _requestUserProfile()
+   */
+  _checkAndRequestUserProfile() {
+    try {
+      const cached = wx.getStorageSync('ppq_user_info') || {};
+      if (!cached.nickName || cached.nickName === '') {
+        // 没有 nickName，直接请求用户信息
+        this._requestUserProfile();
+      }
+    } catch (e) {
+      // 忽略错误
+    }
   }
 
   /**

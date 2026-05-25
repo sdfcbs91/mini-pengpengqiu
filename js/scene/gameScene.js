@@ -81,6 +81,25 @@ export default class GameScene {
   }
 
   /**
+   * 游戏结束后获取用户信息
+   * 如果没有 nickName，设置标志让 levelSelect 显示授权提示
+   */
+  _fetchUserInfoAfterGame() {
+    if (typeof wx === 'undefined') return;
+    
+    try {
+      const cached = wx.getStorageSync('ppq_user_info') || {};
+      if (!cached.nickName || cached.nickName === '') {
+        // 没有 nickName，设置标志让 levelSelect 显示授权提示
+        GameGlobal._needAuthPrompt = true;
+        console.log('[游戏结束] 需要获取用户信息');
+      }
+    } catch (e) {
+      // 忽略错误
+    }
+  }
+
+  /**
    * 预加载碰撞音效对象池（3个实例轮流使用）
    */
   _initCollisionAudio() {
@@ -1109,6 +1128,10 @@ export default class GameScene {
       this.winStars = stars;
       this.gameState = 'win';
       this._uploadLevelScore();
+      
+      // 游戏结束后获取用户信息
+      this._fetchUserInfoAfterGame();
+      
       if (this.onLevelComplete) {
         this.onLevelComplete(this.initialLevel, stars, this.score);
       }
