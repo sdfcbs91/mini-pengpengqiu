@@ -1178,6 +1178,12 @@ export default class LevelSelect {
                   avatarUrl: info.avatarUrl || '',
                 },
               },
+              success: (res) => {
+                console.log('[云函数调用成功]', res);
+              },
+              fail: (err) => {
+                console.error('[云函数调用失败]', err);
+              },
             });
           }
 

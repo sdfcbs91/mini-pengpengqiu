@@ -109,9 +109,9 @@ export default class Main {
       const cached = wx.getStorageSync('ppq_user_info');
       if (cached && cached.openid) {
         // 已有缓存，检查是否需要请求昵称
-        //if (!cached.nickName && !cached.refused) {
-        this.levelSelect._showAuthPrompt = true;
-        //}
+        if (!cached.nickName && !cached.refused) {
+          this.levelSelect._showAuthPrompt = true;
+        }
         return;
       }
     } catch (e) { /* ignore */ }

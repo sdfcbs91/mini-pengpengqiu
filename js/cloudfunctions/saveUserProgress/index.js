@@ -111,8 +111,20 @@ exports.main = async (event, context) => {
         lastLoginTime: db.serverDate(),
       };
 
+      // 合并 userInfo，只更新有值的字段（避免覆盖原有数据）
       if (userInfo) {
-        updateData.userInfo = userInfo;
+        const existingUserInfo = doc.userInfo || {};
+        const mergedUserInfo = { ...existingUserInfo };
+        
+        // 只更新有值的字段
+        if (userInfo.nickName !== undefined && userInfo.nickName !== '') {
+          mergedUserInfo.nickName = userInfo.nickName;
+        }
+        if (userInfo.avatarUrl !== undefined && userInfo.avatarUrl !== '') {
+          mergedUserInfo.avatarUrl = userInfo.avatarUrl;
+        }
+        
+        updateData.userInfo = mergedUserInfo;
       }
 
       // 更新最高关卡（只升不降）
