@@ -61,6 +61,7 @@ export default class LevelSelect {
     this.showPropsGuide = false; // 道具介绍弹窗
     this._propsGuidePage = 0; // 当前道具页码
     this._propsSwipeStartX = 0; // 滑动起始X
+    this._showAuthPrompt = false; // 授权昵称弹窗
 
     // 绑定触摸事件
     this._bindTouch();
@@ -209,6 +210,12 @@ export default class LevelSelect {
   }
 
   _handleTap(x, y) {
+    // 授权弹窗优先处理
+    if (this._showAuthPrompt) {
+      this._handleAuthPromptTap(x, y);
+      return;
+    }
+
     // 游戏介绍弹窗优先处理（点击任意位置关闭）
     if (this.showGameIntro) {
       this.showGameIntro = false;
@@ -514,6 +521,11 @@ export default class LevelSelect {
     // 道具介绍弹窗
     if (this.showPropsGuide) {
       this._drawPropsGuide(ctx);
+    }
+
+    // 授权昵称弹窗
+    if (this._showAuthPrompt) {
+      this._drawAuthPrompt(ctx);
     }
 
     this._drawNavBar(ctx);
@@ -1028,6 +1040,153 @@ export default class LevelSelect {
       if (this._propsGuidePage < props.length - 1) this._propsGuidePage++;
       else this.showPropsGuide = false; // 最后一页再点右边关闭
     }
+  }
+
+  /**
+   * 绘制授权昵称弹窗
+   */
+  _drawAuthPrompt(ctx) {
+    const s = SCALE;
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // 遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    const boxW = 240 * s;
+    const boxH = 120 * s;
+    const boxX = centerX - boxW / 2;
+    const boxY = centerY - boxH / 2;
+    const r = 10 * s;
+
+    // 弹窗背景
+    ctx.fillStyle = '#0c1435';
+    ctx.strokeStyle = '#4499cc';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(boxX + r, boxY);
+    ctx.lineTo(boxX + boxW - r, boxY);
+    ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + r, r);
+    ctx.arcTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH, r);
+    ctx.lineTo(boxX + r, boxY + boxH);
+    ctx.arcTo(boxX, boxY + boxH, boxX, boxY + boxH - r, r);
+    ctx.arcTo(boxX, boxY, boxX + r, boxY, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 文字
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${12 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('是否授权获取昵称信息？', centerX, boxY + 30 * s);
+    ctx.fillStyle = '#888899';
+    ctx.font = `${10 * s}px Arial`;
+    ctx.fillText('用于排行榜展示', centerX, boxY + 50 * s);
+
+    // 按钮
+    const btnW = 80 * s;
+    const btnH = 32 * s;
+    const btnY = boxY + boxH - 45 * s;
+
+    // "是" 按钮
+    ctx.strokeStyle = '#39ff14';
+    ctx.lineWidth = 1 * s;
+    ctx.strokeRect(centerX - btnW - 10 * s, btnY, btnW, btnH);
+    ctx.fillStyle = '#39ff14';
+    ctx.font = `bold ${13 * s}px Arial`;
+    ctx.fillText('是', centerX - btnW / 2 - 10 * s, btnY + btnH / 2);
+
+    // "否" 按钮
+    ctx.strokeStyle = '#888899';
+    ctx.strokeRect(centerX + 10 * s, btnY, btnW, btnH);
+    ctx.fillStyle = '#888899';
+    ctx.fillText('否', centerX + btnW / 2 + 10 * s, btnY + btnH / 2);
+  }
+
+  /**
+   * 授权弹窗点击处理
+   */
+  _handleAuthPromptTap(x, y) {
+    const s = SCALE;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    const boxH = 120 * s;
+    const btnW = 80 * s;
+    const btnH = 32 * s;
+    const btnY = centerY - boxH / 2 + boxH - 45 * s;
+
+    // "是" 按钮区域
+    if (x >= centerX - btnW - 10 * s && x <= centerX - 10 * s &&
+        y >= btnY && y <= btnY + btnH) {
+      this._showAuthPrompt = false;
+      this._requestUserProfile();
+      return;
+    }
+
+    // "否" 按钮区域
+    if (x >= centerX + 10 * s && x <= centerX + btnW + 10 * s &&
+        y >= btnY && y <= btnY + btnH) {
+      this._showAuthPrompt = false;
+      // 标记拒绝，下次不再弹窗
+      try {
+        wx.setStorageSync('ppq_auth_refused', true);
+        const info = wx.getStorageSync('ppq_user_info') || {};
+        info.refused = true;
+        wx.setStorageSync('ppq_user_info', info);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  /**
+   * 请求用户昵称授权（wx.getUserProfile）
+   */
+  _requestUserProfile() {
+    if (typeof wx === 'undefined' || !wx.getUserProfile) return;
+
+    wx.getUserProfile({
+      desc: '用于排行榜展示',
+      success: (res) => {
+        const info = res.userInfo;
+        try {
+          const cached = wx.getStorageSync('ppq_user_info') || {};
+          cached.nickName = info.nickName || '';
+          cached.avatarUrl = info.avatarUrl || '';
+          cached.refused = false;
+          wx.setStorageSync('ppq_user_info', cached);
+          wx.setStorageSync('ppq_auth_refused', false);
+        } catch (e) { /* ignore */ }
+
+        // 同步到云函数
+        if (wx.cloud) {
+          wx.cloud.callFunction({
+            name: 'saveUserProgress',
+            data: {
+              action: 'save',
+              userInfo: {
+                nickName: info.nickName || '',
+                avatarUrl: info.avatarUrl || '',
+              },
+            },
+          });
+        }
+
+        this._toastText = '授权成功';
+        this._toastTimer = 60;
+      },
+      fail: () => {
+        // 用户取消了授权弹窗
+        try {
+          wx.setStorageSync('ppq_auth_refused', true);
+        } catch (e) { /* ignore */ }
+      },
+    });
   }
 
   _drawBackground(ctx) {

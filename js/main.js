@@ -71,13 +71,20 @@ export default class Main {
 
   /**
    * 通过云函数获取用户openid和信息，缓存到本地
+   * 如果没有 nickName 且未拒绝过授权，标记需要弹窗请求
    */
   _fetchUserFromCloud() {
     if (typeof wx === 'undefined' || !wx.cloud) return;
 
     try {
       const cached = wx.getStorageSync('ppq_user_info');
-      if (cached && cached.openid) return; // 已有完整缓存
+      if (cached && cached.openid) {
+        // 已有缓存，检查是否需要请求昵称
+        if (!cached.nickName && !cached.refused) {
+          this.levelSelect._showAuthPrompt = true;
+        }
+        return;
+      }
     } catch (e) { /* ignore */ }
 
     wx.cloud.callFunction({
@@ -92,7 +99,15 @@ export default class Main {
             avatarUrl: result.avatarUrl || '',
           };
           wx.setStorageSync('ppq_user_info', userInfo);
-          console.log('用户信息获取成功:', result);
+          // 没有昵称且未拒绝过 → 标记弹窗
+          if (!userInfo.nickName) {
+            try {
+              const refused = wx.getStorageSync('ppq_auth_refused');
+              if (!refused) {
+                this.levelSelect._showAuthPrompt = true;
+              }
+            } catch (e) { /* ignore */ }
+          }
         }
       },
       fail: (err) => {
