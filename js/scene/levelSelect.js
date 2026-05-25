@@ -1146,47 +1146,91 @@ export default class LevelSelect {
 
   /**
    * 请求用户昵称授权（wx.getUserProfile）
+   * 先检查隐私协议，再请求用户信息
    */
   _requestUserProfile() {
     if (typeof wx === 'undefined' || !wx.getUserProfile) return;
 
-    wx.getUserProfile({
-      desc: '用于排行榜展示',
-      success: (res) => {
-        const info = res.userInfo;
-        try {
-          const cached = wx.getStorageSync('ppq_user_info') || {};
-          cached.nickName = info.nickName || '';
-          cached.avatarUrl = info.avatarUrl || '';
-          cached.refused = false;
-          wx.setStorageSync('ppq_user_info', cached);
-          wx.setStorageSync('ppq_auth_refused', false);
-        } catch (e) { /* ignore */ }
+    // 先处理隐私协议授权（微信隐私保护指引要求）
+    const doGetUserProfile = () => {
+      wx.getUserProfile({
+        desc: '用于排行榜展示',
+        success: (res) => {
+          const info = res.userInfo;
+          try {
+            const cached = wx.getStorageSync('ppq_user_info') || {};
+            cached.nickName = info.nickName || '';
+            cached.avatarUrl = info.avatarUrl || '';
+            cached.refused = false;
+            wx.setStorageSync('ppq_user_info', cached);
+            wx.setStorageSync('ppq_auth_refused', false);
+          } catch (e) { /* ignore */ }
 
-        // 同步到云函数
-        if (wx.cloud) {
-          wx.cloud.callFunction({
-            name: 'saveUserProgress',
-            data: {
-              action: 'save',
-              userInfo: {
-                nickName: info.nickName || '',
-                avatarUrl: info.avatarUrl || '',
+          // 同步到云函数
+          if (wx.cloud) {
+            wx.cloud.callFunction({
+              name: 'saveUserProgress',
+              data: {
+                action: 'save',
+                userInfo: {
+                  nickName: info.nickName || '',
+                  avatarUrl: info.avatarUrl || '',
+                },
               },
-            },
-          });
-        }
+            });
+          }
 
-        this._toastText = '授权成功';
-        this._toastTimer = 60;
-      },
-      fail: () => {
-        // 用户取消了授权弹窗
-        try {
-          wx.setStorageSync('ppq_auth_refused', true);
-        } catch (e) { /* ignore */ }
-      },
-    });
+          this._toastText = '授权成功';
+          this._toastTimer = 60;
+        },
+        fail: () => {
+          // 用户取消了授权弹窗
+          try {
+            wx.setStorageSync('ppq_auth_refused', true);
+          } catch (e) { /* ignore */ }
+        },
+      });
+    };
+
+    // 检查隐私协议状态并要求授权
+    if (wx.getPrivacySetting) {
+      wx.getPrivacySetting({
+        success: (res) => {
+          if (res.needAuthorization) {
+            // 需要展示隐私协议弹窗
+            if (wx.requirePrivacyAuthorize) {
+              wx.requirePrivacyAuthorize({
+                success: () => {
+                  // 用户同意隐私协议后，再请求用户信息
+                  doGetUserProfile();
+                },
+                fail: () => {
+                  // 用户拒绝隐私协议
+                  try {
+                    wx.setStorageSync('ppq_auth_refused', true);
+                  } catch (e) { /* ignore */ }
+                  this._toastText = '需要同意隐私协议';
+                  this._toastTimer = 60;
+                },
+              });
+            } else {
+              // 不支持 requirePrivacyAuthorize，直接请求
+              doGetUserProfile();
+            }
+          } else {
+            // 已授权隐私协议，直接请求用户信息
+            doGetUserProfile();
+          }
+        },
+        fail: () => {
+          // 获取隐私设置失败，直接请求用户信息
+          doGetUserProfile();
+        },
+      });
+    } else {
+      // 不支持 getPrivacySetting，直接请求用户信息
+      doGetUserProfile();
+    }
   }
 
   _drawBackground(ctx) {

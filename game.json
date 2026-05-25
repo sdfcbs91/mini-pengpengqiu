@@ -1,5 +1,6 @@
 {
   "deviceOrientation": "portrait",
   "cloud": true,
-  "openDataContext": "open-data-context"
+  "openDataContext": "open-data-context",
+  "__usePrivacyCheck__": true
 }
