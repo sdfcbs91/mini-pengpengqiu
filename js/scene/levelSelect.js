@@ -1155,7 +1155,7 @@ export default class LevelSelect {
     // 先处理隐私协议授权（微信隐私保护指引要求）
     const doGetUserProfile = () => {
       wx.getUserProfile({
-        desc: '为了区分游戏玩家身份、展示个人头像昵称，开发者将在获取你的明示同意后，收集你的昵称、头像，仅用于游戏内个人信息展示。',
+        desc: '用于玩家使用排行榜模块时, 区分游戏玩家身份、展示个人头像昵称。',
         success: (res) => {
           const info = res.userInfo;
           try {
