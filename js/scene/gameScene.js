@@ -226,11 +226,21 @@ export default class GameScene {
     this._touching = false;
     this._isDraggingBall = false;
 
+    // 触摸灵敏度：手指移动距离 × 此系数 = 游戏内移动距离
+    // < 1 表示更精细控制（手指移动更多，游戏内移动更少）
+    this._touchSensitivity = 1;
+
+    // 记录上一次触摸位置（用于计算增量）
+    this._lastTouchX = 0;
+    this._lastTouchY = 0;
+
     this._touchStartHandler = (e) => {
       if (GameGlobal.databus.scene !== 'playing') return;
       this._touching = true;
       this._showDragHint = false; // 任何操作隐藏拖拽提示
       const { clientX, clientY } = e.touches[0];
+      this._lastTouchX = clientX;
+      this._lastTouchY = clientY;
 
       if (this.gameState === 'over') {
         this._handleOverTap(clientX, clientY);
@@ -301,12 +311,19 @@ export default class GameScene {
       }
 
       const { clientX, clientY } = e.touches[0];
+      const dx = clientX - this._lastTouchX;
+      const dy = clientY - this._lastTouchY;
+      this._lastTouchX = clientX;
+      this._lastTouchY = clientY;
 
       if (this._isDraggingBall) {
-        // 拖拽白球X位置（限制在游戏区域内）
-        this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, clientX));
+        // 拖拽白球X位置（限制在游戏区域内，使用灵敏度系数）
+        const moveX = dx * this._touchSensitivity;
+        this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, this.launcher.x + moveX));
       } else if (this.launcher.isAiming) {
-        this.launcher.setAimAngle(clientX, clientY);
+        // 瞄准角度：使用增量调整，更精细
+        // 传递增量dx和dy，launcher内部会乘以不同灵敏度系数
+        this.launcher.setAimAngle(clientX, clientY, true, dx, dy);
       }
     };
 
@@ -752,7 +769,7 @@ export default class GameScene {
       let blocked = false;
       for (const ob of allObstacles) {
         if (nx + r > ob.x && nx - r < ob.x + ob.width &&
-            ny + r > ob.y && ny - r < ob.y + ob.height) {
+          ny + r > ob.y && ny - r < ob.y + ob.height) {
           blocked = true;
           break;
         }
@@ -967,7 +984,7 @@ export default class GameScene {
       let blocked = false;
       for (const ob of allObstacles) {
         if (nx + r > ob.x && nx - r < ob.x + ob.width &&
-            ny + r > ob.y && ny - r < ob.y + ob.height) {
+          ny + r > ob.y && ny - r < ob.y + ob.height) {
           blocked = true;
           break;
         }
@@ -1730,7 +1747,7 @@ export default class GameScene {
       // 150球模式：菜单按钮在 65*s 位置
       const menuY = centerY + 65 * s;
       if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-          y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
         if (this.onBackToMenu) this.onBackToMenu();
       }
       return;
@@ -1739,7 +1756,7 @@ export default class GameScene {
     // 下一关按钮
     const nextY = centerY + 65 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= nextY - bh / 2 && y <= nextY + bh / 2) {
+      y >= nextY - bh / 2 && y <= nextY + bh / 2) {
       this.initLevel(this.initialLevel + 1);
       return;
     }
@@ -1747,7 +1764,7 @@ export default class GameScene {
     // 返回菜单
     const menuY = centerY + 120 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }
@@ -1786,7 +1803,7 @@ export default class GameScene {
     // 重试按钮
     const retryY = centerY + 60 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+      y >= retryY - bh / 2 && y <= retryY + bh / 2) {
       this.initLevel(this.initialLevel);
       return;
     }
@@ -1794,7 +1811,7 @@ export default class GameScene {
     // 返回菜单按钮
     const menuY = centerY + 120 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }
@@ -1813,7 +1830,7 @@ export default class GameScene {
     // 重试按钮
     const retryY = centerY + 80 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+      y >= retryY - bh / 2 && y <= retryY + bh / 2) {
       this.initLevel(this.stage);
       return;
     }
@@ -1821,7 +1838,7 @@ export default class GameScene {
     // 返回菜单
     const menuY = centerY + 130 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }

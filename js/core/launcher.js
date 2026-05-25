@@ -41,10 +41,31 @@ export default class Launcher {
     this.angle = -Math.PI / 2;
   }
 
-  setAimAngle(touchX, touchY) {
-    const dx = touchX - this.x;
-    const dy = touchY - this.y;
-    let angle = Math.atan2(dy, dx);
+  setAimAngle(touchX, touchY, useDelta = false, deltaX = 0, deltaY = 0) {
+    let angle;
+    if (useDelta) {
+      // 增量模式：根据手指移动增量调整角度
+      const sensitivityX = 0.008; // X轴灵敏度
+
+      // X轴：正负直接控制角度正负
+      let angleDelta = deltaX * sensitivityX;
+
+      // Y轴：根据当前角度所在象限决定方向
+      // 角度范围：[-π, -π/18]（左上到右上）
+      // 第1象限：[-π/2, 0]（右上方向），Y轴正向（手指向下）→ 角度正向（更水平）
+      // 第2象限：[-π, -π/2]（左上方向），Y轴正向（手指向下）→ 角度负向（更垂直）
+      const quadrant = this.angle >= -Math.PI / 2 ? 1 : 2;
+      const yDirection = quadrant === 1 ? 1 : -1;
+      const sensitivityY = 0.005;
+      angleDelta += deltaY * sensitivityY * yDirection;
+
+      angle = this.angle + angleDelta;
+    } else {
+      // 绝对模式：根据触摸位置计算角度
+      const dx = touchX - this.x;
+      const dy = touchY - this.y;
+      angle = Math.atan2(dy, dx);
+    }
 
     const minAngle = -Math.PI + Math.PI / 18;
     const maxAngle = -Math.PI / 18;
