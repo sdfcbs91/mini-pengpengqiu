@@ -7,28 +7,29 @@ export const TOTAL_LEVELS = 600;
 export const GRID_COLS = 7;
 export const BRICK_PADDING = 2;
 
-// 关卡选择页 - 网格布局
-export const LEVEL_GRID_COLS = 5;
-export const LEVEL_GRID_ROWS = 6;
+// 关卡选择页 - 网格布局（横屏模式：更多列，更少行）
+export const LEVEL_GRID_COLS = 8;
+export const LEVEL_GRID_ROWS = 4;
 export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 
-// 屏幕适配比例
-export const SCALE = SCREEN_WIDTH / 375;
+// 屏幕适配比例（横屏模式：以高度为基准适配）
+export const SCALE = SCREEN_HEIGHT / 375;
 
-// ====== 游戏场景布局 ======
-export const STATUS_BAR_HEIGHT = 44 * SCALE;              // 微信状态栏安全区高度
-export const HUD_TOP_HEIGHT = STATUS_BAR_HEIGHT + 36 * SCALE; // 顶部HUD总高度（安全区+一行按钮）
-export const GAME_AREA_LEFT = 8 * SCALE;               // 游戏区域左边距
+// ====== 游戏场景布局（横屏模式） ======
+export const STATUS_BAR_HEIGHT = 0;                        // 横屏无顶部状态栏
+export const HUD_TOP_HEIGHT = 36 * SCALE;                  // 顶部HUD高度（一行按钮）
+export const GAME_AREA_LEFT = 8 * SCALE;                   // 游戏区域左边距
 export const GAME_AREA_RIGHT = SCREEN_WIDTH - 8 * SCALE;
 export const GAME_AREA_TOP = HUD_TOP_HEIGHT + 6 * SCALE;
-export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 20 * SCALE;
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 16 * SCALE;
 export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
 // 砖块尺寸（根据游戏区域和列数自动计算）
 export const BRICK_GAP = 2 * SCALE;
 export const BRICK_W = (GAME_AREA_WIDTH - (GRID_COLS + 1) * BRICK_GAP) / GRID_COLS;
-export const BRICK_H = BRICK_W;  // 正方形砖块
+// 横屏模式：砖块高度按游戏区域高度计算，确保能显示足够多行（约10行可见）
+export const BRICK_H = Math.min(BRICK_W, (GAME_AREA_HEIGHT - 11 * BRICK_GAP) / 10);
 
 // 发射点
 export const LAUNCH_Y = GAME_AREA_BOTTOM - 10 * SCALE;

@@ -234,10 +234,10 @@ export default class Main {
 
         // 底部提示文字
         ctx.fillStyle = '#ffffff';
-        ctx.font = `${12 * (SCREEN_WIDTH / 375)}px Arial`;
+        ctx.font = `${12 * (SCREEN_HEIGHT / 375)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText('点击屏幕开始游戏', SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40 * (SCREEN_WIDTH / 375));
+        ctx.fillText('点击屏幕开始游戏', SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40 * (SCREEN_HEIGHT / 375));
         ctx.globalAlpha = 1;
 
         this.raf = requestAnimationFrame(this.loop.bind(this));

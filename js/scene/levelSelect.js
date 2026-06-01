@@ -84,17 +84,17 @@ export default class LevelSelect {
   _calculateLayout() {
     const s = SCALE;
 
-    // 顶部标题区域
-    this.titleY = 40 * s;
-    this.titleHeight = 60 * s;
+    // 顶部标题区域（横屏模式下缩小顶部空间）
+    this.titleY = 20 * s;
+    this.titleHeight = 40 * s;
 
     // 底部导航栏
-    this.navHeight = 70 * s;
+    this.navHeight = 50 * s;
     this.navY = SCREEN_HEIGHT - this.navHeight;
 
     // 关卡网格区域
-    this.gridTop = this.titleY + this.titleHeight + 20 * s;
-    this.gridBottom = this.navY - 20 * s;
+    this.gridTop = this.titleY + this.titleHeight + 10 * s;
+    this.gridBottom = this.navY - 10 * s;
     this.gridHeight = this.gridBottom - this.gridTop;
 
     // 网格内边距
