@@ -238,6 +238,31 @@ export default class LevelSelect {
       return;
     }
 
+    // 检测副标题行左右箭头点击
+    if (this._arrowY) {
+      const s = SCALE;
+      const hitSize = 20 * s; // 点击热区半径
+      if (Math.abs(y - this._arrowY) < hitSize) {
+        // 左箭头 "<"：跳转到第一页
+        if (Math.abs(x - this._arrowLeftX) < hitSize && this.currentPage > 0) {
+          this.currentPage = 0;
+          this.slideOffset = 0;
+          return;
+        }
+        // 右箭头 ">"：跳转到已解锁的最后一页
+        if (Math.abs(x - this._arrowRightX) < hitSize && this.currentPage < this.totalPages - 1) {
+          const maxUnlocked = this.progress.getMaxUnlocked();
+          const lastUnlockedPage = Math.min(
+            Math.floor((maxUnlocked - 1) / LEVELS_PER_PAGE),
+            this.totalPages - 1
+          );
+          this.currentPage = lastUnlockedPage;
+          this.slideOffset = 0;
+          return;
+        }
+      }
+    }
+
     // 检测底部导航栏点击（胶囊样式）
     if (y >= this.navY && y <= this.navY + this.navHeight) {
       const s = SCALE;
@@ -1325,11 +1350,36 @@ export default class LevelSelect {
     ctx.fillText(title, centerX, y + 18 * s);
     ctx.shadowBlur = 0;
 
-    // 副标题："选择关卡  当前:X  |  开启挑战"
+    // 副标题："选择关卡  当前:X  |  开启挑战"（与主标题间距增加8px）
     const maxUnlocked = this.progress.getMaxUnlocked();
+    const subTitleY = y + 48 * s;
     ctx.fillStyle = 'rgba(180,210,255,0.7)';
     ctx.font = `${11 * s}px Arial`;
-    ctx.fillText(`选择关卡   当前:${maxUnlocked}  |  开启挑战`, centerX, y + 40 * s);
+    const subText = `选择关卡   当前:${maxUnlocked}  |  开启挑战`;
+    ctx.fillText(subText, centerX, subTitleY);
+
+    // 测量副标题文字宽度，将箭头紧贴文字两侧
+    const subTextWidth = ctx.measureText(subText).width;
+    const arrowGap = 12 * s; // 箭头与文字之间的间距
+    const arrowLeftX = centerX - subTextWidth / 2 - arrowGap;
+    const arrowRightX = centerX + subTextWidth / 2 + arrowGap;
+
+    // 左侧 "<" 按钮（跳转到第一页）
+    const arrowFont = `bold ${14 * s}px Arial`;
+    ctx.font = arrowFont;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = this.currentPage > 0 ? 'rgba(180,210,255,0.9)' : 'rgba(100,120,150,0.4)';
+    ctx.fillText('<', arrowLeftX, subTitleY);
+
+    // 右侧 ">" 按钮（跳转到已解锁最后一页）
+    ctx.fillStyle = this.currentPage < this.totalPages - 1 ? 'rgba(180,210,255,0.9)' : 'rgba(100,120,150,0.4)';
+    ctx.fillText('>', arrowRightX, subTitleY);
+
+    // 记录箭头位置供点击检测使用
+    this._arrowLeftX = arrowLeftX;
+    this._arrowRightX = arrowRightX;
+    this._arrowY = subTitleY;
   }
 
   _drawPageIndicator(ctx) {
