@@ -1,4 +1,4 @@
-import { SCREEN_WIDTH, SCREEN_HEIGHT } from './render';
+import { SCREEN_WIDTH, SCREEN_HEIGHT, MENU_BUTTON_RECT, SAFE_AREA } from './render';
 
 // 总关卡数
 export const TOTAL_LEVELS = 600;
@@ -9,8 +9,19 @@ export const BRICK_PADDING = 2;
 
 // 关卡选择页 - 网格布局（横屏模式：更多列，更少行）
 export const LEVEL_GRID_COLS = 8;
-export const LEVEL_GRID_ROWS = 4;
+export const LEVEL_GRID_ROWS = 3;
 export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
+
+// 横屏左侧安全边距（动态计算）
+// safeArea.left 表示屏幕左侧不可用区域（刘海/圆角），横屏时即为刘海宽度
+const _safeLeft = SAFE_AREA.left || 0;
+export const SAFE_LEFT = _safeLeft;
+
+// 横屏右侧安全边距（胶囊按钮区域 + 刘海/圆角）
+// 胶囊按钮在横屏模式下位于右上角，需要避开
+const _safeRight = SCREEN_WIDTH - (SAFE_AREA.right || SCREEN_WIDTH);
+const _menuSafeRight = MENU_BUTTON_RECT.width > 0 ? (SCREEN_WIDTH - MENU_BUTTON_RECT.left + 8) : 0;
+export const SAFE_RIGHT = Math.max(_safeRight, _menuSafeRight);
 
 // 屏幕适配比例（横屏模式：以高度为基准适配）
 export const SCALE = SCREEN_HEIGHT / 375;

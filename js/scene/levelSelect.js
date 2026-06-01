@@ -1,5 +1,5 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
-import { COLORS, SCALE, TOTAL_LEVELS, LEVEL_GRID_COLS, LEVEL_GRID_ROWS, LEVELS_PER_PAGE } from '../config';
+import { COLORS, SCALE, TOTAL_LEVELS, LEVEL_GRID_COLS, LEVEL_GRID_ROWS, LEVELS_PER_PAGE, SAFE_LEFT, SAFE_RIGHT } from '../config';
 import { LevelProgress } from '../data/levelData';
 
 /**
@@ -84,35 +84,44 @@ export default class LevelSelect {
   _calculateLayout() {
     const s = SCALE;
 
-    // 顶部标题区域（横屏模式下缩小顶部空间）
-    this.titleY = 20 * s;
-    this.titleHeight = 40 * s;
+    // 横屏左侧安全边距（刘海屏/异形屏安全区）
+    this.safeLeft = SAFE_LEFT;
+    // 横屏右侧安全边距（胶囊按钮区域）
+    this.safeRight = SAFE_RIGHT;
+    // 内容区域（去掉左右安全边距后的可用宽度）
+    this.contentLeft = this.safeLeft;
+    this.contentWidth = SCREEN_WIDTH - this.safeLeft - this.safeRight;
+    this.contentCenterX = this.safeLeft + this.contentWidth / 2;
 
-    // 底部导航栏
-    this.navHeight = 50 * s;
-    this.navY = SCREEN_HEIGHT - this.navHeight;
+    // 顶部标题区域（横屏模式下紧凑布局）
+    this.titleY = 8 * s;
+    this.titleHeight = 50 * s;
+
+    // 底部导航栏（圆角胶囊样式）
+    this.navHeight = 44 * s;
+    this.navY = SCREEN_HEIGHT - this.navHeight - 8 * s;
 
     // 关卡网格区域
-    this.gridTop = this.titleY + this.titleHeight + 10 * s;
-    this.gridBottom = this.navY - 10 * s;
+    this.gridTop = this.titleY + this.titleHeight + 8 * s;
+    this.gridBottom = this.navY - 20 * s;
     this.gridHeight = this.gridBottom - this.gridTop;
 
     // 网格内边距
-    this.gridPadX = 15 * s;
-    this.gridPadY = 10 * s;
+    this.gridPadX = 20 * s;
+    this.gridPadY = 12 * s;
 
-    // 单元格尺寸
-    const availW = SCREEN_WIDTH - this.gridPadX * 2;
+    // 单元格尺寸（基于内容区域宽度计算）
+    const availW = this.contentWidth - this.gridPadX * 2;
     const availH = this.gridHeight - this.gridPadY * 2;
-    this.cellGapX = 8;        // 左右间距8px
-    this.cellGapY = 2;        // 上下间距2px
+    this.cellGapX = 10 * s;   // 左右间距
+    this.cellGapY = 10 * s;   // 上下间距
     this.cellW = (availW - (LEVEL_GRID_COLS - 1) * this.cellGapX) / LEVEL_GRID_COLS;
     this.cellRowH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGapY) / LEVEL_GRID_ROWS;
-    this.cellH = this.cellRowH * 0.85; // 格子占行高的85%
+    this.cellH = Math.min(this.cellRowH, this.cellW * 1.0); // 格子接近正方形
 
-    // 网格起始位置
-    this.gridStartX = this.gridPadX;
-    this.gridStartY = this.gridTop + this.gridPadY;
+    // 网格起始位置（基于内容区域）
+    this.gridStartX = this.contentLeft + this.gridPadX;
+    this.gridStartY = this.gridTop + this.gridPadY + (availH - LEVEL_GRID_ROWS * (this.cellH + this.cellGapY) + this.cellGapY) / 2;
   }
 
   /**
@@ -183,20 +192,20 @@ export default class LevelSelect {
     if (this.isSwiping) {
       // 计算松手速度
       const velocity = this.slideOffset / Math.max(elapsed, 1);
-      const threshold = SCREEN_WIDTH * 0.15;
+      const threshold = this.contentWidth * 0.15;
 
       // 判断翻页方向
       if (this.slideOffset < -threshold || velocity < -0.3) {
         // 向左滑 → 下一页
         if (this.currentPage < this.totalPages - 1) {
           this.currentPage++;
-          this.slideOffset += SCREEN_WIDTH; // 偏移加一页宽度（动画起点）
+          this.slideOffset += this.contentWidth; // 偏移加一页宽度（动画起点）
         }
       } else if (this.slideOffset > threshold || velocity > 0.3) {
         // 向右滑 → 上一页
         if (this.currentPage > 0) {
           this.currentPage--;
-          this.slideOffset -= SCREEN_WIDTH;
+          this.slideOffset -= this.contentWidth;
         }
       }
 
@@ -229,13 +238,19 @@ export default class LevelSelect {
       return;
     }
 
-    // 检测底部导航栏点击
-    if (y >= this.navY) {
-      const itemW = SCREEN_WIDTH / this.navItems.length;
-      const idx = Math.floor(x / itemW);
-      if (idx >= 0 && idx < this.navItems.length) {
-        this.navItems.forEach((item, i) => { item.active = i === idx; });
-        this._onNavChange(idx);
+    // 检测底部导航栏点击（胶囊样式）
+    if (y >= this.navY && y <= this.navY + this.navHeight) {
+      const s = SCALE;
+      const padX = 30 * s;
+      const barX = this.contentLeft + padX;
+      const barW = this.contentWidth - padX * 2;
+      if (x >= barX && x <= barX + barW) {
+        const itemW = barW / this.navItems.length;
+        const idx = Math.floor((x - barX) / itemW);
+        if (idx >= 0 && idx < this.navItems.length) {
+          this.navItems.forEach((item, i) => { item.active = i === idx; });
+          this._onNavChange(idx);
+        }
       }
       return;
     }
@@ -244,24 +259,6 @@ export default class LevelSelect {
     if (this.showSettings) {
       this._handleSettingsTap(x, y);
       return;
-    }
-
-    // 页码箭头点击检测
-    const s = SCALE;
-    const indicatorY = this.gridTop - 10 * s;
-    const centerX = SCREEN_WIDTH / 2;
-    if (Math.abs(y - indicatorY) < 15 * s) {
-      if (x < centerX - 30 * s && this.currentPage > 0) {
-        // << 跳到第一页
-        this.currentPage = 0;
-        return;
-      }
-      const maxPage = Math.floor((this.progress.getMaxUnlocked() - 1) / LEVELS_PER_PAGE);
-      if (x > centerX + 30 * s && this.currentPage < maxPage) {
-        // >> 跳到最后解锁页
-        this.currentPage = maxPage;
-        return;
-      }
     }
 
     // 检测关卡格子点击
@@ -543,7 +540,7 @@ export default class LevelSelect {
   _drawToast(ctx) {
     this._toastTimer--;
     const s = SCALE;
-    const centerX = SCREEN_WIDTH / 2;
+    const centerX = this.contentCenterX;
     const centerY = SCREEN_HEIGHT * 0.35;
 
     // 淡入淡出
@@ -616,7 +613,7 @@ export default class LevelSelect {
 
     const s = SCALE;
     const top = this.gridTop + 20 * s;
-    const centerX = SCREEN_WIDTH / 2;
+    const centerX = this.contentCenterX;
     const btnW = 200 * s;
     const btnH = 44 * s;
     const gap = 16 * s;
@@ -787,8 +784,8 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const padX = 20 * s;
-    const padY = 148 * s;
+    const padX = 40 * s;
+    const padY = 20 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxH = SCREEN_HEIGHT - padY * 2;
     const boxX = padX;
@@ -975,8 +972,8 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const padX = 24 * s;
-    const padY = 148 * s;
+    const padX = 60 * s;
+    const padY = 30 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxH = SCREEN_HEIGHT - padY * 2;
     const boxX = padX;
@@ -1053,8 +1050,8 @@ export default class LevelSelect {
    */
   _handlePropsGuideTap(x, y) {
     const s = SCALE;
-    const padX = 24 * s;
-    const padY = 148 * s;
+    const padX = 60 * s;
+    const padY = 30 * s;
     const boxW = SCREEN_WIDTH - padX * 2;
     const boxX = padX;
     const props = this._getPropsData();
@@ -1306,83 +1303,56 @@ export default class LevelSelect {
 
   _drawTitle(ctx) {
     const s = SCALE;
-    const centerX = SCREEN_WIDTH / 2;
+    const centerX = this.contentCenterX;
     const y = this.titleY;
 
     // 主标题 "弹球粉碎大师" — 霓虹蓝发光大字
     const title = '弹球粉碎大师';
-    const fontSize = 26 * s;
+    const fontSize = 24 * s;
 
     // 外发光层
     ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#00d4ff';
-    ctx.shadowBlur = 20 * s;
+    ctx.shadowBlur = 18 * s;
     ctx.fillStyle = '#00d4ff';
     ctx.fillText(title, centerX, y + 18 * s);
 
     // 主体文字（白色）
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 6 * s;
     ctx.fillStyle = '#ffffff';
     ctx.fillText(title, centerX, y + 18 * s);
     ctx.shadowBlur = 0;
 
-    // 副标题
+    // 副标题："选择关卡  当前:X  |  开启挑战"
+    const maxUnlocked = this.progress.getMaxUnlocked();
     ctx.fillStyle = 'rgba(180,210,255,0.7)';
     ctx.font = `${11 * s}px Arial`;
-    ctx.fillText('选择关卡，即刻开启挑战', centerX, y + 42 * s);
-
+    ctx.fillText(`选择关卡   当前:${maxUnlocked}  |  开启挑战`, centerX, y + 40 * s);
   }
 
   _drawPageIndicator(ctx) {
-    const s = SCALE;
-    const y = this.gridTop - 10 * s;
-    const centerX = SCREEN_WIDTH / 2;
-
-    // 左箭头 << （跳到第一页）
-    const arrowPad = 60 * s;
-    if (this.currentPage > 0) {
-      ctx.fillStyle = '#4499cc';
-      ctx.font = `bold ${16 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('<<', centerX - arrowPad, y);
-    }
-
-    // 页码 "3 / 8"
-    ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `${12 * s}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`当前:${this.currentPage + 1}`, centerX, y);
-
-    // 右箭头 >> （跳到最后解锁页）
-    const maxPage = Math.floor((this.progress.getMaxUnlocked() - 1) / LEVELS_PER_PAGE);
-    if (this.currentPage < maxPage) {
-      ctx.fillStyle = '#4499cc';
-      ctx.font = `bold ${16 * s}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('>>', centerX + arrowPad, y);
-    }
+    // 页码指示器已融入副标题，不再单独绘制
   }
 
   _drawLevelGrid(ctx) {
     const s = SCALE;
-    const borderPad = 8 * s;
-    const bx = this.gridStartX - borderPad;
-    const by = this.gridStartY - borderPad;
-    const bw = SCREEN_WIDTH - 2 * this.gridStartX + 2 * borderPad;
-    const bh = LEVEL_GRID_ROWS * (this.cellRowH + this.cellGapY) - this.cellGapY + 2 * borderPad;
+    const borderPad = 12 * s;
+    const bx = this.contentLeft + this.gridPadX - borderPad;
+    const by = this.gridTop;
+    const bw = this.contentWidth - this.gridPadX * 2 + 2 * borderPad;
+    const bh = this.gridHeight;
+    const cornerR = 10 * s;
 
-    // 外框发光（固定不随滑动）
+    // 外框圆角发光边框
     const glowIntensity = 0.5 + 0.3 * Math.sin(this.glowPhase);
     ctx.strokeStyle = COLORS.neonBlue;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.shadowColor = COLORS.neonBlue;
-    ctx.shadowBlur = 12 * s * glowIntensity;
-    ctx.strokeRect(bx, by, bw, bh);
+    ctx.shadowBlur = 10 * s * glowIntensity;
+    this._roundRect(ctx, bx, by, bw, bh, cornerR);
+    ctx.stroke();
     ctx.shadowBlur = 0;
 
     // 裁剪区域（只在边框内绘制，防止格子画到外面）
@@ -1397,11 +1367,11 @@ export default class LevelSelect {
 
     // 如果向右拖（offset>0），左边露出前一页
     if (offset > 0 && this.currentPage > 0) {
-      this._drawPageCells(ctx, this.currentPage - 1, offset - SCREEN_WIDTH);
+      this._drawPageCells(ctx, this.currentPage - 1, offset - this.contentWidth);
     }
     // 如果向左拖（offset<0），右边露出后一页
     if (offset < 0 && this.currentPage < this.totalPages - 1) {
-      this._drawPageCells(ctx, this.currentPage + 1, offset + SCREEN_WIDTH);
+      this._drawPageCells(ctx, this.currentPage + 1, offset + this.contentWidth);
     }
 
     ctx.restore();
@@ -1433,39 +1403,57 @@ export default class LevelSelect {
     const w = this.cellW;
     const h = this.cellH;
     const isSelected = this.selectedLevel === levelIdx;
+    const cornerR = 6 * s;
 
     if (data.unlocked) {
-      // 已解锁关卡 — 透明背景 + 发光边框
-      const cellGlow = isSelected ? 1.0 : (0.4 + 0.2 * Math.sin(this.glowPhase + levelIdx * 0.3));
-      ctx.strokeStyle = '#4499cc';
-      ctx.lineWidth = isSelected ? 2.5 : 1;
-      ctx.shadowColor = '#4499cc';
-      ctx.shadowBlur = (isSelected ? 12 : 4) * s * cellGlow;
-      this._roundRect(ctx, x, y, w, h, 6 * s);
+      // 已解锁关卡 — 深色填充背景 + 蓝色发光边框
+      const cellGlow = isSelected ? 1.0 : (0.3 + 0.15 * Math.sin(this.glowPhase + levelIdx * 0.3));
+
+      // 填充深色背景
+      ctx.fillStyle = isSelected ? 'rgba(0,80,140,0.4)' : 'rgba(10,20,50,0.8)';
+      this._roundRect(ctx, x, y, w, h, cornerR);
+      ctx.fill();
+
+      // 边框
+      ctx.strokeStyle = isSelected ? '#00d4ff' : '#2a5580';
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.shadowColor = isSelected ? '#00d4ff' : '#2a5580';
+      ctx.shadowBlur = (isSelected ? 10 : 3) * s * cellGlow;
+      this._roundRect(ctx, x, y, w, h, cornerR);
       ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.shadowColor = 'transparent';
 
-      // 关卡号
+      // 关卡号（大字）
       ctx.fillStyle = COLORS.textWhite;
-      ctx.font = `bold ${16 * s}px Arial`;
+      ctx.font = `bold ${15 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 6 * s);
+      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 7 * s);
 
       // 星星
-      this._drawStars(ctx, x + w / 2, y + h - 12 * s, data.stars, 3, 6 * s);
+      this._drawStars(ctx, x + w / 2, y + h - 10 * s, data.stars, 3, 5 * s);
 
     } else {
-      // 未解锁关卡 — 纯灰白色文字，无任何装饰
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#555566';
+      // 未解锁关卡 — 暗色背景 + 暗边框
+      ctx.fillStyle = 'rgba(15,20,40,0.6)';
+      this._roundRect(ctx, x, y, w, h, cornerR);
+      ctx.fill();
+
+      ctx.strokeStyle = '#1a2a44';
+      ctx.lineWidth = 1;
+      this._roundRect(ctx, x, y, w, h, cornerR);
+      ctx.stroke();
+
+      // 关卡号（灰色）
+      ctx.fillStyle = '#444466';
       ctx.font = `${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(levelNum), x + w / 2, y + h / 2);
+      ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 5 * s);
+
+      // 灰色星星
+      this._drawStars(ctx, x + w / 2, y + h - 10 * s, 0, 3, 5 * s);
     }
   }
 
@@ -1510,32 +1498,47 @@ export default class LevelSelect {
 
     const s = SCALE;
     const y = this.navY;
+    const h = this.navHeight;
+    const padX = 30 * s;
+    const barX = this.contentLeft + padX;
+    const barW = this.contentWidth - padX * 2;
+    const cornerR = h / 2; // 完全圆角胶囊
 
-    // 顶部细分割线
-    ctx.strokeStyle = 'rgba(100,100,150,0.3)';
+    // 导航栏背景（深色圆角胶囊）
+    ctx.fillStyle = 'rgba(10,15,40,0.85)';
+    ctx.strokeStyle = 'rgba(80,100,150,0.4)';
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(SCREEN_WIDTH, y);
+    this._roundRect(ctx, barX, y, barW, h, cornerR);
+    ctx.fill();
     ctx.stroke();
 
-    // 导航项（简洁灰白色文字）
-    const itemW = SCREEN_WIDTH / this.navItems.length;
+    // 导航项
+    const itemW = barW / this.navItems.length;
+    const symbols = ['»', '·', '~']; // 普通符号修饰
 
     this.navItems.forEach((item, i) => {
-      const ix = itemW * i + itemW / 2;
+      const ix = barX + itemW * i + itemW / 2;
       const isActive = item.active;
 
-      ctx.fillStyle = isActive ? '#ffffff' : '#888899';
-      ctx.font = `${isActive ? 'bold ' : ''}${13 * s}px Arial`;
+      // 符号修饰
+      ctx.fillStyle = isActive ? '#00d4ff' : '#666688';
+      ctx.font = `${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(item.label, ix, y + this.navHeight * 0.4);
+      ctx.fillText(symbols[i], ix - 20 * s, y + h / 2);
 
-      // 激活下划线
+      // 文字
+      ctx.fillStyle = isActive ? '#ffffff' : '#888899';
+      ctx.font = `${isActive ? 'bold ' : ''}${12 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.label, ix + 2 * s, y + h / 2);
+
+      // 激活下划线（蓝色）
       if (isActive) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(ix - 16 * s, y + this.navHeight * 0.7, 32 * s, 2 * s);
+        ctx.fillStyle = '#00d4ff';
+        const lineW = 36 * s;
+        ctx.fillRect(ix - lineW / 2, y + h - 6 * s, lineW, 2.5 * s);
       }
     });
   }
