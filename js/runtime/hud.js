@@ -38,7 +38,7 @@ export default class HUD {
     // ----- 右侧技能按钮（从上到下） -----
     this.btnR = 18 * s;
     const rightCx = RIGHT_PANEL_X + RIGHT_PANEL_WIDTH / 2;
-    const skillTopY = 22 * s;
+    const skillTopY = 22 * s + 60 * s;
     const skillGap = 50 * s;
     this.skillCx = rightCx;
     this.lightningY = skillTopY;
