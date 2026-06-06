@@ -165,6 +165,61 @@ export default class GameScene {
   }
 
   /**
+   * 渲染拖动白球时的"取消发射"按钮
+   * 手指悬停时按钮发出强红光
+   */
+  _renderCancelButton(ctx) {
+    const s = SCALE;
+    const { cx, cy, r } = this._getCancelButtonPos();
+    const hover = this._cancelHovered;
+    const glowAlpha = hover ? 0.95 : 0.55;
+    const pulse = 0.6 + 0.3 * Math.sin(this.glowPhase * 2);
+
+    ctx.save();
+
+    // 外发光圆环
+    ctx.shadowColor = `rgba(255,68,68,${glowAlpha})`;
+    ctx.shadowBlur = (hover ? 24 : 12) * s * pulse;
+    ctx.strokeStyle = hover ? '#ff5566' : '#cc3344';
+    ctx.lineWidth = (hover ? 3 : 2) * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 半透明红色背景
+    ctx.fillStyle = hover ? 'rgba(180,30,40,0.65)' : 'rgba(80,15,20,0.65)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 中心 "X" 图标
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3 * s;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = hover ? 'rgba(255,68,68,0.9)' : 'transparent';
+    ctx.shadowBlur = (hover ? 8 : 0) * s;
+    const xLen = r * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - xLen, cy - xLen);
+    ctx.lineTo(cx + xLen, cy + xLen);
+    ctx.moveTo(cx + xLen, cy - xLen);
+    ctx.lineTo(cx - xLen, cy + xLen);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.shadowBlur = 0;
+
+    // 提示文字
+    ctx.fillStyle = hover ? '#ff8888' : '#aaaaaa';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('取消', cx, cy + r + 4 * s);
+
+    ctx.restore();
+  }
+
+  /**
    * 游戏结束后获取用户信息
    * 如果没有 nickName，设置标志让 levelSelect 显示授权提示
    */
@@ -223,6 +278,11 @@ export default class GameScene {
 
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
+
+    // 拖动白球时的"取消发射"按钮状态
+    this._showCancelHint = false;  // 是否显示红色取消按钮
+    this._cancelHovered = false;   // 手指是否悬停在取消按钮上
+    this._cancelLaunch = false;    // 本次松手是否取消发射
 
     // 目标分数（分母固定值）
     this.targetScore = TARGET_SCORE;
@@ -404,6 +464,10 @@ export default class GameScene {
         this.launcher.setAimAngle(x, y);
         this._showDragHint = false; // 开始瞄准时隐藏提示
       }
+      // 触摸过程中显示「取消发射」按钮
+      this._showCancelHint = true;
+      this._cancelHovered = false;
+      this._cancelLaunch = false;
     }
   }
 
@@ -418,6 +482,11 @@ export default class GameScene {
     const dy = y - this._lastTouchY;
     this._lastTouchX = x;
     this._lastTouchY = y;
+
+    // 检测手指是否悬停在取消按钮上
+    if (this._showCancelHint) {
+      this._cancelHovered = this._isOnCancelButton(x, y);
+    }
 
     if (this._isDraggingBall) {
       // 拖拽白球X位置（限制在游戏区域内，使用灵敏度系数）
@@ -436,11 +505,46 @@ export default class GameScene {
   handleTouchEnd() {
     if (GameGlobal.databus.scene !== 'playing') return;
     this._touching = false;
+
+    // 优先判断：手指松开时是否在取消按钮上 → 取消发射
+    const wasHover = this._cancelHovered;
+    this._showCancelHint = false;
+    this._cancelHovered = false;
+
+    if (wasHover) {
+      // 取消本次发射动作
+      this._isDraggingBall = false;
+      this.launcher.isAiming = false;
+      return;
+    }
+
     if (this._isDraggingBall) {
       this._isDraggingBall = false;
       return; // 拖拽白球松手不发射
     }
     this._tryLaunch();
+  }
+
+  /**
+   * 检测坐标 (x, y) 是否在取消按钮上
+   */
+  _isOnCancelButton(x, y) {
+    const pos = this._getCancelButtonPos();
+    const dx = x - pos.cx;
+    const dy = y - pos.cy;
+    return dx * dx + dy * dy <= pos.r * pos.r;
+  }
+
+  /**
+   * 获取取消按钮的位置和半径（右下角，避开右侧技能列表）
+   */
+  _getCancelButtonPos() {
+    const s = SCALE;
+    const r = 26 * s;
+    // 右下角：贴右侧面板内侧，BRICK_AREA_BOTTOM 下方留空区
+    const cx = GAME_AREA_RIGHT - r - 8 * s;
+    const cy = SCREEN_HEIGHT - r - 12 * s;
+    return { cx, cy, r };
   }
 
   /**
@@ -1403,6 +1507,11 @@ export default class GameScene {
     // 分数飞起特效
     if (this._scoreFloats && this._scoreFloats.length > 0) {
       this._updateAndRenderScoreFloats(ctx);
+    }
+
+    // 拖动白球时的"取消发射"按钮（右下角）
+    if (this._showCancelHint) {
+      this._renderCancelButton(ctx);
     }
 
     // 消单行激光特效

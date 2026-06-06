@@ -45,7 +45,6 @@ export default class HUD {
     this.lightningY = skillTopY;
     this.multiBallY = skillTopY + skillGap;
     this.atkBoostY = skillTopY + skillGap * 2;
-    this.aimToggleY = skillTopY + skillGap * 3;  // 瞄准线开关（漩涡图标）
   }
 
   update() {
@@ -89,8 +88,6 @@ export default class HUD {
     this._drawMultiBall(ctx, this.skillCx, this.multiBallY - 3 * s, 13 * s);
 
     this._drawAtkButton(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount, atkLevel);
-
-    this._drawAimToggleButton(ctx, this.skillCx, this.aimToggleY, this.btnR, s, showAimLine);
   }
 
   // ============================================================
@@ -347,33 +344,6 @@ export default class HUD {
     ctx.fillText(`x${count}`, cx, cy + r * 0.32);
   }
 
-  _drawAimToggleButton(ctx, cx, cy, r, s, on) {
-    const color = on ? '#00d4ff' : '#666688';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = on ? 'rgba(0,212,255,0.6)' : 'transparent';
-    ctx.shadowBlur = 8 * s;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = on ? 'rgba(0,40,80,0.4)' : 'rgba(30,30,50,0.4)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 漩涡图标（简化为两个同心弧）
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.8 * s;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.55, 0.2, Math.PI * 1.4);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.3, Math.PI + 0.2, Math.PI * 2.4);
-    ctx.stroke();
-  }
-
   // ============================================================
   // 命中检测
   // ============================================================
@@ -407,7 +377,8 @@ export default class HUD {
     return this._hitCircle(x, y, this.skillCx, this.atkBoostY, this.btnR);
   }
 
-  hitAimButton(x, y) {
-    return this._hitCircle(x, y, this.skillCx, this.aimToggleY, this.btnR);
+  hitAimButton() {
+    // 已删除瞄准开关按钮，恒定返回 false 兼容旧调用
+    return false;
   }
 }
