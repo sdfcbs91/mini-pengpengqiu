@@ -33,10 +33,10 @@ export const HUD_TOP_HEIGHT = 0;                           // 顶部不再有HUD
 
 // 左侧信息面板（分数 + 倒计时）
 export const LEFT_PANEL_X = 12 * SCALE;                    // 左侧面板X位置
-export const LEFT_PANEL_WIDTH = 95 * SCALE;                // 左侧面板宽度（按图2比例放大）
+export const LEFT_PANEL_WIDTH = 85 * SCALE;                // 左侧面板宽度（按图2比例放大）
 
 // 右侧技能面板（避开右上角微信胶囊菜单 + 容纳更大按钮）
-export const RIGHT_PANEL_WIDTH = 60 * SCALE;               // 右侧面板宽度
+export const RIGHT_PANEL_WIDTH = 80 * SCALE;               // 右侧面板宽度
 export const RIGHT_PANEL_X = SCREEN_WIDTH - 12 * SCALE - RIGHT_PANEL_WIDTH;  // 右侧面板X位置
 
 // 顶部返回按钮区域
