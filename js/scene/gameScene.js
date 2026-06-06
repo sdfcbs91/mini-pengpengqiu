@@ -4,6 +4,7 @@ import {
   GAME_AREA_LEFT, GAME_AREA_RIGHT, GAME_AREA_TOP,
   LAUNCH_Y, LIGHTNING_INITIAL, MULTIBALL_INITIAL, MAX_ENERGY, ENERGY_PER_BRICK,
   GRID_COLS, BALL_RADIUS,
+  TARGET_SCORE, LEVEL_TIME_LIMIT,
 } from '../config';
 import Grid from '../core/grid';
 import Brick from '../core/brick';
@@ -81,6 +82,18 @@ export default class GameScene {
   }
 
   /**
+   * 倒计时归零 → 游戏结束（弹窗显示当前得分）
+   */
+  _onTimeout() {
+    this.gameState = 'over';
+    this._timeoutGameOver = true; // 标记由超时引发
+    if (typeof this._uploadLevelScore === 'function') {
+      this._uploadLevelScore();
+    }
+    if (this.onGameOver) this.onGameOver();
+  }
+
+  /**
    * 游戏结束后获取用户信息
    * 如果没有 nickName，设置标志让 levelSelect 显示授权提示
    */
@@ -131,6 +144,14 @@ export default class GameScene {
     this.totalBricksThisRound = 0;
     this.destroyedThisRound = 0;
     this.starProgress = 0;
+
+    // 倒计时（秒，2分钟），按帧累计精确计算
+    this.timeLeft = LEVEL_TIME_LIMIT;
+    this._timeAccumFrames = 0;
+    this._timeoutGameOver = false;
+
+    // 目标分数（分母固定值）
+    this.targetScore = TARGET_SCORE;
 
     // 开局拖拽提示（首次触摸后隐藏）
     this._showDragHint = true;
@@ -436,6 +457,19 @@ export default class GameScene {
 
     this.hud.update();
     this.grid.update();
+
+    // 倒计时（基于帧累计，60FPS = 每秒1秒）
+    this._timeAccumFrames++;
+    if (this._timeAccumFrames >= 60) {
+      this._timeAccumFrames -= 60;
+      this.timeLeft--;
+      if (this.timeLeft <= 0) {
+        this.timeLeft = 0;
+        // 时间到 → 进入游戏结束（弹窗显示当前得分）
+        this._onTimeout();
+        return;
+      }
+    }
 
     // 球速加速：从进入关卡开始持续计帧（所有非暂停/结束状态都累计）
     this._checkSpeedBoost();
@@ -1301,7 +1335,7 @@ export default class GameScene {
       this._renderDragHint(ctx);
     }
 
-    // HUD（单行：闪电 | 关卡信息 | 暂停 | 多球 | 攻击力）
+    // HUD（左上返回按钮 + 左侧分数/倒计时面板 + 右侧技能列表）
     this.hud.render(ctx, {
       stage: this.stage,
       line: this.line,
@@ -1311,6 +1345,8 @@ export default class GameScene {
       multiBallCount: this.multiBallCount,
       atkBoostCount: this.atkBoostCount,
       atkLevel: this.atkLevel,
+      timeLeft: this.timeLeft || 0,
+      showAimLine: this.showAimLine,
     });
 
     // 加速提示
@@ -1638,7 +1674,7 @@ export default class GameScene {
     ctx.font = `bold ${24 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('暂停', centerX, centerY - 60 * s);
+    ctx.fillText('返回', centerX, centerY - 60 * s);
 
     // 继续按钮
     this._drawButton(ctx, centerX, centerY, 120 * s, 40 * s, '继续', COLORS.neonCyan);
@@ -1660,14 +1696,18 @@ export default class GameScene {
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
 
-    // 标题
-    ctx.fillStyle = COLORS.neonRed;
+    // 标题：超时 vs 普通失败
+    const isTimeout = !!this._timeoutGameOver;
+    const title = isTimeout ? '时间到' : '游戏结束';
+    const titleColor = isTimeout ? COLORS.neonYellow : COLORS.neonRed;
+
+    ctx.fillStyle = titleColor;
     ctx.font = `bold ${28 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = COLORS.neonRed;
+    ctx.shadowColor = titleColor;
     ctx.shadowBlur = 10 * s;
-    ctx.fillText('游戏结束', centerX, centerY - 80 * s);
+    ctx.fillText(title, centerX, centerY - 80 * s);
     ctx.shadowBlur = 0;
 
     // 分数

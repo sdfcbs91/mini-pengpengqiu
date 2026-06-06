@@ -26,13 +26,26 @@ export const SAFE_RIGHT = Math.max(_safeRight, _menuSafeRight);
 // 屏幕适配比例（横屏模式：以高度为基准适配）
 export const SCALE = SCREEN_HEIGHT / 375;
 
-// ====== 游戏场景布局（横屏模式） ======
+// ====== 游戏场景布局（横屏模式：左侧信息面板 + 中间游戏区 + 右侧技能） ======
 export const STATUS_BAR_HEIGHT = 0;                        // 横屏无顶部状态栏
-export const HUD_TOP_HEIGHT = 36 * SCALE;                  // 顶部HUD高度（一行按钮）
-export const GAME_AREA_LEFT = 8 * SCALE;                   // 游戏区域左边距
-export const GAME_AREA_RIGHT = SCREEN_WIDTH - 8 * SCALE;
-export const GAME_AREA_TOP = HUD_TOP_HEIGHT + 6 * SCALE;
-export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 16 * SCALE;
+export const HUD_TOP_HEIGHT = 0;                           // 顶部不再有HUD（按钮分布在左右两侧）
+
+// 左侧信息面板（分数 + 倒计时）
+export const LEFT_PANEL_X = 8 * SCALE;                     // 左侧面板X位置
+export const LEFT_PANEL_WIDTH = 78 * SCALE;                // 左侧面板宽度
+
+// 右侧技能面板
+export const RIGHT_PANEL_WIDTH = 44 * SCALE;               // 右侧面板宽度
+export const RIGHT_PANEL_X = SCREEN_WIDTH - 8 * SCALE - RIGHT_PANEL_WIDTH;  // 右侧面板X位置
+
+// 顶部返回按钮区域
+export const BACK_BUTTON_R = 18 * SCALE;                   // 返回按钮半径
+
+// 中间游戏区域（避开左右面板）
+export const GAME_AREA_LEFT = LEFT_PANEL_X + LEFT_PANEL_WIDTH + 8 * SCALE;
+export const GAME_AREA_RIGHT = RIGHT_PANEL_X - 8 * SCALE;
+export const GAME_AREA_TOP = 12 * SCALE;
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 14 * SCALE;
 export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
@@ -41,6 +54,10 @@ export const BRICK_GAP = 2 * SCALE;
 export const BRICK_W = (GAME_AREA_WIDTH - (GRID_COLS + 1) * BRICK_GAP) / GRID_COLS;
 // 横屏模式：砖块高度按游戏区域高度计算，确保能显示足够多行（约10行可见）
 export const BRICK_H = Math.min(BRICK_W, (GAME_AREA_HEIGHT - 11 * BRICK_GAP) / 10);
+
+// ====== 关卡目标 & 倒计时 ======
+export const TARGET_SCORE = 9;                             // 目标分数（分母固定值，预留可后续按关卡定制）
+export const LEVEL_TIME_LIMIT = 120;                       // 单关倒计时（秒），默认 2 分钟
 
 // 发射点
 export const LAUNCH_Y = GAME_AREA_BOTTOM - 10 * SCALE;
