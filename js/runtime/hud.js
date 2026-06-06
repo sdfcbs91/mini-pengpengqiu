@@ -19,27 +19,28 @@ export default class HUD {
     const s = SCALE;
 
     // ----- 左上角返回按钮 -----
-    this.backX = LEFT_PANEL_X + BACK_BUTTON_R + 4 * s;
-    this.backY = BACK_BUTTON_R + 12 * s;
+    this.backX = LEFT_PANEL_X + BACK_BUTTON_R + 6 * s;
+    this.backY = BACK_BUTTON_R + 14 * s;
     this.backR = BACK_BUTTON_R;
 
     // ----- 左侧分数面板 -----
     this.scorePanelX = LEFT_PANEL_X;
-    this.scorePanelY = this.backY + this.backR + 14 * s;
+    this.scorePanelY = this.backY + this.backR + 18 * s;
     this.scorePanelW = LEFT_PANEL_WIDTH;
-    this.scorePanelH = 70 * s;
+    this.scorePanelH = 80 * s;
 
     // ----- 左侧倒计时面板 -----
     this.timerPanelX = LEFT_PANEL_X;
     this.timerPanelY = this.scorePanelY + this.scorePanelH + 14 * s;
     this.timerPanelW = LEFT_PANEL_WIDTH;
-    this.timerPanelH = 60 * s;
+    this.timerPanelH = 70 * s;
 
-    // ----- 右侧技能按钮（从上到下） -----
-    this.btnR = 18 * s;
+    // ----- 右侧技能按钮（从上到下，按图2比例调大） -----
+    this.btnR = 24 * s;  // 按钮半径增大
     const rightCx = RIGHT_PANEL_X + RIGHT_PANEL_WIDTH / 2;
-    const skillTopY = 22 * s + 60 * s;
-    const skillGap = 50 * s;
+    // 顶部第一个按钮中心 Y（避开顶部胶囊菜单 ~60*s高度）
+    const skillTopY = this.btnR + 60 * s;
+    const skillGap = this.btnR * 2 + 14 * s;  // 按钮间距：直径 + 间隔
     this.skillCx = rightCx;
     this.lightningY = skillTopY;
     this.multiBallY = skillTopY + skillGap;
@@ -82,10 +83,10 @@ export default class HUD {
 
     // ---- 4) 右侧技能按钮 ----
     this._drawSkillCircle(ctx, this.skillCx, this.lightningY, this.btnR, s, lightningCount, '#ff3344');
-    this._drawLightning(ctx, this.skillCx, this.lightningY - 2 * s, 11 * s);
+    this._drawLightning(ctx, this.skillCx, this.lightningY - 3 * s, 16 * s);
 
     this._drawSkillCircle(ctx, this.skillCx, this.multiBallY, this.btnR, s, multiBallCount, '#ff3366');
-    this._drawMultiBall(ctx, this.skillCx, this.multiBallY - 2 * s, 9 * s);
+    this._drawMultiBall(ctx, this.skillCx, this.multiBallY - 3 * s, 13 * s);
 
     this._drawAtkButton(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount, atkLevel);
 
@@ -102,9 +103,9 @@ export default class HUD {
 
     // 圆环背景
     ctx.strokeStyle = COLORS.neonCyan;
-    ctx.lineWidth = 2 * s;
+    ctx.lineWidth = 2.5 * s;
     ctx.shadowColor = 'rgba(0,212,255,0.5)';
-    ctx.shadowBlur = 6 * s;
+    ctx.shadowBlur = 8 * s;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -118,10 +119,10 @@ export default class HUD {
 
     // 左箭头 "<"
     ctx.strokeStyle = COLORS.neonCyan;
-    ctx.lineWidth = 2.5 * s;
+    ctx.lineWidth = 3.2 * s;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    const armLen = r * 0.45;
+    const armLen = r * 0.5;
     ctx.beginPath();
     ctx.moveTo(cx + armLen * 0.5, cy - armLen);
     ctx.lineTo(cx - armLen * 0.5, cy);
@@ -143,23 +144,23 @@ export default class HUD {
 
     // 标题"分数"
     ctx.fillStyle = COLORS.neonCyan;
-    ctx.font = `${11 * s}px Arial`;
+    ctx.font = `${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('分数', x + w / 2, y + 8 * s);
+    ctx.fillText('分数', x + w / 2, y + 10 * s);
 
     // 大字分数
     ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${22 * s}px Arial`;
+    ctx.font = `bold ${28 * s}px Arial`;
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(score), x + w / 2, y + h / 2 + 2 * s);
+    ctx.fillText(String(score), x + w / 2, y + h / 2 + 4 * s);
 
     // 进度（X/Y 得分:Z）
     ctx.fillStyle = '#aaaacc';
-    ctx.font = `${9 * s}px Arial`;
+    ctx.font = `${10 * s}px Arial`;
     ctx.textBaseline = 'bottom';
     const progressText = `${line || 0}/${maxRounds || TARGET_SCORE} 得分:${score}`;
-    ctx.fillText(progressText, x + w / 2, y + h - 6 * s);
+    ctx.fillText(progressText, x + w / 2, y + h - 8 * s);
   }
 
   // ============================================================
@@ -175,10 +176,10 @@ export default class HUD {
 
     // 标题"倒计时"
     ctx.fillStyle = COLORS.neonCyan;
-    ctx.font = `${11 * s}px Arial`;
+    ctx.font = `${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('倒计时', x + w / 2, y + 8 * s);
+    ctx.fillText('倒计时', x + w / 2, y + 10 * s);
 
     // 时间 mm:ss
     const minutes = Math.max(0, Math.floor(timeLeft / 60));
@@ -187,9 +188,9 @@ export default class HUD {
 
     // 倒计时不足10秒时变红警示
     ctx.fillStyle = timeLeft <= 10 ? '#ff4444' : COLORS.textWhite;
-    ctx.font = `bold ${20 * s}px Arial`;
+    ctx.font = `bold ${24 * s}px Arial`;
     ctx.textBaseline = 'middle';
-    ctx.fillText(timeStr, x + w / 2, y + h / 2 + 6 * s);
+    ctx.fillText(timeStr, x + w / 2, y + h / 2 + 8 * s);
   }
 
   // ============================================================
@@ -224,9 +225,9 @@ export default class HUD {
     const glow = 0.6 + 0.3 * Math.sin(this.glowPhase);
 
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 6 * s * glow;
+    ctx.shadowBlur = 8 * s * glow;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -239,10 +240,10 @@ export default class HUD {
 
     // 计数小标签 "xN"
     ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${8 * s}px Arial`;
+    ctx.font = `bold ${10 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`x${count}`, cx, cy + r * 0.35);
+    ctx.fillText(`x${count}`, cx, cy + r * 0.32);
   }
 
   _drawLightning(ctx, cx, cy, size) {
@@ -286,9 +287,9 @@ export default class HUD {
 
     // 按钮圈
     ctx.strokeStyle = '#ff9900';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.shadowColor = 'rgba(255,153,0,0.6)';
-    ctx.shadowBlur = 6 * s * glow;
+    ctx.shadowBlur = 8 * s * glow;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -301,25 +302,25 @@ export default class HUD {
 
     // 剑/攻击力图标
     ctx.fillStyle = '#ff9900';
-    ctx.font = `bold ${11 * s}px Arial`;
+    ctx.font = `bold ${15 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`⚔${level}`, cx, cy - 2 * s);
+    ctx.fillText(`⚔${level}`, cx, cy - 3 * s);
 
     // 剩余次数
     ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${8 * s}px Arial`;
+    ctx.font = `bold ${10 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`x${count}`, cx, cy + r * 0.35);
+    ctx.fillText(`x${count}`, cx, cy + r * 0.32);
   }
 
   _drawAimToggleButton(ctx, cx, cy, r, s, on) {
     const color = on ? '#00d4ff' : '#666688';
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.shadowColor = on ? 'rgba(0,212,255,0.6)' : 'transparent';
-    ctx.shadowBlur = 6 * s;
+    ctx.shadowBlur = 8 * s;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();

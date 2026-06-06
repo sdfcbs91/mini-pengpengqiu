@@ -31,21 +31,21 @@ export const STATUS_BAR_HEIGHT = 0;                        // 横屏无顶部状
 export const HUD_TOP_HEIGHT = 0;                           // 顶部不再有HUD（按钮分布在左右两侧）
 
 // 左侧信息面板（分数 + 倒计时）
-export const LEFT_PANEL_X = 8 * SCALE;                     // 左侧面板X位置
-export const LEFT_PANEL_WIDTH = 78 * SCALE;                // 左侧面板宽度
+export const LEFT_PANEL_X = 12 * SCALE;                    // 左侧面板X位置
+export const LEFT_PANEL_WIDTH = 95 * SCALE;                // 左侧面板宽度（按图2比例放大）
 
-// 右侧技能面板
-export const RIGHT_PANEL_WIDTH = 44 * SCALE;               // 右侧面板宽度
-export const RIGHT_PANEL_X = SCREEN_WIDTH - 8 * SCALE - RIGHT_PANEL_WIDTH;  // 右侧面板X位置
+// 右侧技能面板（避开右上角微信胶囊菜单 + 容纳更大按钮）
+export const RIGHT_PANEL_WIDTH = 60 * SCALE;               // 右侧面板宽度
+export const RIGHT_PANEL_X = SCREEN_WIDTH - 12 * SCALE - RIGHT_PANEL_WIDTH;  // 右侧面板X位置
 
 // 顶部返回按钮区域
-export const BACK_BUTTON_R = 18 * SCALE;                   // 返回按钮半径
+export const BACK_BUTTON_R = 22 * SCALE;                   // 返回按钮半径
 
-// 中间游戏区域（避开左右面板）
-export const GAME_AREA_LEFT = LEFT_PANEL_X + LEFT_PANEL_WIDTH + 8 * SCALE;
-export const GAME_AREA_RIGHT = RIGHT_PANEL_X - 8 * SCALE;
-export const GAME_AREA_TOP = 12 * SCALE;
-export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 14 * SCALE;
+// 中间游戏区域（避开左右面板 + 顶部胶囊 + 底部留空给发射器）
+export const GAME_AREA_LEFT = LEFT_PANEL_X + LEFT_PANEL_WIDTH + 14 * SCALE;
+export const GAME_AREA_RIGHT = RIGHT_PANEL_X - 14 * SCALE;
+export const GAME_AREA_TOP = 16 * SCALE;
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 50 * SCALE;  // 底部留约 50*SCALE 空间放发射器/瞄准提示
 export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
