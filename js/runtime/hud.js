@@ -142,25 +142,18 @@ export default class HUD {
 
     this._drawRoundedPanel(ctx, x, y, w, h, 10 * s);
 
-    // 标题"分数"
+    // 标题"积分"
     ctx.fillStyle = COLORS.neonCyan;
     ctx.font = `${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('分数', x + w / 2, y + 10 * s);
+    ctx.fillText('积分', x + w / 2, y + 10 * s);
 
-    // 大字分数
+    // 主进度： score / TARGET_SCORE
     ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${28 * s}px Arial`;
+    ctx.font = `bold ${22 * s}px Arial`;
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(score), x + w / 2, y + h / 2 + 4 * s);
-
-    // 进度（X/Y 得分:Z）
-    ctx.fillStyle = '#aaaacc';
-    ctx.font = `${10 * s}px Arial`;
-    ctx.textBaseline = 'bottom';
-    const progressText = `${line || 0}/${maxRounds || TARGET_SCORE} 得分:${score}`;
-    ctx.fillText(progressText, x + w / 2, y + h - 8 * s);
+    ctx.fillText(`${score}/${TARGET_SCORE}`, x + w / 2, y + h / 2 + 6 * s);
   }
 
   // ============================================================

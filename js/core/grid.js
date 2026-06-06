@@ -5,7 +5,7 @@ import Warp from './warp';
 import RowClear from './rowClear';
 import ColClear from './colClear';
 import {
-  GRID_COLS, BRICK_GAP, BRICK_W, BRICK_H,
+  GRID_COLS, GRID_ROWS, BRICK_GAP, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_TOP,
 } from '../config';
 import { getLevelConfig } from '../data/levelData';
@@ -667,6 +667,61 @@ export default class Grid {
     if (GRID_COLS - 1 !== reserved) cols.push(GRID_COLS - 1);
     if (GRID_COLS - 2 !== reserved && Math.random() < 0.6) cols.push(GRID_COLS - 2);
     return cols;
+  }
+
+  /**
+   * 在指定行的空位置随机生成新砖块（用于运行中动态补充上半部分砖块）
+   * 不会与已有砖块重叠：先收集该行已存在的列，仅在剩余列中随机选 2~4 个生成
+   * @param {number} stage 当前关卡
+   * @param {number} targetRow 目标行（0~GRID_ROWS-1）
+   */
+  generateBricksAtRow(stage, targetRow) {
+    if (targetRow < 0 || targetRow >= GRID_ROWS) return;
+
+    // 收集该行已有砖块/横板/白洞的列（避免重叠）
+    const usedCols = new Set();
+    this.bricks.forEach(b => {
+      if (b.isAlive && b.row === targetRow) usedCols.add(b.col);
+    });
+    this.planks.forEach(p => {
+      if (p.row === targetRow) usedCols.add(p.col);
+    });
+
+    const availableCols = [];
+    for (let c = 0; c < GRID_COLS; c++) {
+      if (!usedCols.has(c)) availableCols.push(c);
+    }
+    if (availableCols.length === 0) return;
+
+    const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
+    const baseHp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));
+    // 随关卡逐步加 HP（轻微增长）
+    const hp = Math.round(baseHp * Math.pow(1.05, this.rowCounter) * 0.76);
+    const triangleRate = cfg.triangleRate || 0;
+    this.rowCounter++;
+
+    // 随机生成 2~4 个砖块（不超过可用列数）
+    const count = Math.min(availableCols.length, 2 + Math.floor(Math.random() * 3));
+    const shuffled = availableCols.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, count);
+
+    selected.forEach(col => {
+      const brick = new Brick();
+      const isTriangle = Math.random() < triangleRate;
+      const type = isTriangle ? 'triangle' : 'normal';
+      const dirs = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+      const dir = isTriangle ? dirs[Math.floor(Math.random() * dirs.length)] : '';
+
+      brick.init(
+        targetRow, col,
+        this.getColX(col),
+        this.getRowY(targetRow),
+        BRICK_W, BRICK_H,
+        Math.max(1, hp + Math.floor(Math.random() * 3) - 1),
+        type, dir
+      );
+      this.bricks.push(brick);
+    });
   }
 
   shiftDown(bottomLimit) {

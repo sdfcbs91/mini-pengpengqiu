@@ -3,8 +3,8 @@ import {
   COLORS, SCALE, BRICK_W, BRICK_H,
   GAME_AREA_LEFT, GAME_AREA_RIGHT, GAME_AREA_TOP,
   LAUNCH_Y, LIGHTNING_INITIAL, MULTIBALL_INITIAL, MAX_ENERGY, ENERGY_PER_BRICK,
-  GRID_COLS, BALL_RADIUS,
-  TARGET_SCORE, LEVEL_TIME_LIMIT,
+  GRID_COLS, GRID_ROWS, BALL_RADIUS,
+  TARGET_SCORE, LEVEL_TIME_LIMIT, BRICK_AREA_BOTTOM,
 } from '../config';
 import Grid from '../core/grid';
 import Brick from '../core/brick';
@@ -94,6 +94,77 @@ export default class GameScene {
   }
 
   /**
+   * 砖块销毁加分（带系数）
+   *  - 弹跳系数：球本次飞行击打砖块次数越多倍率越高（每5次+20%，最高 +200%）
+   *  - 连消系数：本帧（结算前累计）一次性消除越多倍率越高（每3连消+30%，最高 +200%）
+   * @param {Brick} brick 被销毁的砖块
+   * @param {Ball} ball 击中的球（可为 null 表示技能消除）
+   */
+  _addBrickScore(brick, ball) {
+    const baseScore = brick.maxHp;
+
+    // 弹跳系数：球每打到5个砖块 +20%，最高 +200%（即 3.0 倍）
+    const hitCount = ball ? (ball.hitCount || 0) : 0;
+    const bounceMul = 1 + Math.min(2, Math.floor(hitCount / 5) * 0.2);
+
+    // 连消系数：本回合累计每3个砖块 +30%，最高 +200%（即 3.0 倍）
+    const comboMul = 1 + Math.min(2, Math.floor(this.destroyedThisRound / 3) * 0.3);
+
+    const finalScore = Math.round(baseScore * bounceMul * comboMul);
+    this.score += finalScore;
+
+    // 显示飞起的得分文字
+    this._spawnScoreFloat(brick, finalScore, bounceMul * comboMul);
+  }
+
+  /**
+   * 弹出"+N"分数提示动画
+   */
+  _spawnScoreFloat(brick, score, multiplier) {
+    if (!this._scoreFloats) this._scoreFloats = [];
+    this._scoreFloats.push({
+      x: brick.x + brick.width / 2,
+      y: brick.y + brick.height / 2,
+      score,
+      multiplier,
+      timer: 50, // 帧数
+    });
+    // 限制最多10个，避免过多
+    if (this._scoreFloats.length > 12) this._scoreFloats.shift();
+  }
+
+  /**
+   * 更新并渲染分数飞起特效
+   */
+  _updateAndRenderScoreFloats(ctx) {
+    const s = SCALE;
+    const floats = this._scoreFloats;
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.timer--;
+      f.y -= 0.6 * s;
+      if (f.timer <= 0) {
+        floats.splice(i, 1);
+        continue;
+      }
+      const alpha = Math.min(1, f.timer / 30);
+      // 倍率高 → 颜色更鲜艳
+      const isCombo = f.multiplier >= 1.5;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = isCombo ? '#ffdd00' : '#ffffff';
+      ctx.font = `bold ${(isCombo ? 14 : 12) * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = isCombo ? '#ff9900' : 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 4 * s;
+      const text = isCombo ? `+${f.score} x${f.multiplier.toFixed(1)}` : `+${f.score}`;
+      ctx.fillText(text, f.x, f.y);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /**
    * 游戏结束后获取用户信息
    * 如果没有 nickName，设置标志让 levelSelect 显示授权提示
    */
@@ -149,6 +220,9 @@ export default class GameScene {
     this.timeLeft = LEVEL_TIME_LIMIT;
     this._timeAccumFrames = 0;
     this._timeoutGameOver = false;
+
+    // 飞起的得分文字（特效）
+    this._scoreFloats = [];
 
     // 目标分数（分母固定值）
     this.targetScore = TARGET_SCORE;
@@ -399,7 +473,8 @@ export default class GameScene {
       this.grid.bricks.forEach(b => {
         if (b.isAlive && b.row === maxRow) {
           b.isAlive = false;
-          this.score += b.hp;
+          this._addBrickScore(b, null);
+          this.destroyedThisRound++;
         }
       });
       this.grid.cleanup();
@@ -617,7 +692,7 @@ export default class GameScene {
         const destroyed = brick.hit(damage);
         if (!brick.isPlank) this._playCollisionSound(); // 只有砖块发声，横板不发声
         if (destroyed) {
-          this.score += brick.maxHp;
+          this._addBrickScore(brick, ball);
           this.destroyedThisRound++;
           this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
         }
@@ -912,7 +987,7 @@ export default class GameScene {
     for (const brick of rowBricks) {
       const destroyed = brick.hit(damage);
       if (destroyed) {
-        this.score += brick.maxHp;
+        this._addBrickScore(brick, null);
         this.destroyedThisRound++;
         this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
         this._spawnBrickParticles(brick);
@@ -945,7 +1020,7 @@ export default class GameScene {
     for (const brick of colBricks) {
       const destroyed = brick.hit(damage);
       if (destroyed) {
-        this.score += brick.maxHp;
+        this._addBrickScore(brick, null);
         this.destroyedThisRound++;
         this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
         this._spawnBrickParticles(brick);
@@ -1150,22 +1225,20 @@ export default class GameScene {
       this.starProgress = Math.min(1, this.destroyedThisRound / this.totalBricksThisRound);
     }
 
-    // 增加行数
+    // 增加回合数
     this.line++;
 
-    const reachedTarget = this.line >= this.maxRounds;
-    const noBricksLeft = this.grid.bricks.filter(b => b.isAlive).length === 0;
-
-    // 通关条件：达到目标回合数 且 所有砖块已清除
-    if (reachedTarget && noBricksLeft) {
-      const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
+    // ===== 通关条件：分数达到目标 =====
+    if (this.score >= TARGET_SCORE) {
+      // 三星标准：300=1星、600=2星、1000=3星
+      const stars = this.score >= 1000 ? 3 : this.score >= 600 ? 2 : 1;
       this.winStars = stars;
       this.gameState = 'win';
       this._uploadLevelScore();
-      
+
       // 游戏结束后获取用户信息
       this._fetchUserInfoAfterGame();
-      
+
       if (this.onLevelComplete) {
         this.onLevelComplete(this.initialLevel, stars, this.score);
       }
@@ -1174,25 +1247,19 @@ export default class GameScene {
 
     this.stage++;
 
-    // 根据当前砖块行数决定生成几行
-    const existingRows = this._countBrickRows();
-    let rowsToGenerate = 1;
-    if (!reachedTarget) {
-      if (existingRows <= 2) {
-        rowsToGenerate = 3;
-      } else if (existingRows <= 4) {
-        rowsToGenerate = 2;
-      }
-    }
-
-    // 砖块下移（移动相应行数）
-    for (let i = 0; i < rowsToGenerate; i++) {
-      const isOver = this.grid.shiftDown(LAUNCH_Y);
-      if (isOver) {
-        this.gameState = 'over';
-        this._uploadLevelScore();
-        return;
-      }
+    // ===== 不再下移砖块；改为在前5行随机选 1~2 行追加新砖块 =====
+    const TOP_HALF_ROWS = Math.min(5, GRID_ROWS);
+    const refillCount = 1 + (Math.random() < 0.4 ? 1 : 0); // 40% 概率追加2行
+    const usedRows = new Set();
+    for (let i = 0; i < refillCount; i++) {
+      let targetRow;
+      let attempts = 0;
+      do {
+        targetRow = Math.floor(Math.random() * TOP_HALF_ROWS);
+        attempts++;
+      } while (usedRows.has(targetRow) && attempts < 10);
+      usedRows.add(targetRow);
+      this.grid.generateBricksAtRow(this.stage, targetRow);
     }
 
     // 删除超出底部的横板（只删除完全超出发射线的）
@@ -1202,13 +1269,6 @@ export default class GameScene {
     this.grid.rowClears = this.grid.rowClears.filter(rc => !rc.collected && rc.targetY < LAUNCH_Y);
     this.grid.colClears = this.grid.colClears.filter(cc => !cc.collected && cc.targetY < LAUNCH_Y);
 
-    // 达到目标回合后不再生成新砖块
-    if (!reachedTarget) {
-      for (let i = 0; i < rowsToGenerate; i++) {
-        this.grid.generateRow(this.stage, i);
-      }
-    }
-
     // 更新球数
     this.ballCount += this.nextBallCount;
     this.nextBallCount = 0;
@@ -1217,25 +1277,6 @@ export default class GameScene {
     const nextX = this.launcher.getNextLaunchX();
     this.launcher.init(nextX, this.ballCount);
     this.launcher.showAimLine = this.showAimLine;
-
-    // 检查游戏结束（砖块触底）
-    if (this.grid.checkGameOver(LAUNCH_Y)) {
-      this.gameState = 'over';
-      this._uploadLevelScore();
-      return;
-    }
-
-    // 下移后砖块可能全被推出/打完了，再检一次
-    if (reachedTarget && this.grid.bricks.filter(b => b.isAlive).length === 0) {
-      const stars = this.score > this.maxRounds * 10 ? 3 : this.score > this.maxRounds * 5 ? 2 : 1;
-      this.winStars = stars;
-      this.gameState = 'win';
-      this._uploadLevelScore();
-      if (this.onLevelComplete) {
-        this.onLevelComplete(this.initialLevel, stars, this.score);
-      }
-      return;
-    }
 
     this.gameState = 'aiming';
   }
@@ -1357,6 +1398,11 @@ export default class GameScene {
     // 粒子效果
     if (this._particles.length > 0) {
       this._updateAndRenderParticles(ctx);
+    }
+
+    // 分数飞起特效
+    if (this._scoreFloats && this._scoreFloats.length > 0) {
+      this._updateAndRenderScoreFloats(ctx);
     }
 
     // 消单行激光特效
@@ -1651,10 +1697,11 @@ export default class GameScene {
     ctx.lineWidth = 2;
     ctx.shadowColor = COLORS.neonBlue;
     ctx.shadowBlur = 10 * s * glow;
+    // 边框只包砖块区域，白球/发射器在边框外
     ctx.strokeRect(
       GAME_AREA_LEFT - 2, GAME_AREA_TOP - 2,
       GAME_AREA_RIGHT - GAME_AREA_LEFT + 4,
-      LAUNCH_Y - GAME_AREA_TOP + 4
+      BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4
     );
     ctx.shadowBlur = 0;
   }

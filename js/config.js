@@ -4,7 +4,8 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT, MENU_BUTTON_RECT, SAFE_AREA } from './rend
 export const TOTAL_LEVELS = 600;
 
 // 网格配置
-export const GRID_COLS = 7;
+export const GRID_COLS = 12;
+export const GRID_ROWS = 10;
 export const BRICK_PADDING = 2;
 
 // 关卡选择页 - 网格布局（横屏模式：更多列，更少行）
@@ -52,11 +53,15 @@ export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 // 砖块尺寸（根据游戏区域和列数自动计算）
 export const BRICK_GAP = 2 * SCALE;
 export const BRICK_W = (GAME_AREA_WIDTH - (GRID_COLS + 1) * BRICK_GAP) / GRID_COLS;
-// 横屏模式：砖块高度按游戏区域高度计算，确保能显示足够多行（约10行可见）
-export const BRICK_H = Math.min(BRICK_W, (GAME_AREA_HEIGHT - 11 * BRICK_GAP) / 10);
+// 砖块高度按 GRID_ROWS 行均分游戏区高度
+export const BRICK_H = Math.min(BRICK_W, (GAME_AREA_HEIGHT - (GRID_ROWS + 1) * BRICK_GAP - 60 * SCALE) / GRID_ROWS);
+
+// 砖块区域底部（用于绘制游戏边框，使白球落在边框外）
+// = 第一行顶 + 总行数 * (砖块高 + 间距) + 一些缓冲
+export const BRICK_AREA_BOTTOM = GAME_AREA_TOP + GRID_ROWS * (BRICK_H + BRICK_GAP) + 8 * SCALE;
 
 // ====== 关卡目标 & 倒计时 ======
-export const TARGET_SCORE = 9;                             // 目标分数（分母固定值，预留可后续按关卡定制）
+export const TARGET_SCORE = 300;                           // 目标分数（达到即过关）
 export const LEVEL_TIME_LIMIT = 120;                       // 单关倒计时（秒），默认 2 分钟
 
 // 发射点
