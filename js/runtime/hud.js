@@ -94,40 +94,41 @@ export default class HUD {
   }
 
   // ============================================================
-  // 返回按钮
+  // 返回按钮（圆角矩形，蓝色细边框 + 青色亮箭头，与图片一致）
   // ============================================================
   _drawBackButton(ctx, s) {
     const cx = this.backX;
     const cy = this.backY;
     const r = this.backR;
 
-    // 圆环背景
-    ctx.strokeStyle = COLORS.neonCyan;
-    ctx.lineWidth = 2.5 * s;
-    ctx.shadowColor = 'rgba(0,212,255,0.5)';
-    ctx.shadowBlur = 8 * s;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+    // 计算圆角矩形参数（以原圆心 cx/cy 为中心）
+    const w = r * 2;
+    const h = r * 2;
+    const x = cx - r;
+    const y = cy - r;
+    const radius = 10 * s;
 
-    // 半透明填充
-    ctx.fillStyle = 'rgba(0,40,80,0.4)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
-    ctx.fill();
+    // 返回按钮专属配色：极暗灰蓝边框（接近背景，几乎只见光晕）
+    this._drawRoundedPanel(ctx, x, y, w, h, radius, {
+      stroke: '#2a3550',
+      glow: 'rgba(80,140,220,0.45)',
+      fill: 'rgba(8,14,32,0.92)',
+    });
 
-    // 左箭头 "<"
+    // 左箭头 "<"（青色亮色）
     ctx.strokeStyle = COLORS.neonCyan;
     ctx.lineWidth = 3.2 * s;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(0,245,255,0.85)';
+    ctx.shadowBlur = 8 * s;
     const armLen = r * 0.5;
     ctx.beginPath();
-    ctx.moveTo(cx + armLen * 0.5, cy - armLen);
-    ctx.lineTo(cx - armLen * 0.5, cy);
-    ctx.lineTo(cx + armLen * 0.5, cy + armLen);
+    ctx.moveTo(cx + armLen * 0.4, cy - armLen);
+    ctx.lineTo(cx - armLen * 0.45, cy);
+    ctx.lineTo(cx + armLen * 0.4, cy + armLen);
     ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.lineCap = 'butt';
   }
 
@@ -140,11 +141,19 @@ export default class HUD {
     const w = this.scorePanelW;
     const h = this.scorePanelH;
 
-    this._drawRoundedPanel(ctx, x, y, w, h, 10 * s);
+    // 与图片一致的暗蓝色调
+    const PANEL_BLUE = '#2960dd';
+    const PANEL_GLOW = 'rgba(50,100,230,0.75)';
 
-    // 标题"积分"
-    ctx.fillStyle = COLORS.neonCyan;
-    ctx.font = `${13 * s}px Arial`;
+    this._drawRoundedPanel(ctx, x, y, w, h, 12 * s, {
+      stroke: PANEL_BLUE,
+      glow: PANEL_GLOW,
+      fill: 'rgba(6,10,28,0.92)',
+    });
+
+    // 标题"积分"（与边框同色）
+    ctx.fillStyle = PANEL_BLUE;
+    ctx.font = `bold ${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText('积分', x + w / 2, y + 10 * s);
@@ -165,11 +174,20 @@ export default class HUD {
     const w = this.timerPanelW;
     const h = this.timerPanelH;
 
-    this._drawRoundedPanel(ctx, x, y, w, h, 10 * s);
+    // 倒计时不足10秒时整个面板变红警示，否则蓝色
+    const isWarn = timeLeft <= 10;
+    const PANEL_COLOR = isWarn ? '#dd3344' : '#2960dd';
+    const PANEL_GLOW = isWarn ? 'rgba(230,60,80,0.75)' : 'rgba(50,100,230,0.75)';
 
-    // 标题"倒计时"
-    ctx.fillStyle = COLORS.neonCyan;
-    ctx.font = `${13 * s}px Arial`;
+    this._drawRoundedPanel(ctx, x, y, w, h, 12 * s, {
+      stroke: PANEL_COLOR,
+      glow: PANEL_GLOW,
+      fill: 'rgba(6,10,28,0.92)',
+    });
+
+    // 标题"倒计时"（与边框同色）
+    ctx.fillStyle = PANEL_COLOR;
+    ctx.font = `bold ${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText('倒计时', x + w / 2, y + 10 * s);
@@ -179,35 +197,56 @@ export default class HUD {
     const seconds = Math.max(0, Math.floor(timeLeft % 60));
     const timeStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-    // 倒计时不足10秒时变红警示
-    ctx.fillStyle = timeLeft <= 10 ? '#ff4444' : COLORS.textWhite;
+    ctx.fillStyle = isWarn ? '#ff8888' : COLORS.textWhite;
     ctx.font = `bold ${24 * s}px Arial`;
     ctx.textBaseline = 'middle';
     ctx.fillText(timeStr, x + w / 2, y + h / 2 + 8 * s);
   }
 
   // ============================================================
-  // 圆角面板
+  // 圆角面板（细边框 + 强外发光，模拟霓虹灯效果）
   // ============================================================
-  _drawRoundedPanel(ctx, x, y, w, h, r) {
-    ctx.strokeStyle = COLORS.neonCyan;
-    ctx.lineWidth = 1.5;
-    ctx.fillStyle = 'rgba(8,16,40,0.55)';
-    ctx.shadowColor = 'rgba(0,212,255,0.35)';
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
+  _drawRoundedPanel(ctx, x, y, w, h, r, opts) {
+    const o = opts || {};
+    const stroke = o.stroke || '#2960dd';   // 边框暗蓝
+    const glow = o.glow || 'rgba(50,100,230,0.75)';
+    const fill = o.fill || 'rgba(6,10,28,0.92)';
+
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
+    // 1) 填充背景
+    buildPath();
+    ctx.fillStyle = fill;
     ctx.fill();
+
+    // 2) 强外发光（仅靠 shadow 营造扩散光晕，不画粗边）
+    buildPath();
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
     ctx.stroke();
+
+    // 3) 再描一次细边强化清晰度
+    buildPath();
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = glow;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
     ctx.shadowBlur = 0;
   }
 
@@ -344,9 +383,11 @@ export default class HUD {
     return dx * dx + dy * dy <= r * r;
   }
 
-  // 返回按钮（功能：原暂停 = 弹出暂停菜单）
+  // 返回按钮（功能：原暂停 = 弹出暂停菜单）— 圆角矩形外接矩形命中检测
   hitBackButton(x, y) {
-    return this._hitCircle(x, y, this.backX, this.backY, this.backR);
+    const r = this.backR;
+    return x >= this.backX - r && x <= this.backX + r &&
+           y >= this.backY - r && y <= this.backY + r;
   }
 
   // 兼容旧调用：暂停按钮 → 命中返回按钮
