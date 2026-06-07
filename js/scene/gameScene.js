@@ -1814,12 +1814,27 @@ export default class GameScene {
     ctx.lineWidth = 2;
     ctx.shadowColor = COLORS.neonBlue;
     ctx.shadowBlur = 10 * s * glow;
-    // 边框只包砖块区域，白球/发射器在边框外
-    ctx.strokeRect(
-      GAME_AREA_LEFT - 2, GAME_AREA_TOP - 2,
-      GAME_AREA_RIGHT - GAME_AREA_LEFT + 4,
-      BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4
-    );
+
+    // 圆角矩形描边（边框只包砖块区域，白球/发射器在边框外）
+    const x = GAME_AREA_LEFT - 2;
+    const y = GAME_AREA_TOP - 2;
+    const w = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const h = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
+    const r = 8 * s;
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.stroke();
+
     ctx.shadowBlur = 0;
   }
 
