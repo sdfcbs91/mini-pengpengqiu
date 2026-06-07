@@ -217,8 +217,8 @@ export default class GameScene {
       // 随机闪烁：15% 概率本帧不绘制（间断电流感，但不至于太频繁消失）
       if (Math.random() < 0.15) continue;
 
-      // 渐隐：最后 30 帧（约 0.5s）才开始衰减 alpha，前期保持满亮度
-      const alpha = maxTimer > 30 ? 1 : Math.max(0, maxTimer / 30);
+      // 渐隐：基于 maxTimer / 15 计算 alpha，球停击后快速淡出
+      const alpha = Math.min(1, maxTimer / 10);
 
       ctx.save();
       ctx.lineCap = 'round';
@@ -778,7 +778,7 @@ export default class GameScene {
     // 视觉特效计时器：所有受影响砖块都标记，作为下次判定依据
     // 即使本次 skipVisual=true 也要更新 timer，保持"该片仍处于视觉中"
     for (const b of affected) {
-      b.lightningTimer = 60;
+      b.lightningTimer = 15;  // 0.25 秒：球停止击打后快速消失，持续击打时不断刷新
     }
 
     // 仅在本片砖块没有进行中视觉特效时才注册新闪电链折线（视觉去重）
