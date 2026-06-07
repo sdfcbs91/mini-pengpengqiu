@@ -226,7 +226,7 @@ export default class GameScene {
    */
   _fetchUserInfoAfterGame() {
     if (typeof wx === 'undefined') return;
-    
+
     try {
       const cached = wx.getStorageSync('ppq_user_info') || {};
       if (!cached.nickName || cached.nickName === '') {
@@ -456,19 +456,19 @@ export default class GameScene {
     if (this.gameState === 'aiming') {
       const ballDist = Math.abs(x - this.launcher.x) + Math.abs(y - this.launcher.y);
       if (ballDist < 40 * SCALE) {
-        // 触摸在白球附近 → 拖拽白球位置
+        // 触摸在白球附近 → 拖拽白球位置（不显示取消按钮）
         this._isDraggingBall = true;
         this.launcher.isAiming = false;
-        this._showDragHint = false; // 开始拖动白球时隐藏提示
+        this._showDragHint = false;
+        this._showCancelHint = false;
       } else {
-        // 其他位置 → 瞄准角度
+        // 其他位置 → 瞄准角度（显示取消按钮）
         this._isDraggingBall = false;
         this.launcher.isAiming = true;
         this.launcher.setAimAngle(x, y);
-        this._showDragHint = false; // 开始瞄准时隐藏提示
+        this._showDragHint = false;
+        this._showCancelHint = true;
       }
-      // 触摸过程中显示「取消发射」按钮
-      this._showCancelHint = true;
       this._cancelHovered = false;
       this._cancelLaunch = false;
     }
@@ -545,10 +545,10 @@ export default class GameScene {
    */
   _getCancelButtonPos() {
     const s = SCALE;
-    const r = 26 * s;
+    const r = 24 * s;
     // 右下角：贴右侧面板内侧，BRICK_AREA_BOTTOM 下方留空区
-    const cx = GAME_AREA_RIGHT - r - 8 * s;
-    const cy = SCREEN_HEIGHT - r - 12 * s;
+    const cx = GAME_AREA_RIGHT + r + 20 * s;
+    const cy = SCREEN_HEIGHT - r - 40 * s;
     return { cx, cy, r };
   }
 
