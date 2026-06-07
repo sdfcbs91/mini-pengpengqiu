@@ -678,6 +678,9 @@ export default class GameScene {
    */
   _tryLaunch() {
     if (this.gameState === 'aiming' && this.launcher.isAiming) {
+      // === 发射时才真正扣除预选技能的次数 ===
+      this._consumeArmedSkills();
+
       this.launcher.isAiming = false;
       this.gameState = 'launching';
       this.launcher.startLaunch();
@@ -691,42 +694,68 @@ export default class GameScene {
   }
 
   /**
-   * 闪电技能：本轮发射的所有白球带闪电效果
-   * 球击中砖块时，连带打击该砖块的上下左右 4 邻居
-   * （在 _updateBalls 命中分支中处理）
+   * 发射时真正扣除预选技能的次数并生效
+   * 避免"点击选中但取消发射"或"跨关卡"时次数被错误扣除
    */
-  _useLightning() {
-    if (this.lightningCount <= 0) return;
-    if (this.gameState !== 'aiming') return; // 只在瞄准阶段可用
-    this.lightningCount--;
-    // 标记本轮已激活闪电
-    this._lightningArmed = true;
-    this.launcher.lightningArmed = true;
+  _consumeArmedSkills() {
+    // 闪电技能
+    if (this._lightningArmed && this.lightningCount > 0) {
+      this.lightningCount--;
+    } else {
+      // 次数不足或未预选 → 取消闪电标记
+      this._lightningArmed = false;
+      this.launcher.lightningArmed = false;
+    }
+
+    // 多球技能
+    if (this._multiBallArmed && this.multiBallCount > 0) {
+      this.multiBallCount--;
+      const addBalls = Math.ceil(this.ballCount * 0.1);
+      this.ballCount += addBalls;
+      this.launcher.ballCount = this.ballCount;
+    }
+    this._multiBallArmed = false;
+
+    // 攻击力提升
+    if (this._atkBoostArmed && this.atkBoostCount > 0) {
+      this.atkBoostCount--;
+      this.atkLevel = Math.floor(this.atkLevel * 1.1) + 1;
+    }
+    this._atkBoostArmed = false;
   }
 
   /**
-   * 闪电连锁伤害（BFS 扩散整个连通块）
+   * 闪电技能（预选）：仅标记，不立即扣除次数
+   * 真正扣除在 _tryLaunch → _consumeArmedSkills 中执行
+   */
+  _useLightning() {
+    if (this.lightningCount <= 0) return;
+    if (this.gameState !== 'aiming') return;
+    // 切换预选状态（再次点击可取消）
+    this._lightningArmed = !this._lightningArmed;
+    this.launcher.lightningArmed = this._lightningArmed;
+  }
+
+  /**
+   * 闪电连锁伤害（逐层 BFS：先打伤当前层，存活者才继续传导下一层）
    *
-   * 行为分层：
-   *   ① 伤害层（每次中心被击打都执行）：邻居受到与中心相同的 damage，扣 HP + 加分
-   *      → 邻居被电次数 = 中心被击打次数（保持一致）
-   *   ② 视觉层（去重）：若中心砖块 lightningTimer > 0（仍在闪电视觉特效持续中），
-   *      不再注册新的闪电链折线特效，避免多球先后触发同片时视觉叠加
+   * 核心逻辑：
+   *   - 从中心砖块出发逐层扩散
+   *   - 每扩散一层先对该层砖块施加伤害
+   *   - 被打死的砖块 = 断路，不会继续传导到它们的下一层邻居
+   *   - 存活的砖块才作为下一层的导体继续 BFS
    *
-   * 防重：
-   *   - 本帧 Set 去重：避免一帧内 hitBricks 多砖各自触发完整 BFS
-   *   - 跨帧重新触发：球反弹下一帧再击中同一砖块时伤害继续累积
+   * 防重：本帧 Set 去重（同帧 hitBricks 多砖不重复）
+   * 视觉：闪电链由 affected 砖块的 lightningTimer 驱动
    *
    * @param {Brick} centerBrick 中心被击中的砖块
-   * @param {number} damage 伤害值（与中心砖块同伤害）
+   * @param {number} damage 伤害值
    * @param {Ball} ball 触发的球（用于加分）
    */
   _chainLightningDamage(centerBrick, damage, ball) {
     const triggered = this._lightningTriggeredThisFrame || (this._lightningTriggeredThisFrame = new Set());
-    // 本帧内同一片砖块已被电过 → 跳过（避免一帧多砖触发的重复连锁）
     if (triggered.has(centerBrick)) return;
 
-    // 视觉去重：中心砖块的闪电特效尚未结束 → 本次仅执行伤害逻辑，不再注册新的闪电链折线
     const skipVisual = centerBrick.lightningTimer > 0;
 
     const dirs = [
@@ -736,55 +765,61 @@ export default class GameScene {
       { dr: 0, dc: 1 },
     ];
 
-    // BFS 扩散
     const visited = new Set([centerBrick]);
     triggered.add(centerBrick);
 
-    const queue = [centerBrick];
     const affected = [centerBrick];
     const edges = [];
 
-    while (queue.length > 0) {
-      const cur = queue.shift();
-      for (const { dr, dc } of dirs) {
-        const tr = cur.row + dr;
-        const tc = cur.col + dc;
-        const neighbor = this.grid.bricks.find(b =>
-          b.isAlive && b.row === tr && b.col === tc && !b.isPlank
-        );
-        if (!neighbor || visited.has(neighbor)) continue;
-        // 本帧已被电过的邻居不再参与（防一帧多次扩散）
-        if (triggered.has(neighbor)) continue;
+    // 逐层 BFS：当前层 = conductors（导体砖块）
+    let conductors = [centerBrick]; // 中心砖块作为第一层导体（已经在主流程中被 hit 过）
 
-        visited.add(neighbor);
-        triggered.add(neighbor);
-        queue.push(neighbor);
-        affected.push(neighbor);
-        edges.push({ from: cur, to: neighbor });
+    while (conductors.length > 0) {
+      const nextLayer = []; // 下一层发现的邻居
+
+      for (const cur of conductors) {
+        for (const { dr, dc } of dirs) {
+          const tr = cur.row + dr;
+          const tc = cur.col + dc;
+          const neighbor = this.grid.bricks.find(b =>
+            b.isAlive && b.row === tr && b.col === tc && !b.isPlank
+          );
+          if (!neighbor || visited.has(neighbor)) continue;
+          if (triggered.has(neighbor)) continue;
+
+          visited.add(neighbor);
+          triggered.add(neighbor);
+          affected.push(neighbor);
+          edges.push({ from: cur, to: neighbor });
+          nextLayer.push(neighbor);
+        }
       }
+
+      // 对本层发现的邻居砖块施加伤害
+      const aliveConductors = [];
+      for (const b of nextLayer) {
+        const wasDestroyed = b.hit(damage);
+        if (wasDestroyed) {
+          // 被打死 = 断路，不作为下层导体
+          this._addBrickScore(b, ball);
+          this.destroyedThisRound++;
+          this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+        } else {
+          // 存活 = 继续传导
+          aliveConductors.push(b);
+        }
+      }
+
+      // 下一层只有存活的砖块能继续导电
+      conductors = aliveConductors;
     }
 
-    // 对每个受影响砖块（除中心，中心已在主流程承受过 hit）施加伤害
-    for (let i = 1; i < affected.length; i++) {
-      const b = affected[i];
-      const wasDestroyed = b.hit(damage);
-      if (wasDestroyed) {
-        this._addBrickScore(b, ball);
-        this.destroyedThisRound++;
-        this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
-      }
-    }
-
-    // 视觉特效计时器：所有受影响砖块都标记，作为下次判定依据
-    // 即使本次 skipVisual=true 也要更新 timer，保持"该片仍处于视觉中"
+    // 视觉特效：所有受影响砖块标记 lightningTimer
     for (const b of affected) {
-      b.lightningTimer = 15;  // 0.25 秒：球停止击打后快速消失，持续击打时不断刷新
+      b.lightningTimer = 15;
     }
 
-    // 仅在本片砖块没有进行中视觉特效时才注册新闪电链折线（视觉去重）
-    // 闪电链的可见状态由 affected 砖块的 lightningTimer 驱动
-    // → 球持续击打 → lightningTimer 不断被刷新 → 闪电链持续显示
-    // → 球停止击打 → lightningTimer 自然递减到 0 → 闪电链删除
+    // 闪电链视觉去重
     if (!skipVisual && edges.length > 0) {
       if (!this._lightningChains) this._lightningChains = [];
       this._lightningChains.push({
@@ -794,25 +829,23 @@ export default class GameScene {
           x2: e.to.x + e.to.width / 2,
           y2: e.to.y + e.to.height / 2,
         })),
-        affected: affected.slice(),  // 引用受影响砖块，用于推断渲染状态
+        affected: affected.slice(),
       });
     }
   }
 
   _useMultiBall() {
     if (this.multiBallCount <= 0) return;
-    this.multiBallCount--;
-    // 增加弹球数量 = 当前球数 × 1.1（向上取整）
-    const addBalls = Math.ceil(this.ballCount * 0.1);
-    this.ballCount += addBalls;
-    this.launcher.ballCount = this.ballCount;
+    if (this.gameState !== 'aiming') return;
+    // 切换预选状态
+    this._multiBallArmed = !this._multiBallArmed;
   }
 
   _useAtkBoost() {
     if (this.atkBoostCount <= 0) return;
-    this.atkBoostCount--;
-    // 攻击力 = 当前攻击力 × 1.1 + 1
-    this.atkLevel = Math.floor(this.atkLevel * 1.1) + 1;
+    if (this.gameState !== 'aiming') return;
+    // 切换预选状态（真正生效在 _consumeArmedSkills 中）
+    this._atkBoostArmed = !this._atkBoostArmed;
   }
 
   /**
@@ -1601,8 +1634,10 @@ export default class GameScene {
     this.launcher.init(nextX, this.ballCount);
     this.launcher.showAimLine = this.showAimLine;
 
-    // 清除本轮闪电状态（避免延续到下一轮）
+    // 清除本轮技能预选状态（避免延续到下一轮）
     this._lightningArmed = false;
+    this._multiBallArmed = false;
+    this._atkBoostArmed = false;
     this.launcher.lightningArmed = false;
 
     this.gameState = 'aiming';
