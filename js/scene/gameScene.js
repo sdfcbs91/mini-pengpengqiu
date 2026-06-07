@@ -5,6 +5,7 @@ import {
   LAUNCH_Y, LIGHTNING_INITIAL, MULTIBALL_INITIAL, MAX_ENERGY, ENERGY_PER_BRICK,
   GRID_COLS, GRID_ROWS, BALL_RADIUS,
   TARGET_SCORE, LEVEL_TIME_LIMIT, BRICK_AREA_BOTTOM,
+  LAUNCH_BAR_HEIGHT, LAUNCH_BAR_WIDTH, LAUNCH_BAR_X_LEFT, LAUNCH_BAR_X_RIGHT,
 } from '../config';
 import Grid from '../core/grid';
 import Brick from '../core/brick';
@@ -330,7 +331,9 @@ export default class GameScene {
       this.grid.initLevel(this.stage);
     }
 
-    this.launcher.init(SCREEN_WIDTH / 2, this.ballCount);
+    // 白球初始位置：发射轨道中心
+    const launchCenterX = (LAUNCH_BAR_X_LEFT + LAUNCH_BAR_X_RIGHT) / 2;
+    this.launcher.init(launchCenterX, this.ballCount);
   }
 
   /**
@@ -489,9 +492,11 @@ export default class GameScene {
     }
 
     if (this._isDraggingBall) {
-      // 拖拽白球X位置（限制在游戏区域内，使用灵敏度系数）
+      // 拖拽白球X位置：限制在白色发射轨道线范围内
       const moveX = dx * this._touchSensitivity;
-      this.launcher.x = Math.max(GAME_AREA_LEFT + 12 * SCALE, Math.min(GAME_AREA_RIGHT - 12 * SCALE, this.launcher.x + moveX));
+      const minX = LAUNCH_BAR_X_LEFT + BALL_RADIUS;
+      const maxX = LAUNCH_BAR_X_RIGHT - BALL_RADIUS;
+      this.launcher.x = Math.max(minX, Math.min(maxX, this.launcher.x + moveX));
     } else if (this.launcher.isAiming) {
       // 瞄准角度：使用增量调整，更精细
       // 传递增量dx和dy，launcher内部会乘以不同灵敏度系数
@@ -1433,6 +1438,9 @@ export default class GameScene {
     // 砖块和道具
     this.grid.render(ctx, this.glowPhase);
 
+    // 白色发射轨道线（白球横向移动范围的视觉指示）
+    this._renderLaunchBar(ctx);
+
     // 球（重置状态确保白球不被前面渲染的shadow/alpha污染）
     ctx.globalAlpha = 1;
     ctx.shadowColor = 'transparent';
@@ -1813,6 +1821,45 @@ export default class GameScene {
       BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4
     );
     ctx.shadowBlur = 0;
+  }
+
+  /**
+   * 渲染白色发射轨道线（限制白球横向移动范围的视觉指示）
+   * 与白球同 Y 轴，居中放置，宽度 = 砖块区宽度的 80%
+   */
+  _renderLaunchBar(ctx) {
+    const s = SCALE;
+    const x = LAUNCH_BAR_X_LEFT;
+    const y = LAUNCH_Y - LAUNCH_BAR_HEIGHT / 2;
+    const w = LAUNCH_BAR_WIDTH;
+    const h = LAUNCH_BAR_HEIGHT;
+    const r = h / 2;
+
+    ctx.save();
+    // 轨道渐变填充：两端透明、中间偏白，营造"光带"质感
+    const gradient = ctx.createLinearGradient(x, y, x + w, y);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+    gradient.addColorStop(0.15, 'rgba(255,255,255,0.55)');
+    gradient.addColorStop(0.5, 'rgba(255,255,255,0.85)');
+    gradient.addColorStop(0.85, 'rgba(255,255,255,0.55)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0.05)');
+    ctx.fillStyle = gradient;
+    ctx.shadowColor = 'rgba(255,255,255,0.5)';
+    ctx.shadowBlur = 8 * s;
+
+    // 圆角矩形
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
   }
 
   _renderPauseOverlay(ctx) {

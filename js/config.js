@@ -64,8 +64,16 @@ export const BRICK_AREA_BOTTOM = GAME_AREA_TOP + GRID_ROWS * (BRICK_H + BRICK_GA
 export const TARGET_SCORE = 300;                           // 目标分数（达到即过关）
 export const LEVEL_TIME_LIMIT = 120;                       // 单关倒计时（秒），默认 2 分钟
 
-// 发射点
-export const LAUNCH_Y = GAME_AREA_BOTTOM - 10 * SCALE;
+// 发射点（白球位置 = 发射轨道线 Y 位置）
+// 相对原位置下移 20*SCALE
+export const LAUNCH_Y = GAME_AREA_BOTTOM + 10 * SCALE;
+
+// 白色发射轨道线（限制白球横向移动范围）
+// 居中放置，宽度 = 砖块区宽度的 80%
+export const LAUNCH_BAR_HEIGHT = 5 * SCALE;
+export const LAUNCH_BAR_WIDTH = (GAME_AREA_RIGHT - GAME_AREA_LEFT) * 0.8;
+export const LAUNCH_BAR_X_LEFT = GAME_AREA_LEFT + ((GAME_AREA_RIGHT - GAME_AREA_LEFT) - LAUNCH_BAR_WIDTH) / 2;
+export const LAUNCH_BAR_X_RIGHT = LAUNCH_BAR_X_LEFT + LAUNCH_BAR_WIDTH;
 
 // 球配置
 export const BALL_RADIUS = 6 * SCALE;
