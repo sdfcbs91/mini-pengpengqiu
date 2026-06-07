@@ -829,13 +829,59 @@ export default class Grid {
   generateBricksAtRow(stage, targetRow) {
     if (targetRow < 0 || targetRow >= GRID_ROWS) return;
 
-    // 收集该行已有砖块/横板的列（避免重叠）
+    // 收集该行已被占用的列（避免砖块与已有元素重叠）
+    // 包含：砖块、横板、加球器、白洞、消单行、消单列
     const usedCols = new Set();
+    const targetRowY = this.getRowY(targetRow);
+
+    // 判断给定 (x, y) 中心坐标是否落在指定 row 的格子内
+    const isInTargetRow = (cy) => {
+      return cy >= targetRowY && cy <= targetRowY + BRICK_H;
+    };
+    // 根据中心 x 坐标反推 col（加 0.5 容错四舍五入）
+    const colFromCenterX = (cx) => {
+      return Math.round((cx - GAME_AREA_LEFT - BRICK_GAP - BRICK_W / 2) / (BRICK_W + BRICK_GAP));
+    };
+
+    // 1) 砖块
     this.bricks.forEach(b => {
       if (b.isAlive && b.row === targetRow) usedCols.add(b.col);
     });
+    // 2) 横板
     this.planks.forEach(p => {
       if (p.row === targetRow) usedCols.add(p.col);
+    });
+    // 3) 加球器（pickup）
+    this.pickups.forEach(p => {
+      if (p.collected) return;
+      if (isInTargetRow(p.y)) {
+        const c = colFromCenterX(p.x);
+        if (c >= 0 && c < GRID_COLS) usedCols.add(c);
+      }
+    });
+    // 4) 白洞（warp）
+    this.warps.forEach(w => {
+      if (!w.active) return;
+      if (isInTargetRow(w.y)) {
+        const c = colFromCenterX(w.x);
+        if (c >= 0 && c < GRID_COLS) usedCols.add(c);
+      }
+    });
+    // 5) 消单行（rowClear）
+    this.rowClears.forEach(rc => {
+      if (rc.collected) return;
+      if (rc.row === targetRow || isInTargetRow(rc.y)) {
+        const c = colFromCenterX(rc.x);
+        if (c >= 0 && c < GRID_COLS) usedCols.add(c);
+      }
+    });
+    // 6) 消单列（colClear）
+    this.colClears.forEach(cc => {
+      if (cc.collected) return;
+      if (isInTargetRow(cc.y)) {
+        const c = colFromCenterX(cc.x);
+        if (c >= 0 && c < GRID_COLS) usedCols.add(c);
+      }
     });
 
     // 仅在可用列范围内寻找空位（最左/最右列保持空）
