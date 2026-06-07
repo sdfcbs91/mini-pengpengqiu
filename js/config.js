@@ -43,10 +43,12 @@ export const RIGHT_PANEL_X = SCREEN_WIDTH - 12 * SCALE - RIGHT_PANEL_WIDTH;  // 
 export const BACK_BUTTON_R = 22 * SCALE;                   // 返回按钮半径
 
 // 中间游戏区域（避开左右面板 + 顶部胶囊 + 底部留空给发射器）
+// 砖块区域整体下移 20*SCALE：GAME_AREA_TOP 和 GAME_AREA_BOTTOM 同步下移
+// 但 LAUNCH_Y（白球位置）保持原值不变（见下方 LAUNCH_Y 定义）
 export const GAME_AREA_LEFT = LEFT_PANEL_X + LEFT_PANEL_WIDTH + 14 * SCALE;
 export const GAME_AREA_RIGHT = RIGHT_PANEL_X - 14 * SCALE;
-export const GAME_AREA_TOP = 16 * SCALE;
-export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 50 * SCALE;  // 底部留约 50*SCALE 空间放发射器/瞄准提示
+export const GAME_AREA_TOP = 36 * SCALE;                   // 原 16 → 36（下移 20*SCALE）
+export const GAME_AREA_BOTTOM = SCREEN_HEIGHT - 30 * SCALE; // 原 -50 → -30（下移 20*SCALE）
 export const GAME_AREA_WIDTH = GAME_AREA_RIGHT - GAME_AREA_LEFT;
 export const GAME_AREA_HEIGHT = GAME_AREA_BOTTOM - GAME_AREA_TOP;
 
@@ -65,8 +67,9 @@ export const TARGET_SCORE = 300;                           // 目标分数（达
 export const LEVEL_TIME_LIMIT = 120;                       // 单关倒计时（秒），默认 2 分钟
 
 // 发射点（白球位置 = 发射轨道线 Y 位置）
-// 相对原位置下移 20*SCALE
-export const LAUNCH_Y = GAME_AREA_BOTTOM + 10 * SCALE;
+// 固定在屏幕底部上方 40*SCALE，不随 GAME_AREA_BOTTOM 变化
+// 这样砖块区下移时，白球位置保持不动
+export const LAUNCH_Y = SCREEN_HEIGHT - 40 * SCALE;
 
 // 白色发射轨道线（限制白球横向移动范围）
 // 居中放置，宽度 = 砖块区宽度的 80%
