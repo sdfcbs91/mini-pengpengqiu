@@ -21,6 +21,8 @@ export default class Brick {
     this.shakeTimer = 0;
     this.shakeOffsetX = 0;
     this.shakeOffsetY = 0;
+    // 闪电特效计时器（>0 时绘制淡蓝闪电光晕，由 brick 自身渲染时使用，已废弃）
+    this.lightningTimer = 0;
   }
 
   init(row, col, x, y, w, h, hp, type = 'normal', triangleDir = '') {
@@ -76,6 +78,11 @@ export default class Brick {
       this.shakeOffsetY = 0;
     }
 
+    // 闪电特效计时器（递减）
+    if (this.lightningTimer > 0) {
+      this.lightningTimer--;
+    }
+
     // 平滑下移动画
     if (Math.abs(this.y - this.targetY) > 0.5) {
       this.y += (this.targetY - this.y) * 0.2;
@@ -99,6 +106,35 @@ export default class Brick {
     } else {
       this._renderNormal(ctx, x, y, w, h, scheme, glowPhase, s);
     }
+    // 闪电视觉效果由 gameScene 的"闪电链电丝"统一渲染，砖块本体不再叠加边框光晕
+  }
+
+  /**
+   * 渲染闪电特效：仅在砖块周围呈现淡蓝色光晕闪烁
+   * 中心放射电弧已移除，电弧由 gameScene 的 lightningChain 折线统一渲染
+   */
+  _renderLightningEffect(ctx, x, y, w, h, s) {
+    const t = this.lightningTimer;
+    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(t * 0.5));
+    const alpha = Math.min(1, t / 30) * pulse;
+
+    ctx.save();
+
+    // 外圈淡蓝光晕（蓝色丝带闪烁）
+    ctx.shadowColor = `rgba(120, 200, 255, ${alpha})`;
+    ctx.shadowBlur = 14 * s * pulse;
+    ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.8})`;
+    ctx.lineWidth = 2 * s;
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+
+    // 内层亮蓝边
+    ctx.shadowBlur = 6 * s * pulse;
+    ctx.strokeStyle = `rgba(180, 235, 255, ${alpha})`;
+    ctx.lineWidth = 1 * s;
+    ctx.strokeRect(x, y, w, h);
+    ctx.shadowBlur = 0;
+
+    ctx.restore();
   }
 
   _renderNormal(ctx, x, y, w, h, scheme, glowPhase, s) {

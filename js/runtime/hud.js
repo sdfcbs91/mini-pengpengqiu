@@ -70,6 +70,7 @@ export default class HUD {
       timeLeft = 0,
       showAimLine = true,
       targetScore = TARGET_SCORE,
+      lightningArmed = false,
     } = data || {};
 
     // ---- 1) 左上角返回按钮 ----
@@ -81,12 +82,17 @@ export default class HUD {
     // ---- 3) 左侧倒计时面板 ----
     this._drawTimerPanel(ctx, s, timeLeft);
 
-    // ---- 4) 右侧技能按钮 ----
-    this._drawSkillCircle(ctx, this.skillCx, this.lightningY, this.btnR, s, lightningCount, '#ff3344');
-    this._drawLightning(ctx, this.skillCx, this.lightningY - 3 * s, 16 * s);
+    // ---- 4) 右侧技能按钮（中央显示中文文案 + 底部显示数量） ----
+    // 闪电按钮：激活时显示金色光晕
+    if (lightningArmed) {
+      this._drawSkillCircleArmed(ctx, this.skillCx, this.lightningY, this.btnR, s, lightningCount);
+    } else {
+      this._drawSkillCircle(ctx, this.skillCx, this.lightningY, this.btnR, s, lightningCount);
+    }
+    this._drawSkillLabel(ctx, this.skillCx, this.lightningY, s, '闪电');
 
-    this._drawSkillCircle(ctx, this.skillCx, this.multiBallY, this.btnR, s, multiBallCount, '#ff3366');
-    this._drawMultiBall(ctx, this.skillCx, this.multiBallY - 3 * s, 13 * s);
+    this._drawSkillCircle(ctx, this.skillCx, this.multiBallY, this.btnR, s, multiBallCount);
+    this._drawSkillLabel(ctx, this.skillCx, this.multiBallY, s, '加球');
 
     this._drawAtkButton(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount, atkLevel);
   }
@@ -251,29 +257,93 @@ export default class HUD {
   // ============================================================
   // 通用技能按钮（圆形 + 计数）
   // ============================================================
-  _drawSkillCircle(ctx, cx, cy, r, s, count, color) {
-    const glow = 0.6 + 0.3 * Math.sin(this.glowPhase);
+  // ============================================================
+  // 通用技能按钮（圆形 + 计数）— 统一蓝色边框/光晕，与左侧面板一致
+  // ============================================================
+  _drawSkillCircle(ctx, cx, cy, r, s, count) {
+    // 与左侧"积分/倒计时"面板使用同一组蓝色
+    const STROKE = '#2960dd';
+    const GLOW = 'rgba(50,100,230,0.75)';
+    const FILL = 'rgba(6,10,28,0.92)';
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 8 * s * glow;
+    // 1) 填充背景
+    ctx.fillStyle = FILL;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2) 强外发光描边
+    ctx.shadowColor = GLOW;
+    ctx.shadowBlur = 16;
+    ctx.strokeStyle = STROKE;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // 3) 二次细描边强化清晰度
+    ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = 'rgba(80,8,16,0.4)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 计数小标签 "xN"
-    ctx.fillStyle = COLORS.textWhite;
+    // 计数小标签 "xN"（统一蓝色文字）
+    ctx.fillStyle = '#5b8dff';
     ctx.font = `bold ${10 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(`x${count}`, cx, cy + r * 0.32);
+  }
+
+  /**
+   * 闪电技能"已蓄力"按钮：金黄边框 + 强呼吸光晕，提示玩家闪电已就绪
+   */
+  _drawSkillCircleArmed(ctx, cx, cy, r, s, count) {
+    const pulse = 0.7 + 0.3 * Math.sin(this.glowPhase * 2);
+
+    ctx.fillStyle = 'rgba(40,30,8,0.92)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = `rgba(255,210,80,${pulse})`;
+    ctx.shadowBlur = 22;
+    ctx.strokeStyle = '#ffcc44';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#ffdd88';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`x${count}`, cx, cy + r * 0.32);
+  }
+
+  /**
+   * 绘制技能按钮中央的中文文案（统一蓝色，与左侧面板风格一致）
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} cx 圆心 X
+   * @param {number} cy 圆心 Y
+   * @param {number} s SCALE
+   * @param {string} text 文案（如"闪电"/"加球"）
+   */
+  _drawSkillLabel(ctx, cx, cy, s, text) {
+    const COLOR = '#5b8dff';
+    ctx.fillStyle = COLOR;
+    ctx.font = `bold ${13 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(50,100,230,0.85)';
+    ctx.shadowBlur = 4 * s;
+    ctx.fillText(text, cx, cy - 3 * s);
+    ctx.shadowBlur = 0;
   }
 
   _drawLightning(ctx, cx, cy, size) {
@@ -313,36 +383,19 @@ export default class HUD {
   }
 
   _drawAtkButton(ctx, cx, cy, r, s, count, level) {
-    const glow = 0.6 + 0.3 * Math.sin(this.glowPhase + 1);
+    // 与其他技能按钮一致的蓝色风格
+    this._drawSkillCircle(ctx, cx, cy, r, s, count);
 
-    // 按钮圈
-    ctx.strokeStyle = '#ff9900';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = 'rgba(255,153,0,0.6)';
-    ctx.shadowBlur = 8 * s * glow;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = 'rgba(100,50,0,0.3)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 剑/攻击力图标
-    ctx.fillStyle = '#ff9900';
-    ctx.font = `bold ${15 * s}px Arial`;
+    // 攻击力文案（中文 + 等级数字）
+    const COLOR = '#5b8dff';
+    ctx.fillStyle = COLOR;
+    ctx.font = `bold ${12 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`⚔${level}`, cx, cy - 3 * s);
-
-    // 剩余次数
-    ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${10 * s}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`x${count}`, cx, cy + r * 0.32);
+    ctx.shadowColor = 'rgba(50,100,230,0.85)';
+    ctx.shadowBlur = 4 * s;
+    ctx.fillText(`攻击${level}`, cx, cy - 3 * s);
+    ctx.shadowBlur = 0;
   }
 
   // ============================================================

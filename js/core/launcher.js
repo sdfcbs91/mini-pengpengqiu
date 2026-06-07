@@ -25,6 +25,9 @@ export default class Launcher {
 
     this.firstLandX = -1;
     this.landedCount = 0;
+
+    // 闪电技能：本轮发射的所有球都带闪电效果
+    this.lightningArmed = false;
   }
 
   init(x, ballCount) {
@@ -81,6 +84,8 @@ export default class Launcher {
     this.launchTimer = 0;
     this.firstLandX = -1;
     this.landedCount = 0;
+    // 注意：不能在这里重置 lightningArmed，否则发射的球会拿不到闪电属性
+    // lightningArmed 由 gameScene._settle 在每回合结算时清除
   }
 
   updateLaunch() {
@@ -92,6 +97,8 @@ export default class Launcher {
       this.launchTimer = 0;
       const ball = new Ball();
       ball.init(this.x, this.y, this.angle);
+      // 注入本轮闪电属性
+      ball.hasLightning = !!this.lightningArmed;
       this.balls.push(ball);
       this.launchedCount++;
     }

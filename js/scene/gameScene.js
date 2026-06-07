@@ -189,6 +189,96 @@ export default class GameScene {
   }
 
   /**
+   * 更新并渲染闪电链特效
+   *  - 闪电链的可见状态完全由 affected 砖块的 lightningTimer 驱动
+   *  - 只要 affected 中还有任意砖块 lightningTimer > 0 → 持续渲染
+   *  - 全部砖块 lightningTimer = 0 → 删除该链
+   *  - 球持续击打砖块时，触发链会刷新 affected 的 lightningTimer，确保特效不间断
+   */
+  _updateAndRenderLightningChains(ctx) {
+    if (!this._lightningChains || this._lightningChains.length === 0) return;
+    const s = SCALE;
+
+    for (let i = this._lightningChains.length - 1; i >= 0; i--) {
+      const chain = this._lightningChains[i];
+
+      // 取 affected 中最大 lightningTimer 作为该链的可见生命周期
+      let maxTimer = 0;
+      for (const b of chain.affected) {
+        // 已死亡且被 cleanup 过的砖块视为 0
+        if (b.lightningTimer > maxTimer) maxTimer = b.lightningTimer;
+      }
+
+      if (maxTimer <= 0) {
+        this._lightningChains.splice(i, 1);
+        continue;
+      }
+
+      // 随机闪烁：15% 概率本帧不绘制（间断电流感，但不至于太频繁消失）
+      if (Math.random() < 0.15) continue;
+
+      // 渐隐：最后 30 帧（约 0.5s）才开始衰减 alpha，前期保持满亮度
+      const alpha = maxTimer > 30 ? 1 : Math.max(0, maxTimer / 30);
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(120, 200, 255, 0.95)';
+      ctx.shadowBlur = 10 * s;
+
+      // 1) 外层粗光晕线
+      ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.45})`;
+      ctx.lineWidth = 4 * s;
+      for (const e of chain.edges) {
+        this._drawJaggedLightningSegment(ctx, e.x1, e.y1, e.x2, e.y2, s);
+      }
+
+      // 2) 内层亮蓝白细线（更清晰的核心电弧）
+      ctx.shadowBlur = 6 * s;
+      ctx.strokeStyle = `rgba(220, 240, 255, ${alpha})`;
+      ctx.lineWidth = 1.5 * s;
+      for (const e of chain.edges) {
+        this._drawJaggedLightningSegment(ctx, e.x1, e.y1, e.x2, e.y2, s);
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+  }
+
+  /**
+   * 在两点间绘制锯齿闪电折线（每段做 ±jitter 的垂直偏移）
+   */
+  _drawJaggedLightningSegment(ctx, x1, y1, x2, y2, s) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.5) return;
+
+    const ux = dx / len;
+    const uy = dy / len;
+    // 垂直法向量（锯齿在垂直方向偏移）
+    const px = -uy;
+    const py = ux;
+
+    // 段数：长度越大段数越多
+    const segments = Math.max(3, Math.min(6, Math.floor(len / (8 * s))));
+    const jitterMax = 5 * s;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    for (let i = 1; i < segments; i++) {
+      const t = i / segments;
+      const baseX = x1 + dx * t;
+      const baseY = y1 + dy * t;
+      const offset = (Math.random() - 0.5) * jitterMax * 2;
+      ctx.lineTo(baseX + px * offset, baseY + py * offset);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  /**
    * 渲染拖动白球时的"取消发射"按钮
    * 手指悬停时按钮发出强红光
    */
@@ -302,6 +392,9 @@ export default class GameScene {
 
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
+
+    // 闪电链特效（每条链含一组边的折线）
+    this._lightningChains = [];
 
     // Combo 系统（短时间窗口连击）：60帧 = 1秒未击中砖块则清零
     this._comboCount = 0;
@@ -597,24 +690,112 @@ export default class GameScene {
     }
   }
 
+  /**
+   * 闪电技能：本轮发射的所有白球带闪电效果
+   * 球击中砖块时，连带打击该砖块的上下左右 4 邻居
+   * （在 _updateBalls 命中分支中处理）
+   */
   _useLightning() {
     if (this.lightningCount <= 0) return;
+    if (this.gameState !== 'aiming') return; // 只在瞄准阶段可用
     this.lightningCount--;
+    // 标记本轮已激活闪电
+    this._lightningArmed = true;
+    this.launcher.lightningArmed = true;
+  }
 
-    // 清除最底行砖块
-    let maxRow = -1;
-    this.grid.bricks.forEach(b => {
-      if (b.isAlive && b.row > maxRow) maxRow = b.row;
-    });
-    if (maxRow >= 0) {
-      this.grid.bricks.forEach(b => {
-        if (b.isAlive && b.row === maxRow) {
-          b.isAlive = false;
-          this._addBrickScore(b, null);
-          this.destroyedThisRound++;
-        }
+  /**
+   * 闪电连锁伤害（BFS 扩散整个连通块）
+   *
+   * 行为分层：
+   *   ① 伤害层（每次中心被击打都执行）：邻居受到与中心相同的 damage，扣 HP + 加分
+   *      → 邻居被电次数 = 中心被击打次数（保持一致）
+   *   ② 视觉层（去重）：若中心砖块 lightningTimer > 0（仍在闪电视觉特效持续中），
+   *      不再注册新的闪电链折线特效，避免多球先后触发同片时视觉叠加
+   *
+   * 防重：
+   *   - 本帧 Set 去重：避免一帧内 hitBricks 多砖各自触发完整 BFS
+   *   - 跨帧重新触发：球反弹下一帧再击中同一砖块时伤害继续累积
+   *
+   * @param {Brick} centerBrick 中心被击中的砖块
+   * @param {number} damage 伤害值（与中心砖块同伤害）
+   * @param {Ball} ball 触发的球（用于加分）
+   */
+  _chainLightningDamage(centerBrick, damage, ball) {
+    const triggered = this._lightningTriggeredThisFrame || (this._lightningTriggeredThisFrame = new Set());
+    // 本帧内同一片砖块已被电过 → 跳过（避免一帧多砖触发的重复连锁）
+    if (triggered.has(centerBrick)) return;
+
+    // 视觉去重：中心砖块的闪电特效尚未结束 → 本次仅执行伤害逻辑，不再注册新的闪电链折线
+    const skipVisual = centerBrick.lightningTimer > 0;
+
+    const dirs = [
+      { dr: -1, dc: 0 },
+      { dr: 1, dc: 0 },
+      { dr: 0, dc: -1 },
+      { dr: 0, dc: 1 },
+    ];
+
+    // BFS 扩散
+    const visited = new Set([centerBrick]);
+    triggered.add(centerBrick);
+
+    const queue = [centerBrick];
+    const affected = [centerBrick];
+    const edges = [];
+
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      for (const { dr, dc } of dirs) {
+        const tr = cur.row + dr;
+        const tc = cur.col + dc;
+        const neighbor = this.grid.bricks.find(b =>
+          b.isAlive && b.row === tr && b.col === tc && !b.isPlank
+        );
+        if (!neighbor || visited.has(neighbor)) continue;
+        // 本帧已被电过的邻居不再参与（防一帧多次扩散）
+        if (triggered.has(neighbor)) continue;
+
+        visited.add(neighbor);
+        triggered.add(neighbor);
+        queue.push(neighbor);
+        affected.push(neighbor);
+        edges.push({ from: cur, to: neighbor });
+      }
+    }
+
+    // 对每个受影响砖块（除中心，中心已在主流程承受过 hit）施加伤害
+    for (let i = 1; i < affected.length; i++) {
+      const b = affected[i];
+      const wasDestroyed = b.hit(damage);
+      if (wasDestroyed) {
+        this._addBrickScore(b, ball);
+        this.destroyedThisRound++;
+        this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+      }
+    }
+
+    // 视觉特效计时器：所有受影响砖块都标记，作为下次判定依据
+    // 即使本次 skipVisual=true 也要更新 timer，保持"该片仍处于视觉中"
+    for (const b of affected) {
+      b.lightningTimer = 60;
+    }
+
+    // 仅在本片砖块没有进行中视觉特效时才注册新闪电链折线（视觉去重）
+    // 闪电链的可见状态由 affected 砖块的 lightningTimer 驱动
+    // → 球持续击打 → lightningTimer 不断被刷新 → 闪电链持续显示
+    // → 球停止击打 → lightningTimer 自然递减到 0 → 闪电链删除
+    if (!skipVisual && edges.length > 0) {
+      if (!this._lightningChains) this._lightningChains = [];
+      this._lightningChains.push({
+        edges: edges.map(e => ({
+          x1: e.from.x + e.from.width / 2,
+          y1: e.from.y + e.from.height / 2,
+          x2: e.to.x + e.to.width / 2,
+          y2: e.to.y + e.to.height / 2,
+        })),
+        affected: affected.slice(),  // 引用受影响砖块，用于推断渲染状态
       });
-      this.grid.cleanup();
     }
   }
 
@@ -745,6 +926,10 @@ export default class GameScene {
     // 横板也参与碰撞（球碰到反弹但不消除）
     const allObstacles = [...bricks, ...this.grid.planks];
 
+    // 本帧闪电去重集合：同一帧内 hitBricks 多砖触发只电一次连通块
+    // 跨帧（球反弹后再击中）则重新触发完整 BFS → 邻居跟着多扣血，与中心保持一致
+    this._lightningTriggeredThisFrame = new Set();
+
     this.launcher.balls.forEach(ball => {
       if (ball.isFullyStopped()) return;
 
@@ -819,6 +1004,12 @@ export default class GameScene {
           this._addBrickScore(brick, ball);
           this.destroyedThisRound++;
           this.energy = Math.min(MAX_ENERGY, this.energy + ENERGY_PER_BRICK);
+        }
+
+        // ===== 闪电连锁打击：球带闪电时，连带攻击 4 邻居（上下左右） =====
+        // 中心砖块的 lightningTimer 由 _chainLightningDamage 统一设置（在 skipVisual 判定之后）
+        if (ball.hasLightning && !brick.isPlank) {
+          this._chainLightningDamage(brick, damage, ball);
         }
       }
 
@@ -1410,6 +1601,10 @@ export default class GameScene {
     this.launcher.init(nextX, this.ballCount);
     this.launcher.showAimLine = this.showAimLine;
 
+    // 清除本轮闪电状态（避免延续到下一轮）
+    this._lightningArmed = false;
+    this.launcher.lightningArmed = false;
+
     this.gameState = 'aiming';
   }
 
@@ -1524,6 +1719,7 @@ export default class GameScene {
       timeLeft: this.timeLeft || 0,
       showAimLine: this.showAimLine,
       targetScore: this.targetScore,  // 动态目标分（每关不同）
+      lightningArmed: !!this._lightningArmed,  // 闪电是否已蓄力
     });
 
     // 加速提示
@@ -1534,6 +1730,11 @@ export default class GameScene {
     // 粒子效果
     if (this._particles.length > 0) {
       this._updateAndRenderParticles(ctx);
+    }
+
+    // 闪电链特效（叠加在砖块之上、分数文字之下）
+    if (this._lightningChains && this._lightningChains.length > 0) {
+      this._updateAndRenderLightningChains(ctx);
     }
 
     // 分数飞起特效

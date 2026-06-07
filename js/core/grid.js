@@ -984,7 +984,11 @@ export default class Grid {
   }
 
   update() {
-    this.bricks.forEach(b => { if (b.isAlive) b.update(); });
+    this.bricks.forEach(b => {
+      // 存活砖块正常更新，已死亡但带闪电余晖的砖块仅递减计时器
+      if (b.isAlive) b.update();
+      else if (b.lightningTimer > 0) b.lightningTimer--;
+    });
     this.pickups.forEach(p => { if (!p.collected) p.update(); });
     this.planks.forEach(p => { p.update(); });
     this.warps.forEach(w => { if (w.active) w.update(); });

@@ -36,6 +36,7 @@ export default class Ball {
     this.powerLevel = 0;         // 0=普通, 1=绿光(x1.5+1), 2=蓝光(x3+1)
     this.noBrickBounces = 0;     // 连续未碰砖块的反弹次数（用于死循环检测）
     this.needRecycle = false;    // 是否需要回收（死循环）
+    this.hasLightning = false;   // 是否带闪电效果（击中时连带打击4邻居）
   }
 
   init(x, y, angle) {
@@ -59,6 +60,7 @@ export default class Ball {
     this.powerLevel = 0;
     this.noBrickBounces = 0;
     this.needRecycle = false;
+    // 注意：hasLightning 不在 init 中重置，由发射时按 launcher.lightningArmed 注入
   }
 
   /**
