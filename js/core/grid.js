@@ -10,9 +10,53 @@ import {
 } from '../config';
 import { getLevelConfig } from '../data/levelData';
 
+// =====================================================================
+// 砖块行生成 - 可用列范围（最左/最右列强制留空，方便球边墙反弹）
+// GRID_COLS = 12，可用列为 1~10（共 10 列）
+// =====================================================================
+const USABLE_COL_MIN = 1;
+const USABLE_COL_MAX = GRID_COLS - 2;  // = 10
+
+// 10 种预设单行图形（参考消消乐/打砖块经典关卡布局）
+// 每个数组是 col 索引（已在可用列范围内）
+const ROW_PATTERNS = [
+  // ① 满行（一字横档）
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  // ② 左半行（左侧城墙）
+  [1, 2, 3, 4, 5],
+  // ③ 右半行（右侧城墙）
+  [6, 7, 8, 9, 10],
+  // ④ 中央块（中间一段连排）
+  [3, 4, 5, 6, 7, 8],
+  // ⑤ 双侧夹击（左右各 2 列，中间走廊）
+  [1, 2, 9, 10],
+  // ⑥ 梳齿（奇数列）
+  [1, 3, 5, 7, 9],
+  // ⑦ 梳齿（偶数列）
+  [2, 4, 6, 8, 10],
+  // ⑧ 中间双列开口（碗状）
+  [1, 2, 3, 4, 5, 8, 9, 10],
+  // ⑨ 双小开口（W 形）
+  [1, 2, 4, 5, 6, 7, 9, 10],
+  // ⑩ 阶梯（两端 + 中央）
+  [1, 2, 5, 6, 9, 10],
+];
+
+/**
+ * 从预设图形中随机选一个并做轻微扰动
+ * - 70% 概率保留该图形所有列
+ * - 30% 概率每列独立 85% 保留率（产生轻微变化）
+ * 总是返回 col 数组（保证全部在 USABLE_COL_MIN ~ USABLE_COL_MAX 之间）
+ */
+function pickRandomRowPattern() {
+  const base = ROW_PATTERNS[Math.floor(Math.random() * ROW_PATTERNS.length)];
+  if (Math.random() < 0.7) return [...base];
+  return base.filter(() => Math.random() < 0.85);
+}
+
 /**
  * 网格管理器
- * 砖块生成策略：通道+口袋式布局，让球在砖块间来回弹跳
+ * 砖块生成策略：从 10 种预设图形中随机选取，最左/最右列保持空（边墙反弹通道）
  */
 export default class Grid {
   constructor() {
@@ -50,7 +94,8 @@ export default class Grid {
     this.rowCounter = 0;
 
     // 初始保留空列（整局保持，让球有通道可钻）
-    this.reservedEmptyCol = Math.floor(Math.random() * GRID_COLS);
+    // 初始保留空列（在可用列范围内，让球有通道可钻）
+    this.reservedEmptyCol = USABLE_COL_MIN + Math.floor(Math.random() * (USABLE_COL_MAX - USABLE_COL_MIN + 1));
 
     // 尝试使用预设模板（每5关使用一次，增加趣味性）
     if (stage >= 3 && stage % 5 === 0 && this._applyTemplate(stage)) {
@@ -416,16 +461,14 @@ export default class Grid {
   }
 
   /**
-   * 生成一行砖块 — 核心策略：
-   * 1. 30% 概率开启/延续垂直通道（某一列持续空3~5行）
-   * 2. 20% 概率生成"口袋"行（左右两侧满，中间空1~2列）
-   * 3. 15% 概率生成"走廊"行（只有左右墙壁列有砖块，中间全空）
-   * 4. 其余正常随机填充
+   * 生成一行砖块
+   * 从 10 种预设图形（ROW_PATTERNS）中随机选一个并做轻微扰动
+   * 最左 / 最右列（col=0、col=GRID_COLS-1）保持空，作为球的边墙反弹通道
    */
   generateRow(stage, rowIndex = 0) {
     const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
     const baseHp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));
-    // 每新一轮砖块 HP 提高 10%，整体降低24%平衡难度
+    // 每新一轮砖块 HP 提高 10%，整体降低 24% 平衡难度
     const hp = Math.round(baseHp * Math.pow(1.1, this.rowCounter) * 0.76);
     const triangleRate = cfg.triangleRate;
     const pickupMin = cfg.pickupMin;
@@ -433,24 +476,14 @@ export default class Grid {
 
     this.rowCounter++;
 
-    // 决定本行布局模式
-    const roll = Math.random();
-    let cols;
+    // 从预设图形中随机抽取，并过滤掉边缘列（兜底，保证不会出现在 col=0/GRID_COLS-1）
+    let cols = pickRandomRowPattern().filter(
+      c => c >= USABLE_COL_MIN && c <= USABLE_COL_MAX && c !== this.reservedEmptyCol
+    );
 
-    if (roll < 0.15 && stage >= 5) {
-      // 走廊行：左右墙壁有砖块，中间全空
-      cols = this._generateCorridorRow();
-    } else if (roll < 0.35 && stage >= 3) {
-      // 口袋行：两侧满，中间开口
-      cols = this._generatePocketRow(cfg.fillRate);
-    } else {
-      // 正常行（带垂直通道）
-      cols = this._generateNormalRow(cfg.fillRate);
-    }
-
-    // 确保至少4个砖块（不放在保留空列）
-    while (cols.length < 4) {
-      const c = Math.floor(Math.random() * GRID_COLS);
+    // 确保至少 3 个砖块（避免空行；从可用列范围内随机补充）
+    while (cols.length < 3) {
+      const c = USABLE_COL_MIN + Math.floor(Math.random() * (USABLE_COL_MAX - USABLE_COL_MIN + 1));
       if (c !== this.reservedEmptyCol && !cols.includes(c)) cols.push(c);
     }
 
@@ -473,9 +506,9 @@ export default class Grid {
       this.bricks.push(brick);
     });
 
-    // 道具放在空列中
+    // 道具放在空列中（仅限可用列范围内，最左/最右列保持空）
     const emptyCols = [];
-    for (let c = 0; c < GRID_COLS; c++) {
+    for (let c = USABLE_COL_MIN; c <= USABLE_COL_MAX; c++) {
       if (!cols.includes(c)) emptyCols.push(c);
     }
     const pickupCount = Math.min(
@@ -519,7 +552,7 @@ export default class Grid {
       for (let i = 0; i < pickupCount; i++) usedCols.add(shuffled[i]); // 加球器列
       for (const pc of plankCols) usedCols.add(pc); // 横板列
       const warpCols = [];
-      for (let c = 0; c < GRID_COLS; c++) {
+      for (let c = USABLE_COL_MIN; c <= USABLE_COL_MAX; c++) {
         if (!usedCols.has(c)) warpCols.push(c);
       }
       if (warpCols.length > 0) {
@@ -550,7 +583,7 @@ export default class Grid {
         }
       });
       const rcCols = [];
-      for (let c = 0; c < GRID_COLS; c++) {
+      for (let c = USABLE_COL_MIN; c <= USABLE_COL_MAX; c++) {
         if (!usedCols2.has(c)) rcCols.push(c);
       }
       if (rcCols.length > 0) {
@@ -594,7 +627,7 @@ export default class Grid {
 
       // 消单列放在空格且该列有砖块的位置
       const ccCols = [];
-      for (let c = 0; c < GRID_COLS; c++) {
+      for (let c = USABLE_COL_MIN; c <= USABLE_COL_MAX; c++) {
         if (!usedCols3.has(c) && colsWithBricks.has(c)) ccCols.push(c);
       }
       if (ccCols.length > 0) {
@@ -610,64 +643,8 @@ export default class Grid {
     }
   }
 
-  /**
-   * 正常行 + 垂直通道
-   */
-  _generateNormalRow(fillRate) {
-    // 管理垂直通道
-    if (this.gapColLife > 0) {
-      this.gapColLife--;
-    } else if (Math.random() < 0.3) {
-      // 开启新通道：随机选一列，持续3~5行
-      this.gapCol = Math.floor(Math.random() * GRID_COLS);
-      this.gapColLife = 3 + Math.floor(Math.random() * 3);
-    }
 
-    const cols = [];
-    for (let c = 0; c < GRID_COLS; c++) {
-      // 保留空列始终为空
-      if (c === this.reservedEmptyCol) continue;
-      // 通道列强制空
-      if (c === this.gapCol && this.gapColLife > 0) continue;
-      if (Math.random() < fillRate) {
-        cols.push(c);
-      }
-    }
-    return cols;
-  }
 
-  /**
-   * 口袋行：两侧密集，中间开1~2列口子
-   * 球可以从口子钻进去在两侧墙壁间弹跳
-   */
-  _generatePocketRow(fillRate) {
-    const gapStart = 1 + Math.floor(Math.random() * (GRID_COLS - 2));
-    const gapWidth = 1 + Math.floor(Math.random() * 2);
-
-    const cols = [];
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (c === this.reservedEmptyCol) continue;
-      if (c >= gapStart && c < gapStart + gapWidth) continue;
-      if (Math.random() < Math.min(0.85, fillRate + 0.15)) {
-        cols.push(c);
-      }
-    }
-    return cols;
-  }
-
-  /**
-   * 走廊行：只有边缘列有砖块，中间全空
-   * 形成左右夹击的走廊，球在里面来回弹
-   */
-  _generateCorridorRow() {
-    const reserved = this.reservedEmptyCol;
-    const cols = [];
-    if (0 !== reserved) cols.push(0);
-    if (1 !== reserved && Math.random() < 0.6) cols.push(1);
-    if (GRID_COLS - 1 !== reserved) cols.push(GRID_COLS - 1);
-    if (GRID_COLS - 2 !== reserved && Math.random() < 0.6) cols.push(GRID_COLS - 2);
-    return cols;
-  }
 
   /**
    * 在指定行的空位置随机生成新砖块（用于运行中动态补充上半部分砖块）
@@ -678,7 +655,7 @@ export default class Grid {
   generateBricksAtRow(stage, targetRow) {
     if (targetRow < 0 || targetRow >= GRID_ROWS) return;
 
-    // 收集该行已有砖块/横板/白洞的列（避免重叠）
+    // 收集该行已有砖块/横板的列（避免重叠）
     const usedCols = new Set();
     this.bricks.forEach(b => {
       if (b.isAlive && b.row === targetRow) usedCols.add(b.col);
@@ -687,8 +664,9 @@ export default class Grid {
       if (p.row === targetRow) usedCols.add(p.col);
     });
 
+    // 仅在可用列范围内寻找空位（最左/最右列保持空）
     const availableCols = [];
-    for (let c = 0; c < GRID_COLS; c++) {
+    for (let c = USABLE_COL_MIN; c <= USABLE_COL_MAX; c++) {
       if (!usedCols.has(c)) availableCols.push(c);
     }
     if (availableCols.length === 0) return;
@@ -700,10 +678,16 @@ export default class Grid {
     const triangleRate = cfg.triangleRate || 0;
     this.rowCounter++;
 
-    // 随机生成 2~4 个砖块（不超过可用列数）
-    const count = Math.min(availableCols.length, 2 + Math.floor(Math.random() * 3));
-    const shuffled = availableCols.sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, count);
+    // 优先使用预设图形：取交集，使补充的砖块呈现完整图案
+    const pattern = pickRandomRowPattern();
+    const availableSet = new Set(availableCols);
+    let selected = pattern.filter(c => availableSet.has(c));
+
+    // 若交集太少，则从所有可用列中随机补足 2~4 个
+    if (selected.length < 2) {
+      const count = Math.min(availableCols.length, 2 + Math.floor(Math.random() * 3));
+      selected = availableCols.sort(() => Math.random() - 0.5).slice(0, count);
+    }
 
     selected.forEach(col => {
       const brick = new Brick();
