@@ -13,7 +13,7 @@ import Launcher from '../core/launcher';
 import HUD from '../runtime/hud';
 import { moveBallWithCollision } from '../core/collision';
 import Warp from '../core/warp';
-import { getLevelConfig } from '../data/levelData';
+import { getLevelConfig, getLevelTargetScore, getLevelStarThresholds } from '../data/levelData';
 
 /**
  * 游戏主场景
@@ -95,27 +95,50 @@ export default class GameScene {
   }
 
   /**
-   * 砖块销毁加分（带系数）
-   *  - 弹跳系数：球本次飞行击打砖块次数越多倍率越高（每5次+20%，最高 +200%）
-   *  - 连消系数：本帧（结算前累计）一次性消除越多倍率越高（每3连消+30%，最高 +200%）
+   * 砖块销毁加分（业界经典打砖块加分公式）
+   *  - 基础分（baseScore）按砖块"类型"固定，不再用 maxHp（避免后期分数膨胀）
+   *  - Combo 系数：短时间窗口（60帧）内连续命中累计倍率，断了就清零
+   *  - 球升级系数：球的 powerLevel 越高加成越大（绿光 1.1x → 红光 2.0x）
+   *
+   *  最终分数 = baseScore × comboMul × powerMul
+   *
    * @param {Brick} brick 被销毁的砖块
-   * @param {Ball} ball 击中的球（可为 null 表示技能消除）
+   * @param {Ball}  ball  击中的球（可为 null 表示技能消除）
    */
   _addBrickScore(brick, ball) {
-    const baseScore = brick.maxHp;
+    // 防御：plank（横板）等不可消除元素不加分
+    if (!brick || brick.isPlank) return;
 
-    // 弹跳系数：球每打到5个砖块 +20%，最高 +200%（即 3.0 倍）
-    const hitCount = ball ? (ball.hitCount || 0) : 0;
-    const bounceMul = 1 + Math.min(2, Math.floor(hitCount / 5) * 0.2);
+    // 1. 基础分：按砖块类型固定（不再使用 maxHp）
+    let baseScore = 10;
+    if (brick.type === 'triangle') {
+      baseScore = 15;        // 三角块（更难命中）
+    } else if (brick.maxHp >= 5) {
+      baseScore = 20;        // 高 HP 砖块（耐打型）
+    }
 
-    // 连消系数：本回合累计每3个砖块 +30%，最高 +200%（即 3.0 倍）
-    const comboMul = 1 + Math.min(2, Math.floor(this.destroyedThisRound / 3) * 0.3);
+    // 2. Combo 系数：基于"短时间窗口连击数"
+    //    每命中一次 +1 → 1 秒内未再命中则清零
+    //    每 3 连击 +30%，封顶 +200%（即 3.0x）
+    this._comboCount = (this._comboCount || 0) + 1;
+    this._comboTimer = 60; // 1 秒窗口（60FPS）
+    const comboMul = 1 + Math.min(2, Math.floor(this._comboCount / 3) * 0.3);
 
-    const finalScore = Math.round(baseScore * bounceMul * comboMul);
+    // 3. 球升级系数：powerLevel 越高加成越大
+    let powerMul = 1;
+    if (ball) {
+      if (ball.powerLevel >= 4)      powerMul = 2.0;  // 红光
+      else if (ball.powerLevel >= 3) powerMul = 1.5;  // 黄光
+      else if (ball.powerLevel >= 2) powerMul = 1.3;  // 蓝光
+      else if (ball.powerLevel >= 1) powerMul = 1.1;  // 绿光
+    }
+
+    // 4. 综合
+    const finalScore = Math.round(baseScore * comboMul * powerMul);
     this.score += finalScore;
 
-    // 显示飞起的得分文字
-    this._spawnScoreFloat(brick, finalScore, bounceMul * comboMul);
+    // 显示飞起的得分文字（高 Combo 或球升级时高亮）
+    this._spawnScoreFloat(brick, finalScore, comboMul * powerMul);
   }
 
   /**
@@ -280,13 +303,18 @@ export default class GameScene {
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
 
+    // Combo 系统（短时间窗口连击）：60帧 = 1秒未击中砖块则清零
+    this._comboCount = 0;
+    this._comboTimer = 0;
+
     // 拖动白球时的"取消发射"按钮状态
     this._showCancelHint = false;  // 是否显示红色取消按钮
     this._cancelHovered = false;   // 手指是否悬停在取消按钮上
     this._cancelLaunch = false;    // 本次松手是否取消发射
 
-    // 目标分数（分母固定值）
-    this.targetScore = TARGET_SCORE;
+    // 动态目标分数（按关卡难度计算）+ 星级阈值（按通关轮数评定）
+    this.targetScore = getLevelTargetScore(Math.abs(levelNum));
+    this.starThresholds = getLevelStarThresholds(Math.abs(levelNum));
 
     // 开局拖拽提示（首次触摸后隐藏）
     this._showDragHint = true;
@@ -658,6 +686,12 @@ export default class GameScene {
     // 球速加速：从进入关卡开始持续计帧（所有非暂停/结束状态都累计）
     this._checkSpeedBoost();
 
+    // Combo 计时器：每帧递减，归零时清空连击计数
+    if (this._comboTimer > 0) {
+      this._comboTimer--;
+      if (this._comboTimer === 0) this._comboCount = 0;
+    }
+
     switch (this.gameState) {
       case 'aiming':
         // 帧级防卡死：如果正在瞄准但手指已不在屏幕上，自动发射
@@ -690,32 +724,13 @@ export default class GameScene {
   }
 
   /**
-   * 检测球速加速（阈值从关卡配置读取）
+   * 检测球速加速（已禁用：白球始终保持 1 倍速）
    */
   _checkSpeedBoost() {
     this.runningFrames++;
 
-    const cfg = getLevelConfig(this.stage);
-    let newMultiplier = 1;
-    if (this.runningFrames >= cfg.speedBoostFrame1) {
-      newMultiplier = 1.5;
-    }
-
-    if (newMultiplier !== this.speedMultiplier) {
-      this.speedMultiplier = newMultiplier;
-      if (newMultiplier === 1.5) {
-        this.speedTipText = '加速 x1.5';
-      }
-      this.speedTipTimer = 120; // 显示2秒
-
-      // 立即对所有飞行中的球强制设速
-      this.launcher.balls.forEach(ball => {
-        if (ball.active) {
-          ball.applySpeedMultiplier(newMultiplier);
-        }
-      });
-    }
-
+    // 已取消"过一定时间触发 1.5 倍加速"功能：始终保持 1 倍速
+    // 仅维持 speedTipTimer 倒计时让残留提示文字渐隐消失
     if (this.speedTipTimer > 0) {
       this.speedTipTimer--;
     }
@@ -1337,10 +1352,17 @@ export default class GameScene {
     // 增加回合数
     this.line++;
 
-    // ===== 通关条件：分数达到目标 =====
-    if (this.score >= TARGET_SCORE) {
-      // 三星标准：300=1星、600=2星、1000=3星
-      const stars = this.score >= 1000 ? 3 : this.score >= 600 ? 2 : 1;
+    // ===== 通关条件：分数达到该关动态目标分 =====
+    if (this.score >= this.targetScore) {
+      // 星级标准：按"达成目标分时使用的回合数"评定
+      //  - 3 星：line ≤ star3MaxRounds（高效通关）
+      //  - 2 星：line ≤ star2MaxRounds（中等效率）
+      //  - 1 星：达到目标分即可（保底）
+      const t = this.starThresholds || { star3MaxRounds: 2, star2MaxRounds: 3 };
+      let stars = 1;
+      if (this.line <= t.star3MaxRounds) stars = 3;
+      else if (this.line <= t.star2MaxRounds) stars = 2;
+
       this.winStars = stars;
       this.gameState = 'win';
       this._uploadLevelScore();
@@ -1353,6 +1375,7 @@ export default class GameScene {
       }
       return;
     }
+
 
     this.stage++;
 
@@ -1500,6 +1523,7 @@ export default class GameScene {
       atkLevel: this.atkLevel,
       timeLeft: this.timeLeft || 0,
       showAimLine: this.showAimLine,
+      targetScore: this.targetScore,  // 动态目标分（每关不同）
     });
 
     // 加速提示

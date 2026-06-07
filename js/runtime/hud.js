@@ -69,13 +69,14 @@ export default class HUD {
       atkLevel = 1,
       timeLeft = 0,
       showAimLine = true,
+      targetScore = TARGET_SCORE,
     } = data || {};
 
     // ---- 1) 左上角返回按钮 ----
     this._drawBackButton(ctx, s);
 
     // ---- 2) 左侧分数面板 ----
-    this._drawScorePanel(ctx, s, score, line, maxRounds);
+    this._drawScorePanel(ctx, s, score, line, maxRounds, targetScore);
 
     // ---- 3) 左侧倒计时面板 ----
     this._drawTimerPanel(ctx, s, timeLeft);
@@ -132,7 +133,7 @@ export default class HUD {
   // ============================================================
   // 分数面板
   // ============================================================
-  _drawScorePanel(ctx, s, score, line, maxRounds) {
+  _drawScorePanel(ctx, s, score, line, maxRounds, targetScore) {
     const x = this.scorePanelX;
     const y = this.scorePanelY;
     const w = this.scorePanelW;
@@ -155,11 +156,11 @@ export default class HUD {
     ctx.textBaseline = 'top';
     ctx.fillText('积分', x + w / 2, y + 10 * s);
 
-    // 主进度： score / TARGET_SCORE
+    // 主进度： score / 动态目标分（每关不同）
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `bold ${22 * s}px Arial`;
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${score}/${TARGET_SCORE}`, x + w / 2, y + h / 2 + 6 * s);
+    ctx.fillText(`${score}/${targetScore || TARGET_SCORE}`, x + w / 2, y + h / 2 + 6 * s);
   }
 
   // ============================================================

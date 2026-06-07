@@ -141,6 +141,57 @@ export function getLevelConfig(levelNum) {
   return LEVEL_CONFIGS[idx];
 }
 
+/**
+ * 动态计算每关的过关目标分数
+ * 基于关卡的砖块产出：初始砖块 + 每回合补充
+ *
+ * 推导：
+ *   初始砖块约 = initRows × 6
+ *   每回合补充约 = 1.4 行 × 6 砖 = 8.4 砖
+ *   maxRounds 回合产出 ≈ initRows × 6 + maxRounds × 8.4
+ *   平均每砖期望分数 ≈ 11.5（基础）× 1.5（combo均值）× 1.2（power均值）≈ 20 分
+ *   合理目标分 = 期望产出 × 玩家命中率（约 60%）× 平均分
+ *
+ * 简化公式：targetScore = 200 + initRows × 40 + maxRounds × 35
+ *   - 第 1 关  (initRows=2, maxRounds=4):  200 + 80  + 140 = 420
+ *   - 第 10 关 (initRows=3, maxRounds=6):  200 + 120 + 210 = 530
+ *   - 第 30 关 (initRows=5, maxRounds=9):  200 + 200 + 315 = 715
+ *   - 第 100+ 关:                        基本封顶在 800 左右
+ *
+ * @param {number} levelNum 关卡号
+ * @returns {number} 该关目标分数
+ */
+export function getLevelTargetScore(levelNum) {
+  const cfg = getLevelConfig(levelNum);
+  const initRows = cfg.initRows || 2;
+  const maxRounds = cfg.maxRounds || 4;
+  return 200 + initRows * 40 + maxRounds * 35;
+}
+
+/**
+ * 计算星级阈值（按"达成目标分时使用的回合数"评定）
+ *  - 越少回合达成 → 星级越高
+ *  - 3 星：≤ ceil(maxRounds × 0.4) 轮（最少 2 轮）
+ *  - 2 星：≤ ceil(maxRounds × 0.7) 轮（最少 3 轮）
+ *  - 1 星：达到目标分即可（任何轮数）
+ *
+ * 例：
+ *   maxRounds=4 → 3星≤2轮, 2星≤3轮, 1星=4轮
+ *   maxRounds=6 → 3星≤3轮, 2星≤5轮
+ *   maxRounds=9 → 3星≤4轮, 2星≤7轮
+ *
+ * @param {number} levelNum
+ * @returns {{ star3MaxRounds: number, star2MaxRounds: number }}
+ */
+export function getLevelStarThresholds(levelNum) {
+  const cfg = getLevelConfig(levelNum);
+  const maxR = cfg.maxRounds || 4;
+  return {
+    star3MaxRounds: Math.max(2, Math.ceil(maxR * 0.4)),
+    star2MaxRounds: Math.max(3, Math.ceil(maxR * 0.7)),
+  };
+}
+
 // ====== 玩家关卡进度数据 ======
 
 const STORAGE_KEY = 'ppq_level_progress';
