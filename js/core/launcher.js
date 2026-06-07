@@ -107,12 +107,14 @@ export default class Launcher {
 
     this.landedCount++;
 
-    if (this.firstLandX < 0) {
-      this.firstLandX = ball.landX;
+    // 所有落地球都 slide 回发射器原位置（this.x），不再以首个落地点为汇集点
+    const targetX = Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
+      Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.x));
+
+    if (Math.abs(ball.landX - targetX) < 1) {
+      // 已经在发射器位置附近，无需滑动
       ball.slideDone = true;
     } else {
-      const targetX = Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
-        Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
       ball.startSlide(targetX);
     }
   }
@@ -123,11 +125,11 @@ export default class Launcher {
     return this.balls.every(b => b.isFullyStopped());
   }
 
+  /**
+   * 获取下次发射位置
+   * 已废弃"以本次首个落地球位置"逻辑，改为始终保持上次发射时的位置
+   */
   getNextLaunchX() {
-    if (this.firstLandX >= 0) {
-      return Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
-        Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
-    }
     return this.x;
   }
 
@@ -135,24 +137,22 @@ export default class Launcher {
     const s = SCALE;
 
     if (gameState === 'launching' || gameState === 'running') {
-      if (this.firstLandX >= 0) {
-        const tx = Math.max(GAME_AREA_LEFT + BALL_RADIUS * 2,
-          Math.min(GAME_AREA_RIGHT - BALL_RADIUS * 2, this.firstLandX));
+      // 在发射点显示已停下的球计数（提示玩家球将回到这里）
+      const stoppedCount = this.balls.filter(b => b.isFullyStopped()).length;
+      if (stoppedCount > 0) {
+        const tx = this.x;
         ctx.fillStyle = COLORS.ballColor;
         ctx.globalAlpha = 0.25;
         ctx.beginPath();
-        ctx.arc(tx, LAUNCH_Y - BALL_RADIUS, BALL_RADIUS * 1.2, 0, Math.PI * 2);
+        ctx.arc(tx, this.y, BALL_RADIUS * 1.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
 
-        const stoppedCount = this.balls.filter(b => b.isFullyStopped()).length;
-        if (stoppedCount > 0) {
-          ctx.fillStyle = COLORS.textWhite;
-          ctx.font = `bold ${10 * s}px Arial`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(`x ${stoppedCount}`, tx, LAUNCH_Y - BALL_RADIUS - 8 * s);
-        }
+        ctx.fillStyle = COLORS.textWhite;
+        ctx.font = `bold ${10 * s}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`x ${stoppedCount}`, tx, this.y - BALL_RADIUS - 8 * s);
       }
       return;
     }

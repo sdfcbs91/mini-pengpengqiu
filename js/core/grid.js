@@ -54,6 +54,95 @@ function pickRandomRowPattern() {
   return base.filter(() => Math.random() < 0.85);
 }
 
+// =====================================================================
+// 10 种多行预设图形模板（参考消消乐/打砖块经典关卡布局）
+// 每个模板是 5 行 × 10 列的二维数组（对应可用列 1~10）
+// 0 = 空, 1 = 普通砖块
+// 设计原则：所有图形左右对称、便于球弹跳穿越，且围合度由低到高
+// =====================================================================
+const MULTI_ROW_TEMPLATES = [
+  // ① 实心方阵（满铺，最简单）
+  [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  ],
+  // ② 回字形（外框包围空心）— 最经典的弹跳图形
+  [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  ],
+  // ③ 双层回字（外框 + 内框）
+  [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  ],
+  // ④ 十字形（横竖中轴）— 球可在四个象限弹跳
+  [
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+  ],
+  // ⑤ T 字形（顶横 + 中竖）
+  [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+  ],
+  // ⑥ H 字形（双侧 + 中央横档）
+  [
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1],
+  ],
+  // ⑦ 双方块（左右两个小回字）
+  [
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 1],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1],
+    [1, 1, 1, 0, 0, 0, 0, 1, 1, 1],
+  ],
+  // ⑧ 漏斗（上宽下窄）— 引导球向下集中
+  [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+    [0, 0, 0, 1, 1, 1, 1, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+  ],
+  // ⑨ 反漏斗（上窄下宽）— 球从底部反弹扩散
+  [
+    [0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 1, 1, 1, 1, 0, 0, 0],
+    [0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  ],
+  // ⑩ 棋盘格（交错分布）— 球在间隙中蜿蜒
+  [
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+  ],
+];
+
 /**
  * 网格管理器
  * 砖块生成策略：从 10 种预设图形中随机选取，最左/最右列保持空（边墙反弹通道）
@@ -93,23 +182,108 @@ export default class Grid {
     this.gapColLife = 0;
     this.rowCounter = 0;
 
-    // 初始保留空列（整局保持，让球有通道可钻）
     // 初始保留空列（在可用列范围内，让球有通道可钻）
     this.reservedEmptyCol = USABLE_COL_MIN + Math.floor(Math.random() * (USABLE_COL_MAX - USABLE_COL_MIN + 1));
 
-    // 尝试使用预设模板（每5关使用一次，增加趣味性）
+    // 第 3、5、10、15... 关使用预设关卡模板（精心设计的关卡）
     if (stage >= 3 && stage % 5 === 0 && this._applyTemplate(stage)) {
-      return; // 模板已生成初始布局
+      return;
     }
 
-    // 初始行数 = 配置值 + 1 + 关卡/20（渐进增加）
-    const baseRows = this.levelConfig.initRows;
-    const rows = Math.min(baseRows + 1 + Math.floor(stage / 20), 8);
-    // 从第1行开始生成（第0行留空，给球顶部弹跳空间）
-    for (let i = 0; i < rows; i++) {
-      this.generateRow(stage - i, i + 1);
+    // 默认：从 10 种多行图形（正方形、回字、十字、漏斗等）中随机选一个铺设初始砖块
+    const tplIdx = Math.floor(Math.random() * MULTI_ROW_TEMPLATES.length);
+    this._applyMultiRowTemplate(stage, tplIdx);
+  }
+
+  /**
+   * 应用多行预设图形模板生成初始砖块布局
+   * 模板偏移到可用列（USABLE_COL_MIN ~ USABLE_COL_MAX）
+   * @param {number} stage 关卡号（决定 HP）
+   * @param {number} templateIdx 模板索引（0~9）
+   */
+  _applyMultiRowTemplate(stage, templateIdx) {
+    const tpl = MULTI_ROW_TEMPLATES[templateIdx];
+    if (!tpl) return false;
+
+    const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
+    const baseHp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));
+    const triangleRate = cfg.triangleRate || 0;
+
+    // 顶部留出 1 行空间（让球可以从顶部反弹）
+    const startRow = 1;
+
+    for (let r = 0; r < tpl.length; r++) {
+      const targetRow = startRow + r;
+      if (targetRow >= GRID_ROWS) break;
+
+      const rowMap = tpl[r];
+      for (let c = 0; c < rowMap.length; c++) {
+        if (rowMap[c] !== 1) continue;
+
+        // 模板列偏移到可用列起点
+        const targetCol = USABLE_COL_MIN + c;
+        if (targetCol > USABLE_COL_MAX) break;
+
+        const brick = new Brick();
+        const isTriangle = Math.random() < triangleRate;
+        const type = isTriangle ? 'triangle' : 'normal';
+        const dirs = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+        const dir = isTriangle ? dirs[Math.floor(Math.random() * dirs.length)] : '';
+
+        brick.init(
+          targetRow, targetCol,
+          this.getColX(targetCol),
+          this.getRowY(targetRow),
+          BRICK_W, BRICK_H,
+          Math.max(1, baseHp + Math.floor(Math.random() * 3) - 1),
+          type, dir
+        );
+        this.bricks.push(brick);
+      }
+    }
+
+    // 在空位中放一些加球器（每行随机 1 个，最多 2 个）
+    this._sprinklePickupsAfterTemplate(tpl, startRow, cfg);
+
+    this.rowCounter = tpl.length;
+    return true;
+  }
+
+  /**
+   * 在多行模板的空位中均匀撒一些加球器（避免砖块阵中找不到球路）
+   */
+  _sprinklePickupsAfterTemplate(tpl, startRow, cfg) {
+    const pickupMin = (cfg && cfg.pickupMin) || 1;
+    const pickupMax = (cfg && cfg.pickupMax) || 2;
+    const totalPickups = pickupMin + Math.floor(Math.random() * (pickupMax - pickupMin + 1)) + 1;
+
+    const emptyCells = [];
+    for (let r = 0; r < tpl.length; r++) {
+      const targetRow = startRow + r;
+      if (targetRow >= GRID_ROWS) break;
+      const rowMap = tpl[r];
+      for (let c = 0; c < rowMap.length; c++) {
+        if (rowMap[c] === 0) {
+          emptyCells.push({ row: targetRow, col: USABLE_COL_MIN + c });
+        }
+      }
+    }
+    if (emptyCells.length === 0) return;
+
+    // 洗牌随机取
+    emptyCells.sort(() => Math.random() - 0.5);
+    const placed = Math.min(totalPickups, emptyCells.length);
+    for (let i = 0; i < placed; i++) {
+      const { row, col } = emptyCells[i];
+      const pickup = new Pickup();
+      pickup.init(
+        this.getColX(col) + BRICK_W / 2,
+        this.getRowY(row) + BRICK_H / 2
+      );
+      this.pickups.push(pickup);
     }
   }
+
 
   /**
    * 预设地图模板（保证至少一条通道到顶部）
