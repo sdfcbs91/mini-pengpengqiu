@@ -811,13 +811,7 @@ export default class GameScene {
       this.launcher.lightningArmed = false;
     }
 
-    // 多球技能
-    if (this._multiBallArmed && this.multiBallCount > 0) {
-      this.multiBallCount--;
-      const addBalls = Math.ceil(this.ballCount * 0.1);
-      this.ballCount += addBalls;
-      this.launcher.ballCount = this.ballCount;
-    }
+    // 多球技能已改为点击立即生效，无需在发射时消费
     this._multiBallArmed = false;
 
     // 保持技能：一旦激活，整关持续（每回合自动保存球状态，下轮继承）
@@ -941,8 +935,11 @@ export default class GameScene {
   _useMultiBall() {
     if (this.multiBallCount <= 0) return;
     if (this.gameState !== 'aiming') return;
-    // 切换预选状态
-    this._multiBallArmed = !this._multiBallArmed;
+    // 立即生效：扣除次数 + 增加球数
+    this.multiBallCount--;
+    const addBalls = Math.ceil(this.ballCount * 0.1);
+    this.ballCount += addBalls;
+    this.launcher.ballCount = this.ballCount;
   }
 
   _useAtkBoost() {
