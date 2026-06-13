@@ -334,6 +334,101 @@ export default class GameScene {
   }
 
   /**
+   * 渲染"收回"按钮（球在运行中时显示，点击强制收回所有飞行中的球）
+   */
+  _renderRecallButton(ctx) {
+    const s = SCALE;
+    const { cx, cy, r } = this._getCancelButtonPos(); // 与取消按钮同一位置
+
+    ctx.save();
+
+    // 蓝色边框光晕（与左侧面板风格统一）
+    ctx.shadowColor = 'rgba(50,100,230,0.75)';
+    ctx.shadowBlur = 12 * s;
+    ctx.strokeStyle = '#2960dd';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 深底色背景
+    ctx.fillStyle = 'rgba(6,10,28,0.92)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 中心：向下箭头 "↓" 图标
+    ctx.strokeStyle = '#5b8dff';
+    ctx.lineWidth = 2.5 * s;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const arrowH = r * 0.5;
+    const arrowW = r * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - arrowH);
+    ctx.lineTo(cx, cy + arrowH * 0.3);
+    ctx.moveTo(cx - arrowW, cy - arrowH * 0.1);
+    ctx.lineTo(cx, cy + arrowH * 0.3);
+    ctx.lineTo(cx + arrowW, cy - arrowH * 0.1);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // 底部横线（表示发射台）
+    ctx.strokeStyle = '#5b8dff';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath();
+    ctx.moveTo(cx - arrowW, cy + arrowH * 0.6);
+    ctx.lineTo(cx + arrowW, cy + arrowH * 0.6);
+    ctx.stroke();
+
+    // 文字
+    ctx.fillStyle = '#5b8dff';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('收回', cx, cy + r + 4 * s);
+
+    ctx.restore();
+  }
+
+  /**
+   * 判断坐标是否在收回按钮上
+   */
+  _hitRecallButton(x, y) {
+    const { cx, cy, r } = this._getCancelButtonPos();
+    const dx = x - cx;
+    const dy = y - cy;
+    return dx * dx + dy * dy <= r * r;
+  }
+
+  /**
+   * 执行收回：所有未完全停止的球沿轨迹飞回发射位置
+   */
+  _doRecallBalls() {
+    const targetX = this.launcher.x;
+    const targetY = this.launcher.y;
+    // 停止继续发射新球
+    this.launcher.isLaunching = false;
+    this.launcher.launchedCount = this.launcher.ballCount;
+
+    this.launcher.balls.forEach(ball => {
+      if (ball.isFullyStopped()) return;
+      if (ball.recalling) return;
+      ball.startRecall(targetX, targetY);
+    });
+  }
+
+  /**
+   * 判断是否应该显示收回按钮：球已发射 & 还有球未完全停止
+   */
+  _shouldShowRecallButton() {
+    if (this.gameState !== 'launching' && this.gameState !== 'running') return false;
+    // 有任何球还在飞行中（active 且未落地）或正在飞回中（recalling）
+    return this.launcher.balls.some(b => (b.active && !b.landed) || b.recalling);
+  }
+
+  /**
    * 游戏结束后获取用户信息
    * 如果没有 nickName，设置标志让 levelSelect 显示授权提示
    */
@@ -542,6 +637,12 @@ export default class GameScene {
 
     if (this.gameState === 'paused') {
       this._handlePauseTap(x, y);
+      return;
+    }
+
+    // 球飞行中：检查收回按钮
+    if (this._shouldShowRecallButton() && this._hitRecallButton(x, y)) {
+      this._doRecallBalls();
       return;
     }
 
@@ -965,6 +1066,12 @@ export default class GameScene {
 
     this.launcher.balls.forEach(ball => {
       if (ball.isFullyStopped()) return;
+
+      // 飞回中的球：仅执行 recall 轨迹运动
+      if (ball.recalling) {
+        ball.update(left, right, top, bottom);
+        return;
+      }
 
       if (ball.active && this.speedMultiplier > 1) {
         ball.applySpeedMultiplier(this.speedMultiplier);
@@ -1780,6 +1887,11 @@ export default class GameScene {
     // 拖动白球时的"取消发射"按钮（右下角）
     if (this._showCancelHint) {
       this._renderCancelButton(ctx);
+    }
+
+    // 球飞行中的"收回"按钮（同一位置，与取消按钮互斥显示）
+    if (!this._showCancelHint && this._shouldShowRecallButton()) {
+      this._renderRecallButton(ctx);
     }
 
     // 消单行激光特效

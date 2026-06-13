@@ -37,6 +37,10 @@ export default class Ball {
     this.noBrickBounces = 0;     // 连续未碰砖块的反弹次数（用于死循环检测）
     this.needRecycle = false;    // 是否需要回收（死循环）
     this.hasLightning = false;   // 是否带闪电效果（击中时连带打击4邻居）
+    this.recalling = false;      // 是否正在飞回发射位置（收回按钮触发）
+    this.recallTargetX = 0;
+    this.recallTargetY = 0;
+    this.recallSpeed = 0;
   }
 
   init(x, y, angle) {
@@ -146,7 +150,60 @@ export default class Ball {
     this.slideSpeed = Math.max(4 * SCALE, dist / 15);
   }
 
+  /**
+   * 开始飞回发射位置（有轨迹的匀速直线运动）
+   * @param {number} targetX 发射位置X
+   * @param {number} targetY 发射位置Y
+   */
+  startRecall(targetX, targetY) {
+    // 清除所有其他运动状态，进入纯"飞回"模式
+    this.active = false;
+    this.landed = false;
+    this.sliding = false;
+    this.slideDone = false;
+    this.recalling = true;
+    this.recallTargetX = targetX;
+    this.recallTargetY = targetY;
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    // 匀速飞回，速度 = 球速 × 1.5
+    this.recallSpeed = Math.max(this.speed * 1.5, dist / 20);
+    if (dist > 0.1) {
+      this.vx = (dx / dist) * this.recallSpeed;
+      this.vy = (dy / dist) * this.recallSpeed;
+    } else {
+      // 已经在目标位置
+      this.recalling = false;
+      this.landed = true;
+      this.slideDone = true;
+      this.vx = 0;
+      this.vy = 0;
+    }
+  }
+
   update(left, right, top, bottom) {
+    // 飞回中（收回按钮触发的轨迹飞行）
+    if (this.recalling) {
+      const dx = this.recallTargetX - this.x;
+      const dy = this.recallTargetY - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= this.recallSpeed) {
+        // 到达目标
+        this.x = this.recallTargetX;
+        this.y = this.recallTargetY;
+        this.recalling = false;
+        this.landed = true;
+        this.slideDone = true;
+        this.vx = 0;
+        this.vy = 0;
+      } else {
+        this.x += this.vx;
+        this.y += this.vy;
+      }
+      return;
+    }
+
     // 滑动回收中
     if (this.sliding && !this.slideDone) {
       const dx = this.slideTargetX - this.x;
@@ -190,12 +247,26 @@ export default class Ball {
   }
 
   isFullyStopped() {
+    if (this.recalling) return false;  // 飞回中不算停止
     if (!this.landed) return false;
     if (this.sliding) return false;
     return true;
   }
 
   render(ctx) {
+    // 飞回中（收回按钮触发）— 显示白球 + 蓝色尾迹
+    if (this.recalling) {
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = 'rgba(100,180,255,0.8)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      return;
+    }
+
     // 飞行中
     if (this.active) {
       // 彻底重置所有状态，防止任何前置特效残留
