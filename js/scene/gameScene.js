@@ -127,7 +127,7 @@ export default class GameScene {
     // 3. 球升级系数：powerLevel 越高加成越大
     let powerMul = 1;
     if (ball) {
-      if (ball.powerLevel >= 4)      powerMul = 2.0;  // 红光
+      if (ball.powerLevel >= 4) powerMul = 2.0;  // 红光
       else if (ball.powerLevel >= 3) powerMul = 1.5;  // 黄光
       else if (ball.powerLevel >= 2) powerMul = 1.3;  // 蓝光
       else if (ball.powerLevel >= 1) powerMul = 1.1;  // 绿光
@@ -484,6 +484,7 @@ export default class GameScene {
     this.timeLeft = LEVEL_TIME_LIMIT;
     this._timeAccumFrames = 0;
     this._timeoutGameOver = false;
+    this._roundsExhausted = false;  // 轮数耗尽标记
 
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
@@ -1709,6 +1710,19 @@ export default class GameScene {
       return;
     }
 
+    // ===== 强制结束条件：发射轮数达到总轮数上限，分数未达标则判定失败 =====
+    if (this.line >= this.maxRounds) {
+      this.gameState = 'over';
+      this._roundsExhausted = true;  // 标记为轮数耗尽（区别于超时失败）
+
+      // 游戏结束后获取用户信息
+      this._fetchUserInfoAfterGame();
+
+      if (this.onGameOver) {
+        this.onGameOver();
+      }
+      return;
+    }
 
     this.stage++;
 
@@ -2305,10 +2319,11 @@ export default class GameScene {
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
 
-    // 标题：超时 vs 普通失败
+    // 标题：超时 / 轮数耗尽 / 普通失败
     const isTimeout = !!this._timeoutGameOver;
-    const title = isTimeout ? '时间到' : '游戏结束';
-    const titleColor = isTimeout ? COLORS.neonYellow : COLORS.neonRed;
+    const isRoundsExhausted = !!this._roundsExhausted;
+    const title = isTimeout ? '时间到' : isRoundsExhausted ? '回合用尽' : '游戏结束';
+    const titleColor = isTimeout ? COLORS.neonYellow : isRoundsExhausted ? COLORS.neonYellow : COLORS.neonRed;
 
     ctx.fillStyle = titleColor;
     ctx.font = `bold ${28 * s}px Arial`;
@@ -2322,7 +2337,7 @@ export default class GameScene {
     // 分数
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `${16 * s}px Arial`;
-    ctx.fillText(`得分: ${this.score}`, centerX, centerY - 30 * s);
+    ctx.fillText(`得分: ${this.score} / ${this.targetScore}`, centerX, centerY - 30 * s);
     ctx.fillText(`关卡: ${this.stage}`, centerX, centerY);
     ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
 
