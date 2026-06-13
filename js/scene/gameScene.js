@@ -2365,21 +2365,14 @@ export default class GameScene {
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
 
-    // 标题
-    ctx.fillStyle = COLORS.textWhite;
-    ctx.font = `bold ${24 * s}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('返回', centerX, centerY - 60 * s);
+    // 三个按钮垂直居中排列（无标题）
+    const btnGap = 60 * s;
+    const totalH = btnGap * 2;  // 3 个按钮间隔占的总高度
+    const startY = centerY - totalH / 2;
 
-    // 继续按钮
-    this._drawButton(ctx, centerX, centerY, 120 * s, 40 * s, '继续', COLORS.neonCyan);
-
-    // 重试按钮
-    this._drawButton(ctx, centerX, centerY + 60 * s, 120 * s, 40 * s, '重试', COLORS.neonYellow);
-
-    // 返回菜单按钮
-    this._drawButton(ctx, centerX, centerY + 120 * s, 120 * s, 40 * s, '菜单', COLORS.neonRed);
+    this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', COLORS.neonCyan);
+    this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', COLORS.neonYellow);
+    this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', COLORS.neonRed);
   }
 
   _renderGameOverOverlay(ctx) {
@@ -2554,9 +2547,19 @@ export default class GameScene {
     const centerY = SCREEN_HEIGHT / 2;
     const bw = 120 * s;
     const bh = 40 * s;
+    const btnGap = 60 * s;
+    const totalH = btnGap * 2;
+    const startY = centerY - totalH / 2;
+
+    // 继续按钮
+    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+      y >= startY - bh / 2 && y <= startY + bh / 2) {
+      this.gameState = this.prevState || 'aiming';
+      return;
+    }
 
     // 重试按钮
-    const retryY = centerY + 60 * s;
+    const retryY = startY + btnGap;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
       y >= retryY - bh / 2 && y <= retryY + bh / 2) {
       this.initLevel(this.initialLevel);
@@ -2564,15 +2567,12 @@ export default class GameScene {
     }
 
     // 返回菜单按钮
-    const menuY = centerY + 120 * s;
+    const menuY = startY + btnGap * 2;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
       y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }
-
-    // 点击其他任意区域 = 继续游戏
-    this.gameState = this.prevState || 'aiming';
   }
 
   _handleOverTap(x, y) {
