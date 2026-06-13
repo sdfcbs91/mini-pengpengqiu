@@ -58,6 +58,9 @@ export default class LevelSelect {
     this.showSettings = false;
     this.soundOn = true; // 声音开关
     this.showGameIntro = false; // 游戏介绍弹窗
+    this._introScrollY = 0;    // 游戏介绍弹窗滚动偏移
+    this._introScrollVelocity = 0;  // 惯性滚动速度
+    this._introScrolling = false;   // 是否正在手动拖动
     this.showPropsGuide = false; // 道具介绍弹窗
     this._propsGuidePage = 0; // 当前道具页码
     this._propsSwipeStartX = 0; // 滑动起始X
@@ -132,11 +135,18 @@ export default class LevelSelect {
     this.touchStartX = x;
     this.touchStartY = y;
     this._lastTouchX = x;
+    this._lastTouchY = y;
     this.touchStartTime = Date.now();
     this.isDragging = true;
     this.isSwiping = false;
     this.isSlideAnimating = false; // 按下时中断正在进行的动画
     this.slideVelocity = 0;
+
+    // 游戏介绍弹窗：按下时停止惯性滚动
+    if (this.showGameIntro) {
+      this._introScrolling = true;
+      this._introScrollVelocity = 0;
+    }
   }
 
   /**
@@ -144,6 +154,17 @@ export default class LevelSelect {
    */
   handleTouchMove(x, y) {
     if (!this.isDragging) return;
+
+    // 游戏介绍弹窗上下拖动（惯性滚动 - Move 阶段：跟手 + 记录速度）
+    if (this.showGameIntro && this._introScrolling) {
+      const dy = y - this._lastTouchY;
+      this._introScrollY += dy;
+      // 指数移动平均计算速度（更平滑的惯性）
+      this._introScrollVelocity = dy * 0.6 + (this._introScrollVelocity || 0) * 0.4;
+      this._lastTouchY = y;
+      return;
+    }
+
     const dx = x - this.touchStartX;
     const dy = y - this.touchStartY;
 
@@ -164,6 +185,7 @@ export default class LevelSelect {
       }
     }
     this._lastTouchX = x;
+    this._lastTouchY = y;
   }
 
   /**
@@ -175,6 +197,25 @@ export default class LevelSelect {
 
     const elapsed = Date.now() - this.touchStartTime;
     const totalDx = x - this.touchStartX;
+
+    // 游戏介绍弹窗：松手处理
+    if (this.showGameIntro) {
+      this._introScrolling = false;
+      // 判断是否为"点击"（滑动距离很小）→ 检测是否在弹窗外部关闭
+      const totalDy = y - this.touchStartY;
+      if (Math.abs(totalDy) < 10 && Math.abs(totalDx) < 10) {
+        const s = SCALE;
+        const bw = (SCREEN_WIDTH - 80 * s) * 0.8;
+        const bh = (SCREEN_HEIGHT - 40 * s) * 0.8;
+        const bx = (SCREEN_WIDTH - bw) / 2;
+        const by = (SCREEN_HEIGHT - bh) / 2;
+        if (x < bx || x > bx + bw || y < by || y > by + bh) {
+          this.showGameIntro = false;
+        }
+      }
+      // velocity 已在 Move 中累计，update 中会持续应用惯性并衰减
+      return;
+    }
 
     // 道具介绍弹窗左右滑动翻页
     if (this.showPropsGuide && Math.abs(totalDx) > 30 && elapsed < 500) {
@@ -226,9 +267,16 @@ export default class LevelSelect {
       return;
     }
 
-    // 游戏介绍弹窗优先处理（点击任意位置关闭）
+    // 游戏介绍弹窗：点击弹窗外部关闭
     if (this.showGameIntro) {
-      this.showGameIntro = false;
+      const s = SCALE;
+      const bw = (SCREEN_WIDTH - 80 * s) * 0.8;
+      const bh = (SCREEN_HEIGHT - 40 * s) * 0.8;
+      const bx = (SCREEN_WIDTH - bw) / 2;
+      const by = (SCREEN_HEIGHT - bh) / 2;
+      if (x < bx || x > bx + bw || y < by || y > by + bh) {
+        this.showGameIntro = false;
+      }
       return;
     }
 
@@ -521,6 +569,33 @@ export default class LevelSelect {
         this.isSlideAnimating = false;
       }
     }
+
+    // 游戏介绍弹窗 - 惯性滚动（松手后持续滚动 + 逐渐减速 + 边界弹性回弹）
+    if (this.showGameIntro && !this._introScrolling) {
+      const maxScroll = this._introMaxScroll || 0;
+
+      // 惯性应用
+      if (Math.abs(this._introScrollVelocity) > 0.3) {
+        this._introScrollY += this._introScrollVelocity;
+        this._introScrollVelocity *= 0.92;  // 摩擦力衰减
+        if (Math.abs(this._introScrollVelocity) < 0.3) {
+          this._introScrollVelocity = 0;
+        }
+      }
+
+      // 弹性回弹：超出顶部
+      if (this._introScrollY > 0) {
+        this._introScrollY *= 0.82;
+        this._introScrollVelocity = 0;
+        if (this._introScrollY < 0.5) this._introScrollY = 0;
+      }
+      // 弹性回弹：超出底部
+      if (this._introScrollY < maxScroll) {
+        this._introScrollY += (maxScroll - this._introScrollY) * 0.18;
+        this._introScrollVelocity = 0;
+        if (Math.abs(this._introScrollY - maxScroll) < 0.5) this._introScrollY = maxScroll;
+      }
+    }
   }
 
   render(ctx) {
@@ -639,9 +714,15 @@ export default class LevelSelect {
     const s = SCALE;
     const top = this.gridTop + 20 * s;
     const centerX = this.contentCenterX;
-    const btnW = 200 * s;
+
+    // 两列布局参数
+    const cols = 2;
+    const btnW = 140 * s;
     const btnH = 44 * s;
-    const gap = 16 * s;
+    const gapX = 16 * s;   // 列间距
+    const gapY = 16 * s;   // 行间距
+    const totalW = cols * btnW + (cols - 1) * gapX;
+    const startX = centerX - totalW / 2;
 
     const buttons = [
       { label: '分享游戏', color: '#ffffff' },
@@ -655,8 +736,10 @@ export default class LevelSelect {
     this._settingBtns = [];
 
     buttons.forEach((btn, i) => {
-      const y = top + i * (btnH + gap);
-      const x = centerX - btnW / 2;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = startX + col * (btnW + gapX);
+      const y = top + row * (btnH + gapY);
       const r = 8 * s;
 
       // 透明背景 + 白色边框
@@ -678,7 +761,7 @@ export default class LevelSelect {
       ctx.font = `bold ${14 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(btn.label, centerX, y + btnH / 2);
+      ctx.fillText(btn.label, x + btnW / 2, y + btnH / 2);
 
       this._settingBtns.push({ x, y, w: btnW, h: btnH });
     });
@@ -702,7 +785,7 @@ export default class LevelSelect {
           case 1: this._toggleSound(); break;
           case 2: this._doSyncData(); break;
           case 3: this.showPropsGuide = true; this._propsGuidePage = 0; break;
-          case 4: this.showGameIntro = true; break;
+          case 4: this.showGameIntro = true; this._introScrollY = 0; break;
         }
         return;
       }
@@ -809,12 +892,11 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const padX = 40 * s;
-    const padY = 20 * s;
-    const boxW = SCREEN_WIDTH - padX * 2;
-    const boxH = SCREEN_HEIGHT - padY * 2;
-    const boxX = padX;
-    const boxY = padY;
+    // 宽高各减 20%（居中）
+    const boxW = (SCREEN_WIDTH - 80 * s) * 0.8;
+    const boxH = (SCREEN_HEIGHT - 40 * s) * 0.8;
+    const boxX = (SCREEN_WIDTH - boxW) / 2;
+    const boxY = (SCREEN_HEIGHT - boxH) / 2;
 
     // 弹窗背景
     ctx.fillStyle = '#0c1435';
@@ -862,15 +944,44 @@ export default class LevelSelect {
       '【小技巧】',
       '利用墙壁和砖块反弹，让弹球在缝隙',
       '来回穿梭，打出更高消除效率！',
+      '',
+      '【评分系统】',
+      'Combo连击：短时间内连续命中砖块获得倍率加成',
+      '球升级：白球累计击打5/10/20/30次砖块后变色',
+      '变色后的球攻击力和加分倍率更高！',
+      '',
+      '【过关条件】',
+      '达到目标积分即可过关。',
+      '越少轮数达成目标，星级越高！',
     ];
 
-    ctx.fillStyle = '#ccddff';
-    ctx.font = `${11 * s}px Arial`;
-    ctx.textAlign = 'left';
     const lineH = 16 * s;
     const contentTop = boxY + 38 * s;
+    const contentBottom = boxY + boxH - 28 * s;
+    const contentH = contentBottom - contentTop;
+    const totalContentH = lines.length * lineH;
 
+    // 限制滚动范围（允许少量弹性超出，由 update 中的回弹处理）
+    const maxScroll = Math.min(0, contentH - totalContentH);
+    // 手动拖动时允许超出 30px（弹性感），惯性滚动中由 update 限制
+    const elasticLimit = 30;
+    if (this._introScrollY < maxScroll - elasticLimit) this._introScrollY = maxScroll - elasticLimit;
+    if (this._introScrollY > elasticLimit) this._introScrollY = elasticLimit;
+    // 保存 maxScroll 供 update 回弹使用
+    this._introMaxScroll = maxScroll;
+
+    // 裁剪内容区域
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(boxX, contentTop, boxW, contentH);
+    ctx.clip();
+
+    // 绘制内容（带滚动偏移）
+    ctx.textAlign = 'left';
     lines.forEach((line, i) => {
+      const ly = contentTop + i * lineH + this._introScrollY;
+      // 跳过不可见行
+      if (ly + lineH < contentTop || ly > contentBottom) return;
       if (line.startsWith('【')) {
         ctx.fillStyle = '#ffdd00';
         ctx.font = `bold ${11.5 * s}px Arial`;
@@ -878,14 +989,24 @@ export default class LevelSelect {
         ctx.fillStyle = '#ccddff';
         ctx.font = `${11 * s}px Arial`;
       }
-      ctx.fillText(line, boxX + 16 * s, contentTop + i * lineH);
+      ctx.fillText(line, boxX + 16 * s, ly);
     });
+
+    ctx.restore();
+
+    // 滚动指示器（内容超出时显示）
+    if (totalContentH > contentH) {
+      const barH = Math.max(10 * s, contentH * (contentH / totalContentH));
+      const barY = contentTop + (-this._introScrollY / (totalContentH - contentH)) * (contentH - barH);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(boxX + boxW - 6 * s, barY, 3 * s, barH);
+    }
 
     // 底部提示
     ctx.fillStyle = '#888899';
     ctx.font = `${10 * s}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('点击任意位置关闭', SCREEN_WIDTH / 2, boxY + boxH - 14 * s);
+    ctx.fillText('点击外部关闭 / 上下拖动查看更多', SCREEN_WIDTH / 2, boxY + boxH - 12 * s);
   }
 
   /**
@@ -997,12 +1118,11 @@ export default class LevelSelect {
     ctx.fillStyle = 'rgba(0,0,0,0.8)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    const padX = 60 * s;
-    const padY = 30 * s;
-    const boxW = SCREEN_WIDTH - padX * 2;
-    const boxH = SCREEN_HEIGHT - padY * 2;
-    const boxX = padX;
-    const boxY = padY;
+    // 宽高各减 20%（居中）
+    const boxW = (SCREEN_WIDTH - 120 * s) * 0.8;
+    const boxH = (SCREEN_HEIGHT - 60 * s) * 0.8;
+    const boxX = (SCREEN_WIDTH - boxW) / 2;
+    const boxY = (SCREEN_HEIGHT - boxH) / 2;
     const r = 10 * s;
 
     // 弹窗背景
@@ -1075,14 +1195,16 @@ export default class LevelSelect {
    */
   _handlePropsGuideTap(x, y) {
     const s = SCALE;
-    const padX = 60 * s;
-    const padY = 30 * s;
-    const boxW = SCREEN_WIDTH - padX * 2;
-    const boxX = padX;
     const props = this._getPropsData();
 
-    // 点击弹窗外（上下区域）关闭
-    if (y < padY || y > SCREEN_HEIGHT - padY) {
+    // 计算弹窗区域（与 _drawPropsGuide 一致）
+    const boxW = (SCREEN_WIDTH - 120 * s) * 0.8;
+    const boxH = (SCREEN_HEIGHT - 60 * s) * 0.8;
+    const boxX = (SCREEN_WIDTH - boxW) / 2;
+    const boxY = (SCREEN_HEIGHT - boxH) / 2;
+
+    // 点击弹窗外部 → 关闭
+    if (x < boxX || x > boxX + boxW || y < boxY || y > boxY + boxH) {
       this.showPropsGuide = false;
       return;
     }
