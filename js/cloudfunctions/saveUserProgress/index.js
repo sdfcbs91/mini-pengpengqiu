@@ -8,13 +8,19 @@ const db = cloud.database();
 
 /**
  * 云函数：saveUserProgress
- * 记录用户登录时间、openid、用户信息、当前最高关卡、完整关卡进度
+ * 记录用户登录时间、openid、用户信息、当前最高关卡、完整关卡进度、技能管理
  *
  * 调用参数：
- *   action: 'save' | 'get'（默认 'save'）
+ *   action: 'save' | 'get' | 'saveScore' | 'getSkills' | 'useSkill' | 'levelCleared'
  *   userInfo: { nickName, avatarUrl, gender, ... }（可选）
  *   maxLevel: number（当前闯到第几关）
  *   levelProgress: Array<{ unlocked, stars }>（完整关卡进度，可选）
+ *   skillType: 'lightning' | 'multiBall' | 'atkBoost'（useSkill时必填）
+ *
+ * 技能管理：
+ *   getSkills  - 获取玩家当前技能次数
+ *   useSkill   - 使用技能，扣减1次（需传 skillType）
+ *   levelCleared - 记录通关次数，每3次通关三种技能各+1
  *
  * 数据库集合：user_progress
  * 文档结构：
@@ -22,6 +28,10 @@ const db = cloud.database();
  *   userInfo: object
  *   maxLevel: number
  *   levelProgress: Array（完整关卡进度数据，含 score）
+ *   skillLightning: number（闪电技能剩余次数）
+ *   skillMultiBall: number（加球技能剩余次数）
+ *   skillAtkBoost: number（保持技能剩余次数）
+ *   levelClearCount: number（累计通关次数）
  *   lastLoginTime: Date
  *   createTime: Date
  */
@@ -29,11 +39,121 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
 
-  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score } = event;
+  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score, skillType } = event;
 
   const collection = db.collection('user_progress');
 
   try {
+    // ====== 技能管理：获取技能次数 ======
+    if (action === 'getSkills') {
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length > 0) {
+        const doc = data[0];
+        return {
+          code: 0,
+          msg: 'skills_found',
+          skills: {
+            lightning: doc.skillLightning || 0,
+            multiBall: doc.skillMultiBall || 0,
+            atkBoost: doc.skillAtkBoost || 0,
+          },
+          levelClearCount: doc.levelClearCount || 0,
+        };
+      } else {
+        return {
+          code: 0,
+          msg: 'skills_not_found',
+          skills: { lightning: 0, multiBall: 0, atkBoost: 0 },
+          levelClearCount: 0,
+        };
+      }
+    }
+
+    // ====== 技能管理：使用技能（扣减1次） ======
+    if (action === 'useSkill' && skillType) {
+      const fieldMap = {
+        lightning: 'skillLightning',
+        multiBall: 'skillMultiBall',
+        atkBoost: 'skillAtkBoost',
+      };
+      const field = fieldMap[skillType];
+      if (!field) {
+        return { code: -1, msg: 'invalid_skill_type', skillType };
+      }
+
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length > 0) {
+        const doc = data[0];
+        const current = doc[field] || 0;
+        if (current <= 0) {
+          return { code: -1, msg: 'skill_insufficient', skillType, current: 0 };
+        }
+        await collection.doc(doc._id).update({
+          data: { [field]: current - 1 },
+        });
+        return { code: 0, msg: 'skill_used', skillType, remaining: current - 1 };
+      } else {
+        return { code: -1, msg: 'user_not_found' };
+      }
+    }
+
+    // ====== 技能管理：通关奖励（每通过3次关卡，三种技能各+1） ======
+    if (action === 'levelCleared') {
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length > 0) {
+        const doc = data[0];
+        const oldCount = doc.levelClearCount || 0;
+        const newCount = oldCount + 1;
+        const updateData = { levelClearCount: newCount };
+
+        // 每3次通关，三种技能各+1
+        let rewarded = false;
+        if (Math.floor(newCount / 3) > Math.floor(oldCount / 3)) {
+          updateData.skillLightning = (doc.skillLightning || 0) + 1;
+          updateData.skillMultiBall = (doc.skillMultiBall || 0) + 1;
+          updateData.skillAtkBoost = (doc.skillAtkBoost || 0) + 1;
+          rewarded = true;
+        }
+
+        await collection.doc(doc._id).update({ data: updateData });
+        return {
+          code: 0,
+          msg: rewarded ? 'level_cleared_rewarded' : 'level_cleared',
+          levelClearCount: newCount,
+          rewarded,
+          skills: rewarded ? {
+            lightning: (doc.skillLightning || 0) + 1,
+            multiBall: (doc.skillMultiBall || 0) + 1,
+            atkBoost: (doc.skillAtkBoost || 0) + 1,
+          } : {
+            lightning: doc.skillLightning || 0,
+            multiBall: doc.skillMultiBall || 0,
+            atkBoost: doc.skillAtkBoost || 0,
+          },
+        };
+      } else {
+        // 新用户：创建记录并记录第1次通关
+        await collection.add({
+          data: {
+            _openid: openid,
+            levelClearCount: 1,
+            skillLightning: 0,
+            skillMultiBall: 0,
+            skillAtkBoost: 0,
+            lastLoginTime: db.serverDate(),
+            createTime: db.serverDate(),
+          },
+        });
+        return {
+          code: 0,
+          msg: 'level_cleared',
+          levelClearCount: 1,
+          rewarded: false,
+          skills: { lightning: 0, multiBall: 0, atkBoost: 0 },
+        };
+      }
+    }
+
     // 查询操作：返回云端数据
     if (action === 'get') {
       const { data } = await collection.where({ _openid: openid }).get();
@@ -44,6 +164,12 @@ exports.main = async (event, context) => {
           openid,
           maxLevel: data[0].maxLevel || 1,
           levelProgress: data[0].levelProgress || null,
+          skills: {
+            lightning: data[0].skillLightning || 0,
+            multiBall: data[0].skillMultiBall || 0,
+            atkBoost: data[0].skillAtkBoost || 0,
+          },
+          levelClearCount: data[0].levelClearCount || 0,
         };
       } else {
         return {
@@ -52,6 +178,8 @@ exports.main = async (event, context) => {
           openid,
           maxLevel: 0,
           levelProgress: null,
+          skills: { lightning: 0, multiBall: 0, atkBoost: 0 },
+          levelClearCount: 0,
         };
       }
     }
@@ -115,7 +243,7 @@ exports.main = async (event, context) => {
       if (userInfo) {
         const existingUserInfo = doc.userInfo || {};
         const mergedUserInfo = { ...existingUserInfo };
-        
+
         // 只更新有值的字段
         if (userInfo.nickName !== undefined && userInfo.nickName !== '') {
           mergedUserInfo.nickName = userInfo.nickName;
@@ -123,7 +251,7 @@ exports.main = async (event, context) => {
         if (userInfo.avatarUrl !== undefined && userInfo.avatarUrl !== '') {
           mergedUserInfo.avatarUrl = userInfo.avatarUrl;
         }
-        
+
         updateData.userInfo = mergedUserInfo;
       }
 

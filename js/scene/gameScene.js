@@ -514,10 +514,13 @@ export default class GameScene {
     // 触摸灵敏度（用于拖动白球）
     this._touchSensitivity = 1.0;
 
-    // 重置技能次数（每关/重试时重置）
+    // 技能次数从云端加载（默认先用本地初始值，云端返回后覆盖）
     this.lightningCount = LIGHTNING_INITIAL;
     this.multiBallCount = MULTIBALL_INITIAL;
     this.atkBoostCount = 2;
+    this._skillRewardTip = false;
+    this._skillRewardTimer = 0;
+    this._loadSkillsFromCloud();
 
     if (levelNum === -150) {
       // 150球特殊模式：使用预设地形，baseHp从200起
@@ -806,6 +809,7 @@ export default class GameScene {
     // 闪电技能
     if (this._lightningArmed && this.lightningCount > 0) {
       this.lightningCount--;
+      this._syncSkillUseToCloud('lightning');
     } else {
       // 次数不足或未预选 → 取消闪电标记
       this._lightningArmed = false;
@@ -818,6 +822,7 @@ export default class GameScene {
     // 保持技能：一旦激活，整关持续（每回合自动保存球状态，下轮继承）
     if (this._atkBoostArmed && this.atkBoostCount > 0) {
       this.atkBoostCount--;
+      this._syncSkillUseToCloud('atkBoost');
       this._keepBallActive = true;  // 整关持续生效，按钮永久置灰
     }
     this._atkBoostArmed = false;
@@ -938,6 +943,7 @@ export default class GameScene {
     if (this.gameState !== 'aiming') return;
     // 立即生效：扣除次数 + 增加球数
     this.multiBallCount--;
+    this._syncSkillUseToCloud('multiBall');
     const addBalls = Math.ceil(this.ballCount * 0.1);
     this.ballCount += addBalls;
     this.launcher.ballCount = this.ballCount;
@@ -1431,6 +1437,72 @@ export default class GameScene {
   }
 
   /**
+   * 从云端加载技能次数（覆盖本地初始值）
+   */
+  _loadSkillsFromCloud() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'getSkills' },
+      success: (res) => {
+        const result = res.result;
+        if (result && result.code === 0 && result.skills) {
+          this.lightningCount = result.skills.lightning || 0;
+          this.multiBallCount = result.skills.multiBall || 0;
+          this.atkBoostCount = result.skills.atkBoost || 0;
+          console.log('云端技能加载:', result.skills);
+        }
+      },
+      fail: (err) => { console.error('加载技能失败:', err); },
+    });
+  }
+
+  /**
+   * 使用技能后同步云端扣减
+   * @param {'lightning'|'multiBall'|'atkBoost'} skillType
+   */
+  _syncSkillUseToCloud(skillType) {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'useSkill', skillType },
+      success: (res) => { console.log('技能扣减同步:', res.result); },
+      fail: (err) => { console.error('技能扣减同步失败:', err); },
+    });
+  }
+
+  /**
+   * 通关后通知云端（记录通关次数，每3次奖励技能+1）
+   */
+  _notifyLevelCleared() {
+    if (typeof wx === 'undefined' || !wx.cloud) return;
+    if (this.initialLevel <= 0) return; // 特殊模式不计入
+
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'levelCleared' },
+      success: (res) => {
+        const result = res.result;
+        if (result && result.code === 0) {
+          console.log('通关记录:', result);
+          if (result.rewarded) {
+            // 奖励技能：更新本地次数
+            this.lightningCount = result.skills.lightning;
+            this.multiBallCount = result.skills.multiBall;
+            this.atkBoostCount = result.skills.atkBoost;
+            // 标记奖励提示（供UI显示）
+            this._skillRewardTip = true;
+            this._skillRewardTimer = 180; // 3秒提示
+          }
+        }
+      },
+      fail: (err) => { console.error('通关记录失败:', err); },
+    });
+  }
+
+  /**
    * 执行消单行：对同行砖块造成伤害
    * 伤害 = 攻击力（atkLevel），每个砖块扣一次
    * 整行清除后道具消失
@@ -1700,6 +1772,7 @@ export default class GameScene {
       this.winStars = stars;
       this.gameState = 'win';
       this._uploadLevelScore();
+      this._notifyLevelCleared();
 
       // 游戏结束后获取用户信息
       this._fetchUserInfoAfterGame();
@@ -2396,6 +2469,16 @@ export default class GameScene {
     ctx.fillText(`得分: ${this.score}`, centerX, centerY - 15 * s);
     if (this.initialLevel !== -150) {
       ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 15 * s);
+    }
+
+    // 技能奖励提示
+    if (this._skillRewardTip) {
+      ctx.fillStyle = '#ffdd00';
+      ctx.font = `bold ${13 * s}px Arial`;
+      ctx.shadowColor = '#ffdd00';
+      ctx.shadowBlur = 4 * s;
+      ctx.fillText('🎉 技能+1（每通关3次奖励）', centerX, centerY + 40 * s);
+      ctx.shadowBlur = 0;
     }
 
     if (this.initialLevel === -150) {
