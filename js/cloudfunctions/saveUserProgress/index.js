@@ -104,22 +104,27 @@ exports.main = async (event, context) => {
         const doc = data[0];
         const oldCount = doc.levelClearCount || 0;
         const newCount = oldCount + 1;
-        const updateData = { levelClearCount: newCount };
 
-        // 每3次通关，三种技能各+1
+        // 每3次通关，三种技能各+1，并将计数器重置为0
         let rewarded = false;
-        if (Math.floor(newCount / 3) > Math.floor(oldCount / 3)) {
+        let finalCount = newCount;
+        if (newCount % 3 === 0) {
+          finalCount = 0;  // 重置计数器
+          rewarded = true;
+        }
+
+        const updateData = { levelClearCount: finalCount };
+        if (rewarded) {
           updateData.skillLightning = (doc.skillLightning || 0) + 1;
           updateData.skillMultiBall = (doc.skillMultiBall || 0) + 1;
           updateData.skillAtkBoost = (doc.skillAtkBoost || 0) + 1;
-          rewarded = true;
         }
 
         await collection.doc(doc._id).update({ data: updateData });
         return {
           code: 0,
           msg: rewarded ? 'level_cleared_rewarded' : 'level_cleared',
-          levelClearCount: newCount,
+          levelClearCount: finalCount,
           rewarded,
           skills: rewarded ? {
             lightning: (doc.skillLightning || 0) + 1,
