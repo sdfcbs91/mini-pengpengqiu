@@ -496,9 +496,12 @@ export default class GameScene {
     this._comboTimer = 0;
 
     // 拖动白球时的"取消发射"按钮状态
-    this._showCancelHint = false;  // 是否显示红色取消按钮
-    this._cancelHovered = false;   // 手指是否悬停在取消按钮上
-    this._cancelLaunch = false;    // 本次松手是否取消发射
+    this._showCancelHint = false;
+    this._cancelHovered = false;
+    this._cancelLaunch = false;
+
+    // 保持技能状态（整关持续：一旦激活，后续回合全部自动保存/恢复球状态）
+    this._keepBallActive = false;  // 保持是否已激活（整关不再重置）
 
     // 动态目标分数（按关卡难度计算）+ 星级阈值（按通关轮数评定）
     this.targetScore = getLevelTargetScore(Math.abs(levelNum));
@@ -817,10 +820,10 @@ export default class GameScene {
     }
     this._multiBallArmed = false;
 
-    // 攻击力提升
+    // 保持技能：一旦激活，整关持续（每回合自动保存球状态，下轮继承）
     if (this._atkBoostArmed && this.atkBoostCount > 0) {
       this.atkBoostCount--;
-      this.atkLevel = Math.floor(this.atkLevel * 1.1) + 1;
+      this._keepBallActive = true;  // 整关持续生效，按钮永久置灰
     }
     this._atkBoostArmed = false;
   }
@@ -945,6 +948,8 @@ export default class GameScene {
   _useAtkBoost() {
     if (this.atkBoostCount <= 0) return;
     if (this.gameState !== 'aiming') return;
+    // 上轮保持仍在生效中 → 本轮不可点击
+    if (this._keepBallActive) return;
     // 切换预选状态（真正生效在 _consumeArmedSkills 中）
     this._atkBoostArmed = !this._atkBoostArmed;
   }
@@ -1736,10 +1741,25 @@ export default class GameScene {
     this.ballCount += this.nextBallCount;
     this.nextBallCount = 0;
 
+    // "保持"技能：一旦激活，此后每回合都保存每个球各自的状态（整关持续）
+    // 存储为数组 [{hitCount, powerLevel}, ...]，下轮按顺序注入
+    let savedBallStates = [];
+    if (this._keepBallActive) {
+      this.launcher.balls.forEach(b => {
+        savedBallStates.push({
+          hitCount: b.hitCount || 0,
+          powerLevel: b.powerLevel || 0,
+        });
+      });
+    }
+
     // 更新发射点
     const nextX = this.launcher.getNextLaunchX();
     this.launcher.init(nextX, this.ballCount);
     this.launcher.showAimLine = this.showAimLine;
+
+    // 恢复每个球各自的升级状态到 launcher（下轮发射时按序注入）
+    this.launcher.savedBallStates = savedBallStates;
 
     // 清除本轮技能预选状态（避免延续到下一轮）
     this._lightningArmed = false;
@@ -1860,8 +1880,10 @@ export default class GameScene {
       atkLevel: this.atkLevel,
       timeLeft: this.timeLeft || 0,
       showAimLine: this.showAimLine,
-      targetScore: this.targetScore,  // 动态目标分（每关不同）
-      lightningArmed: !!this._lightningArmed,  // 闪电是否已蓄力
+      targetScore: this.targetScore,
+      lightningArmed: !!this._lightningArmed,
+      keepArmed: !!this._atkBoostArmed,          // 保持按钮是否已预选
+      keepDisabled: !!this._keepBallActive,      // 保持按钮是否不可点击（上轮激活了"保持"仍在生效中）
     });
 
     // 加速提示

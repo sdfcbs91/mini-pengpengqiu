@@ -71,6 +71,8 @@ export default class HUD {
       showAimLine = true,
       targetScore = TARGET_SCORE,
       lightningArmed = false,
+      keepArmed = false,
+      keepDisabled = false,
     } = data || {};
 
     // ---- 1) 左上角返回按钮 ----
@@ -94,7 +96,16 @@ export default class HUD {
     this._drawSkillCircle(ctx, this.skillCx, this.multiBallY, this.btnR, s, multiBallCount);
     this._drawSkillLabel(ctx, this.skillCx, this.multiBallY, s, '加球');
 
-    this._drawAtkButton(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount, atkLevel);
+    // 保持按钮：预选时金色高亮 / 禁用时灰色暗淡
+    if (keepDisabled) {
+      this._drawSkillCircleDisabled(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount);
+      this._drawSkillLabelDisabled(ctx, this.skillCx, this.atkBoostY, s, '保持');
+    } else if (keepArmed) {
+      this._drawSkillCircleArmed(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount);
+      this._drawSkillLabel(ctx, this.skillCx, this.atkBoostY, s, '保持');
+    } else {
+      this._drawAtkButton(ctx, this.skillCx, this.atkBoostY, this.btnR, s, atkBoostCount, atkLevel);
+    }
   }
 
   // ============================================================
@@ -327,6 +338,39 @@ export default class HUD {
   }
 
   /**
+   * 技能按钮"禁用"状态：灰色暗淡，表示不可点击
+   */
+  _drawSkillCircleDisabled(ctx, cx, cy, r, s, count) {
+    ctx.fillStyle = 'rgba(20,20,30,0.85)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#444466';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = '#555577';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`x${count}`, cx, cy + r * 0.32);
+  }
+
+  /**
+   * 技能按钮文案"禁用"状态
+   */
+  _drawSkillLabelDisabled(ctx, cx, cy, s, text) {
+    ctx.fillStyle = '#555577';
+    ctx.font = `bold ${13 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, cx, cy - 3 * s);
+  }
+
+  /**
    * 绘制技能按钮中央的中文文案（统一蓝色，与左侧面板风格一致）
    * @param {CanvasRenderingContext2D} ctx
    * @param {number} cx 圆心 X
@@ -386,15 +430,15 @@ export default class HUD {
     // 与其他技能按钮一致的蓝色风格
     this._drawSkillCircle(ctx, cx, cy, r, s, count);
 
-    // 攻击力文案（中文 + 等级数字）
+    // 保持技能文案
     const COLOR = '#5b8dff';
     ctx.fillStyle = COLOR;
-    ctx.font = `bold ${12 * s}px Arial`;
+    ctx.font = `bold ${13 * s}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(50,100,230,0.85)';
     ctx.shadowBlur = 4 * s;
-    ctx.fillText(`攻击${level}`, cx, cy - 3 * s);
+    ctx.fillText('保持', cx, cy - 3 * s);
     ctx.shadowBlur = 0;
   }
 

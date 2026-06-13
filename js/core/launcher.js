@@ -28,6 +28,9 @@ export default class Launcher {
 
     // 闪电技能：本轮发射的所有球都带闪电效果
     this.lightningArmed = false;
+
+    // 保持技能：保存每个球各自的升级状态（数组）
+    this.savedBallStates = [];  // [{hitCount, powerLevel}, ...]
   }
 
   init(x, ballCount) {
@@ -99,6 +102,12 @@ export default class Launcher {
       ball.init(this.x, this.y, this.angle);
       // 注入本轮闪电属性
       ball.hasLightning = !!this.lightningArmed;
+      // 注入"保持"技能保存的该球各自的升级状态（按发射顺序索引）
+      const savedState = this.savedBallStates && this.savedBallStates[this.launchedCount];
+      if (savedState && savedState.hitCount > 0) {
+        ball.hitCount = savedState.hitCount;
+        ball.powerLevel = savedState.powerLevel;
+      }
       this.balls.push(ball);
       this.launchedCount++;
     }
