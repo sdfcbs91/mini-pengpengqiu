@@ -772,6 +772,10 @@ export default class LevelSelect {
     const top = this.gridTop;
     const height = this.gridBottom - this.gridTop;
 
+    // 先绘制半透明遮罩背景（防止底层关卡格子透出）
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.5)';
+    ctx.fillRect(0, top, SCREEN_WIDTH, height);
+
     // 将开放数据域 canvas 绘制到游戏区域
     ctx.drawImage(
       this._openDataCanvas,

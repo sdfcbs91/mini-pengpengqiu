@@ -3132,7 +3132,7 @@ export default class GameScene {
     const s = SCALE;
 
     // 半透明背景
-    ctx.fillStyle = 'rgba(0,0,0,0.92)';
+    ctx.fillStyle = 'rgba(0,0,0,0.46)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const centerX = SCREEN_WIDTH / 2;
