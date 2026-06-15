@@ -131,6 +131,15 @@ export default class LevelSelect {
     this._syncProgressToCloud();
     // 写入开放数据（排行榜数据源）
     this._updateOpenData();
+
+    // 检查是否已有昵称，没有则弹出授权昵称弹窗
+    try {
+      const cached = wx.getStorageSync('ppq_user_info') || {};
+      const refused = wx.getStorageSync('ppq_auth_refused');
+      if (!cached.nickName && !refused) {
+        this._showAuthPrompt = true;
+      }
+    } catch (e) { /* ignore */ }
   }
 
   /**
