@@ -80,6 +80,16 @@ export default class GameScene {
     this._collisionAudioIdx = 0;
     this._launcherShakeTimer = 0;
     this._initCollisionAudio();
+
+    // 绘制模式
+    this._drawMode = false;          // 绘制按钮开关状态
+    this._drawLines = [];            // 已绘制的直线数组 [{x1,y1,x2,y2}]
+    this._drawingLine = null;        // 当前正在绘制的直线 {x1,y1,x2,y2}
+    this._isDrawing = false;         // 是否正在绘制中（手指按下）
+    this._isDraggingLine = false;    // 是否正在拖拽已有线条
+    this._dragLineStartX = 0;       // 拖拽起始X
+    this._dragLineStartY = 0;       // 拖拽起始Y
+    this._drawLocked = false;       // 发球后锁定绘制功能，本轮不可再编辑
   }
 
   /**
@@ -486,6 +496,14 @@ export default class GameScene {
     this._timeoutGameOver = false;
     this._roundsExhausted = false;  // 轮数耗尽标记
 
+    // 绘制模式重置
+    this._drawMode = false;
+    this._drawLines = [];
+    this._drawingLine = null;
+    this._isDrawing = false;
+    this._isDraggingLine = false;
+    this._drawLocked = false;
+
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
 
@@ -665,6 +683,41 @@ export default class GameScene {
       return;
     }
 
+    // 检查绘制按钮（发球后锁定，不可再切换）
+    if (this.hud.hitDrawButton(x, y)) {
+      if (this._drawLocked) return; // 发球后绘制功能锁定
+      this._drawMode = !this._drawMode;
+      return;
+    }
+
+    // 绘制模式高亮时：检查上一步按钮（发球后锁定则不可操作）
+    if (this._drawMode && this._drawLines.length > 0 && !this._drawLocked) {
+      if (this._hitUndoButton(x, y)) {
+        this._drawLines.pop();
+        return;
+      }
+    }
+
+    // 绘制模式高亮时：已有线条则开始拖拽（发球后锁定则不可操作）
+    if (this._drawMode && this.gameState === 'aiming' && this._drawLines.length > 0 && !this._drawLocked) {
+      if (this._isNearDrawLine(x, y)) {
+        this._isDraggingLine = true;
+        this._dragLineStartX = x;
+        this._dragLineStartY = y;
+        return;
+      }
+    }
+
+    // 绘制模式高亮时：在蓝色边框内开始绘制直线（最多只能绘制一条）
+    if (this._drawMode && this.gameState === 'aiming' && this._drawLines.length === 0) {
+      const clipped = this._clipToGameArea(x, y);
+      if (this._isInsideGameArea(x, y)) {
+        this._isDrawing = true;
+        this._drawingLine = { x1: clipped.x, y1: clipped.y, x2: clipped.x, y2: clipped.y };
+        return;
+      }
+    }
+
     // 检查技能按钮（仅在瞄准阶段）
     if (this.gameState === 'aiming') {
       if (this.hud.hitLightningButton(x, y)) {
@@ -710,6 +763,48 @@ export default class GameScene {
     if (GameGlobal.databus.scene !== 'playing') return;
     if (this.gameState !== 'aiming') return;
 
+    // 绘制模式下：更新当前绘制直线的终点（限制最大长度为两个砖块宽度）
+    if (this._isDrawing && this._drawingLine) {
+      const clipped = this._clipToGameArea(x, y);
+      const maxLen = BRICK_W * 2;
+      const dx = clipped.x - this._drawingLine.x1;
+      const dy = clipped.y - this._drawingLine.y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= maxLen) {
+        this._drawingLine.x2 = clipped.x;
+        this._drawingLine.y2 = clipped.y;
+      } else {
+        // 超出最大长度，截断到最大长度
+        this._drawingLine.x2 = this._drawingLine.x1 + (dx / dist) * maxLen;
+        this._drawingLine.y2 = this._drawingLine.y1 + (dy / dist) * maxLen;
+      }
+      this._lastTouchX = x;
+      this._lastTouchY = y;
+      return;
+    }
+
+    // 绘制模式下：拖拽已有线条
+    if (this._isDraggingLine && this._drawLines.length > 0) {
+      const moveX = x - this._dragLineStartX;
+      const moveY = y - this._dragLineStartY;
+      const line = this._drawLines[0];
+      const newLine = {
+        x1: line.x1 + moveX,
+        y1: line.y1 + moveY,
+        x2: line.x2 + moveX,
+        y2: line.y2 + moveY,
+      };
+      // 检查新位置是否在游戏区域内且不遮盖砖块（保留4px间距）
+      if (this._isLineInsideGameArea(newLine) && !this._isLineOverlappingBricks(newLine)) {
+        this._drawLines[0] = newLine;
+        this._dragLineStartX = x;
+        this._dragLineStartY = y;
+      }
+      this._lastTouchX = x;
+      this._lastTouchY = y;
+      return;
+    }
+
     const dx = x - this._lastTouchX;
     const dy = y - this._lastTouchY;
     this._lastTouchX = x;
@@ -739,6 +834,27 @@ export default class GameScene {
   handleTouchEnd() {
     if (GameGlobal.databus.scene !== 'playing') return;
     this._touching = false;
+
+    // 绘制模式下：手指松开时保存当前绘制的直线
+    if (this._isDrawing && this._drawingLine) {
+      // 只有起点和终点不同才保存
+      const dl = this._drawingLine;
+      if (Math.abs(dl.x2 - dl.x1) > 2 || Math.abs(dl.y2 - dl.y1) > 2) {
+        // 检查是否遮盖砖块，如果遮盖则不保存
+        if (!this._isLineOverlappingBricks(dl)) {
+          this._drawLines.push({ ...dl });
+        }
+      }
+      this._drawingLine = null;
+      this._isDrawing = false;
+      return;
+    }
+
+    // 绘制模式下：结束拖拽
+    if (this._isDraggingLine) {
+      this._isDraggingLine = false;
+      return;
+    }
 
     // 优先判断：手指松开时是否在取消按钮上 → 取消发射
     const wasHover = this._cancelHovered;
@@ -781,6 +897,264 @@ export default class GameScene {
     return { cx, cy, r };
   }
 
+  // ============================================================
+  // 绘制模式辅助方法
+  // ============================================================
+
+  /**
+   * 获取"上一步"按钮的位置（与取消按钮位置和大小一致）
+   */
+  _getUndoButtonPos() {
+    return this._getCancelButtonPos();
+  }
+
+  /**
+   * 检测坐标是否命中"上一步"按钮
+   */
+  _hitUndoButton(x, y) {
+    const pos = this._getUndoButtonPos();
+    const dx = x - pos.cx;
+    const dy = y - pos.cy;
+    return dx * dx + dy * dy <= pos.r * pos.r;
+  }
+
+  /**
+   * 判断坐标是否在蓝色边框游戏区域内
+   */
+  _isInsideGameArea(x, y) {
+    const borderX = GAME_AREA_LEFT - 2;
+    const borderY = GAME_AREA_TOP - 2;
+    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
+    return x >= borderX && x <= borderX + borderW &&
+      y >= borderY && y <= borderY + borderH;
+  }
+
+  /**
+   * 将坐标裁剪到蓝色边框游戏区域内
+   * 如果坐标超出边框，则截断到边框上
+   */
+  _clipToGameArea(x, y) {
+    const borderX = GAME_AREA_LEFT - 2;
+    const borderY = GAME_AREA_TOP - 2;
+    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
+    const clippedX = Math.max(borderX, Math.min(borderX + borderW, x));
+    const clippedY = Math.max(borderY, Math.min(borderY + borderH, y));
+    return { x: clippedX, y: clippedY };
+  }
+
+  /**
+   * 渲染"上一步"按钮（样式与取消按钮一致，但文案不同）
+   */
+  _renderUndoButton(ctx) {
+    const s = SCALE;
+    const { cx, cy, r } = this._getUndoButtonPos();
+
+    ctx.save();
+
+    // 蓝色边框光晕（与取消按钮风格一致但用蓝色）
+    ctx.shadowColor = 'rgba(50,100,230,0.75)';
+    ctx.shadowBlur = 12 * s;
+    ctx.strokeStyle = '#2960dd';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 深底色背景
+    ctx.fillStyle = 'rgba(6,10,28,0.92)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 中心：左箭头 "←" 图标
+    ctx.strokeStyle = '#5b8dff';
+    ctx.lineWidth = 2.5 * s;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const arrowH = r * 0.4;
+    const arrowW = r * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + arrowW * 0.4, cy);
+    ctx.lineTo(cx - arrowW * 0.4, cy);
+    ctx.moveTo(cx - arrowW * 0.4, cy);
+    ctx.lineTo(cx - arrowW * 0.4 + arrowH * 0.5, cy - arrowH * 0.6);
+    ctx.moveTo(cx - arrowW * 0.4, cy);
+    ctx.lineTo(cx - arrowW * 0.4 + arrowH * 0.5, cy + arrowH * 0.6);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
+    // 提示文字
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('上一步', cx, cy + r + 4 * s);
+
+    ctx.restore();
+  }
+
+  /**
+   * 渲染已绘制的直线和当前正在绘制的直线
+   */
+  _renderDrawLines(ctx) {
+    const s = SCALE;
+
+    // 已保存的直线（白色半透明）
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2.5 * s;
+    ctx.lineCap = 'round';
+    for (const line of this._drawLines) {
+      ctx.beginPath();
+      ctx.moveTo(line.x1, line.y1);
+      ctx.lineTo(line.x2, line.y2);
+      ctx.stroke();
+    }
+
+    // 当前正在绘制的直线（金色高亮）
+    if (this._drawingLine) {
+      ctx.strokeStyle = 'rgba(255,210,80,0.9)';
+      ctx.lineWidth = 2.5 * s;
+      ctx.shadowColor = 'rgba(255,210,80,0.6)';
+      ctx.shadowBlur = 6 * s;
+      ctx.beginPath();
+      ctx.moveTo(this._drawingLine.x1, this._drawingLine.y1);
+      ctx.lineTo(this._drawingLine.x2, this._drawingLine.y2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.lineCap = 'butt';
+  }
+
+  /**
+   * 判断触摸点是否在已绘制线条附近（用于判断是否开始拖拽）
+   * 判定范围：距离线段 30*SCALE 以内
+   */
+  _isNearDrawLine(x, y) {
+    if (this._drawLines.length === 0) return false;
+    const line = this._drawLines[0];
+    const dist = this._pointToSegmentDist(x, y, line.x1, line.y1, line.x2, line.y2);
+    return dist < 30 * SCALE;
+  }
+
+  /**
+   * 计算点到线段的最短距离
+   */
+  _pointToSegmentDist(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1) {
+      // 线段退化为点
+      const ddx = px - x1;
+      const ddy = py - y1;
+      return Math.sqrt(ddx * ddx + ddy * ddy);
+    }
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const closestX = x1 + t * dx;
+    const closestY = y1 + t * dy;
+    const distX = px - closestX;
+    const distY = py - closestY;
+    return Math.sqrt(distX * distX + distY * distY);
+  }
+
+  /**
+   * 判断线条的两个端点是否都在游戏区域内
+   */
+  _isLineInsideGameArea(line) {
+    const borderX = GAME_AREA_LEFT - 2;
+    const borderY = GAME_AREA_TOP - 2;
+    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
+    const inBounds = (x, y) =>
+      x >= borderX && x <= borderX + borderW &&
+      y >= borderY && y <= borderY + borderH;
+    return inBounds(line.x1, line.y1) && inBounds(line.x2, line.y2);
+  }
+
+  /**
+   * 判断线条是否与任何存活砖块重叠（需保留4px间距）
+   * 算法：对每个存活砖块，将其外扩4px后检测线段是否与该矩形相交
+   */
+  _isLineOverlappingBricks(line) {
+    const gap = 4 * SCALE;
+    const bricks = this.grid.bricks;
+    for (const brick of bricks) {
+      if (!brick.isAlive) continue;
+      // 砖块外扩 gap 后的矩形
+      const bx = brick.x - gap;
+      const by = brick.y - gap;
+      const bw = brick.width + gap * 2;
+      const bh = brick.height + gap * 2;
+      if (this._segmentIntersectsRect(line.x1, line.y1, line.x2, line.y2, bx, by, bw, bh)) {
+        return true;
+      }
+    }
+    // 也检查横板
+    if (this.grid.planks) {
+      for (const plank of this.grid.planks) {
+        if (!plank.isAlive) continue;
+        const bx = plank.x - gap;
+        const by = plank.y - gap;
+        const bw = plank.width + gap * 2;
+        const bh = plank.height + gap * 2;
+        if (this._segmentIntersectsRect(line.x1, line.y1, line.x2, line.y2, bx, by, bw, bh)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 线段与矩形相交检测（Cohen-Sutherland 算法简化版）
+   * 检测线段 (x1,y1)-(x2,y2) 是否与矩形 (rx,ry,rw,rh) 相交
+   */
+  _segmentIntersectsRect(x1, y1, x2, y2, rx, ry, rw, rh) {
+    // 区域编码
+    const INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
+    const code = (x, y) => {
+      let c = INSIDE;
+      if (x < rx) c |= LEFT;
+      else if (x > rx + rw) c |= RIGHT;
+      if (y < ry) c |= TOP;
+      else if (y > ry + rh) c |= BOTTOM;
+      return c;
+    };
+
+    let c1 = code(x1, y1);
+    let c2 = code(x2, y2);
+
+    // 两端点都在矩形内
+    if (c1 === 0 && c2 === 0) return true;
+    // 两端点在矩形同一侧外
+    if (c1 & c2) return false;
+    // 一个在内一个在外
+    if (c1 === 0 || c2 === 0) return true;
+
+    // 需要进一步检测：线段是否穿过矩形
+    // 检测线段与矩形四条边的交点
+    const intersects = (ax, ay, bx, by, cx, cy, dx, dy) => {
+      const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+      if (Math.abs(denom) < 0.0001) return false;
+      const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
+      const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / denom;
+      return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+    };
+
+    // 矩形四条边
+    if (intersects(x1, y1, x2, y2, rx, ry, rx + rw, ry)) return true;           // 上边
+    if (intersects(x1, y1, x2, y2, rx, ry + rh, rx + rw, ry + rh)) return true; // 下边
+    if (intersects(x1, y1, x2, y2, rx, ry, rx, ry + rh)) return true;           // 左边
+    if (intersects(x1, y1, x2, y2, rx + rw, ry, rx + rw, ry + rh)) return true; // 右边
+
+    return false;
+  }
+
   /**
    * 尝试发射球
    */
@@ -791,6 +1165,9 @@ export default class GameScene {
 
       this.launcher.isAiming = false;
       this.gameState = 'launching';
+      // 发球后锁定绘制功能：关闭绘制模式，不可再编辑/移动白线
+      this._drawMode = false;
+      this._drawLocked = true;
       this.launcher.startLaunch();
       this.totalBricksThisRound = this.grid.bricks.filter(b => b.isAlive).length;
       this.destroyedThisRound = 0;
@@ -995,15 +1372,18 @@ export default class GameScene {
     this.grid.update();
 
     // 倒计时（基于帧累计，60FPS = 每秒1秒）
-    this._timeAccumFrames++;
-    if (this._timeAccumFrames >= 60) {
-      this._timeAccumFrames -= 60;
-      this.timeLeft--;
-      if (this.timeLeft <= 0) {
-        this.timeLeft = 0;
-        // 时间到 → 进入游戏结束（弹窗显示当前得分）
-        this._onTimeout();
-        return;
+    // 只有在白球正式发射后才开始倒计时（launching/running 状态）
+    if (this.gameState === 'launching' || this.gameState === 'running') {
+      this._timeAccumFrames++;
+      if (this._timeAccumFrames >= 60) {
+        this._timeAccumFrames -= 60;
+        this.timeLeft--;
+        if (this.timeLeft <= 0) {
+          this.timeLeft = 0;
+          // 时间到 → 进入游戏结束（弹窗显示当前得分）
+          this._onTimeout();
+          return;
+        }
       }
     }
 
@@ -1119,7 +1499,7 @@ export default class GameScene {
       const moveVy = vy * speedBoost;
 
       // 1. 扫描碰撞：沿速度方向移动，遇到砖块就停+反弹
-      const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, allObstacles);
+      const hitBricks = moveBallWithCollision(ball, moveVx, moveVy, allObstacles, this._drawLines);
 
       // 2. 处理被击中的砖块（攻击力影响伤害 + 球升级加成）
       for (const brick of hitBricks) {
@@ -1925,7 +2305,7 @@ export default class GameScene {
     }
 
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
-    this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks]);
+    this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks], this._drawLines);
 
     // 恢复抖动效果的上下文状态
     if (this._launcherShakeTimer >= 0 && this._launcherShakeTimer < 15) {
@@ -1968,7 +2348,19 @@ export default class GameScene {
       lightningArmed: !!this._lightningArmed,
       keepArmed: !!this._atkBoostArmed,          // 保持按钮是否已预选
       keepDisabled: !!this._keepBallActive,      // 保持按钮是否不可点击（上轮激活了"保持"仍在生效中）
+      drawMode: this._drawMode,                  // 绘制按钮开关状态
+      drawLocked: this._drawLocked,                // 绘制功能是否已锁定（发球后）
     });
+
+    // 绘制模式：渲染已绘制的直线
+    if (this._drawLines.length > 0 || this._drawingLine) {
+      this._renderDrawLines(ctx);
+    }
+
+    // 绘制模式高亮时：显示上一步按钮（发球后锁定则隐藏）
+    if (this._drawMode && this._drawLines.length > 0 && !this._drawLocked) {
+      this._renderUndoButton(ctx);
+    }
 
     // 加速提示
     if (this.speedTipTimer > 0) {
@@ -2470,7 +2862,7 @@ export default class GameScene {
       ctx.font = `bold ${13 * s}px Arial`;
       ctx.shadowColor = '#ffdd00';
       ctx.shadowBlur = 4 * s;
-      ctx.fillText('🎉 技能+1（每通关3次奖励）', centerX, centerY + 40 * s);
+      ctx.fillText(' 技能+1（每通关3次奖励）', centerX, centerY + 40 * s);
       ctx.shadowBlur = 0;
     }
 

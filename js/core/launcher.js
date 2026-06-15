@@ -149,7 +149,7 @@ export default class Launcher {
     return this.x;
   }
 
-  render(ctx, gameState, bricks) {
+  render(ctx, gameState, bricks, segments) {
     const s = SCALE;
 
     if (gameState === 'launching' || gameState === 'running') {
@@ -191,7 +191,7 @@ export default class Launcher {
 
     // 辅助瞄准线（带反弹折线）
     if (gameState === 'aiming' && this.isAiming && this.showAimLine) {
-      this._renderAimLine(ctx, s, bricks || []);
+      this._renderAimLine(ctx, s, bricks || [], segments || []);
     }
   }
 
@@ -200,7 +200,7 @@ export default class Launcher {
    * 支持：墙壁、矩形砖块、三角形砖块、横板
    * 最多反弹 MAX_BOUNCES 次
    */
-  _renderAimLine(ctx, s, bricks) {
+  _renderAimLine(ctx, s, bricks, segments) {
     const MAX_BOUNCES = 3;
     const DOT_GAP = 6 * s;
     const DOT_R = 2 * s;
@@ -218,7 +218,7 @@ export default class Launcher {
 
     for (let bounce = 0; bounce <= MAX_BOUNCES; bounce++) {
       // 找到这条射线的最近碰撞点和法线
-      const hit = this._raycast(ox, oy, dx, dy, left, right, top, r, bricks);
+      const hit = this._raycast(ox, oy, dx, dy, left, right, top, r, bricks, segments);
 
       // 沿射线画虚线点
       const segDx = hit.x - ox;
@@ -274,7 +274,7 @@ export default class Launcher {
    * 返回 { x, y, nx, ny } — nx/ny 为碰撞法线，undefined 表示未碰到
    * 支持：左右顶墙、矩形砖块/横板、三角形砖块
    */
-  _raycast(ox, oy, dx, dy, left, right, top, r, bricks) {
+  _raycast(ox, oy, dx, dy, left, right, top, r, bricks, segments) {
     let minT = 99999;
     let hitNx, hitNy;
 
@@ -311,6 +311,45 @@ export default class Launcher {
           minT = result.t;
           hitNx = result.nx;
           hitNy = result.ny;
+        }
+      }
+    }
+
+    // --- 绘制线段碰撞 ---
+    if (segments && segments.length > 0) {
+      const lineThickness = 3;
+      const totalR = r + lineThickness;
+      for (const seg of segments) {
+        const sx = seg.x2 - seg.x1;
+        const sy = seg.y2 - seg.y1;
+        const segLenSq = sx * sx + sy * sy;
+        if (segLenSq < 1) continue;
+        const segLen = Math.sqrt(segLenSq);
+        const ux = sx / segLen;
+        const uy = sy / segLen;
+        // 线段法线
+        let nx = -uy;
+        let ny = ux;
+        // 射线起点相对线段起点
+        const dpx = ox - seg.x1;
+        const dpy = oy - seg.y1;
+        const distN = dpx * nx + dpy * ny;
+        if (distN < 0) { nx = -nx; ny = -ny; }
+        const absDist = Math.abs(distN);
+        // 射线方向在法线上的分量
+        const velN = dx * nx + dy * ny;
+        if (velN >= 0) continue; // 射线远离线段
+        // 碰撞时间
+        const t = (absDist - totalR) / (-velN);
+        if (t <= 0.1 || t >= minT) continue;
+        // 检查碰撞点是否在线段范围内
+        const hitX = ox + dx * t;
+        const hitY = oy + dy * t;
+        const proj = (hitX - seg.x1) * ux + (hitY - seg.y1) * uy;
+        if (proj >= -totalR && proj <= segLen + totalR) {
+          minT = t;
+          hitNx = nx;
+          hitNy = ny;
         }
       }
     }

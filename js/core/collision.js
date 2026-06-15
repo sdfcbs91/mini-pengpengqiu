@@ -255,16 +255,96 @@ function findClosestEdgePush(px, py, pts, cx, cy) {
 }
 
 /**
+ * 球与有厚度线段的扫描碰撞
+ * 线段 {x1,y1,x2,y2}，厚度 thickness
+ * 算法：将线段视为一个胶囊体（两端半圆 + 中间矩形），检测球心射线与胶囊体的碰撞
+ */
+function sweepBallSegment(ball, vx, vy, segment, thickness) {
+  const r = ball.radius + thickness;
+  const sx = segment.x2 - segment.x1;
+  const sy = segment.y2 - segment.y1;
+  const segLenSq = sx * sx + sy * sy;
+  if (segLenSq < 1) return null;
+  const segLen = Math.sqrt(segLenSq);
+
+  // 线段单位方向和法线
+  const ux = sx / segLen;
+  const uy = sy / segLen;
+  // 法线（两个方向都要检测，选球所在的一侧）
+  let nx = -uy;
+  let ny = ux;
+
+  // 球心相对线段起点
+  const dpx = ball.x - segment.x1;
+  const dpy = ball.y - segment.y1;
+
+  // 球心在法线方向的有符号距离
+  const distN = dpx * nx + dpy * ny;
+  // 如果球在法线负侧，翻转法线
+  if (distN < 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const absDist = Math.abs(distN);
+
+  // 速度在法线方向的分量
+  const velN = vx * nx + vy * ny;
+  // 球必须朝线段移动
+  if (velN >= 0) return null;
+
+  // 计算碰撞时间：球心到膨胀线段平面的距离 / 速度法线分量
+  const t = (absDist - r) / (-velN);
+  if (t < 0 || t >= 1) return null;
+
+  // 碰撞点在线段方向上的投影
+  const hitX = ball.x + vx * t;
+  const hitY = ball.y + vy * t;
+  const projOnSeg = (hitX - segment.x1) * ux + (hitY - segment.y1) * uy;
+
+  // 碰撞点必须在线段范围内（含两端半径扩展）
+  if (projOnSeg >= -r && projOnSeg <= segLen + r) {
+    // 如果在线段两端之外，需要做端点圆碰撞
+    if (projOnSeg < 0 || projOnSeg > segLen) {
+      // 端点碰撞
+      const endX = projOnSeg < 0 ? segment.x1 : segment.x2;
+      const endY = projOnSeg < 0 ? segment.y1 : segment.y2;
+      const edx = ball.x - endX;
+      const edy = ball.y - endY;
+      const a = vx * vx + vy * vy;
+      const b = 2 * (edx * vx + edy * vy);
+      const c = edx * edx + edy * edy - r * r;
+      if (a < 0.0001) return null;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) return null;
+      const sqrtDisc = Math.sqrt(disc);
+      const t1 = (-b - sqrtDisc) / (2 * a);
+      if (t1 < 0 || t1 >= 1) return null;
+      // 端点碰撞法线：从端点指向球心
+      const chx = ball.x + vx * t1 - endX;
+      const chy = ball.y + vy * t1 - endY;
+      const chLen = Math.sqrt(chx * chx + chy * chy);
+      if (chLen < 0.001) return null;
+      return { brick: segment, t: t1, nx: chx / chLen, ny: chy / chLen };
+    }
+    return { brick: segment, t, nx, ny };
+  }
+
+  return null;
+}
+
+/**
  * 移动球并处理砖块碰撞（扫描方式，不会穿透）
  * 返回碰撞到的砖块列表
  * ball._pathPoints 记录帧内完整路径点（供道具碰撞检测用）
+ * @param {Array} segments 可选，绘制的线段列表 [{x1,y1,x2,y2}]
  */
-export function moveBallWithCollision(ball, vx, vy, bricks) {
+export function moveBallWithCollision(ball, vx, vy, bricks, segments) {
   const hitBricks = [];
   let remainVx = vx;
   let remainVy = vy;
   const maxBounces = 4;
   let lastHitBrick = null;
+  const lineThickness = 3; // 线段碰撞厚度
 
   // 记录路径起点
   ball._pathPoints = [{ x: ball.x, y: ball.y }];
@@ -277,6 +357,17 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
       const hit = sweepBallBrick(ball, remainVx, remainVy, brick);
       if (hit && (!earliest || hit.t < earliest.t)) {
         earliest = hit;
+      }
+    }
+
+    // 线段碰撞检测
+    if (segments && segments.length > 0) {
+      for (const seg of segments) {
+        if (seg === lastHitBrick) continue;
+        const hit = sweepBallSegment(ball, remainVx, remainVy, seg, lineThickness);
+        if (hit && (!earliest || hit.t < earliest.t)) {
+          earliest = hit;
+        }
       }
     }
 
@@ -293,7 +384,7 @@ export function moveBallWithCollision(ball, vx, vy, bricks) {
     ball.y += remainVy * safeT;
     ball._pathPoints.push({ x: ball.x, y: ball.y });
 
-    if (!hitBricks.includes(earliest.brick)) {
+    if (!hitBricks.includes(earliest.brick) && earliest.brick.isAlive !== undefined) {
       hitBricks.push(earliest.brick);
     }
 

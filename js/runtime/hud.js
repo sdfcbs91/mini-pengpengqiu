@@ -35,6 +35,12 @@ export default class HUD {
     this.timerPanelW = LEFT_PANEL_WIDTH;
     this.timerPanelH = 70 * s;
 
+    // ----- 左侧绘制按钮（倒计时面板下方） -----
+    this.drawBtnX = LEFT_PANEL_X;
+    this.drawBtnY = this.timerPanelY + this.timerPanelH + 14 * s;
+    this.drawBtnW = LEFT_PANEL_WIDTH;
+    this.drawBtnH = 36 * s;
+
     // ----- 右侧技能按钮（从上到下，按图2比例调大） -----
     this.btnR = 24 * s;  // 按钮半径增大
     const rightCx = RIGHT_PANEL_X + RIGHT_PANEL_WIDTH / 2;
@@ -73,6 +79,8 @@ export default class HUD {
       lightningArmed = false,
       keepArmed = false,
       keepDisabled = false,
+      drawMode = false,
+      drawLocked = false,
     } = data || {};
 
     // ---- 1) 左上角返回按钮 ----
@@ -83,6 +91,9 @@ export default class HUD {
 
     // ---- 3) 左侧倒计时面板 ----
     this._drawTimerPanel(ctx, s, timeLeft);
+
+    // ---- 3.5) 左侧绘制按钮 ----
+    this._drawDrawButton(ctx, s, drawMode, drawLocked);
 
     // ---- 4) 右侧技能按钮（中央显示中文文案 + 底部显示数量） ----
     // 闪电按钮：激活时显示金色光晕
@@ -426,6 +437,54 @@ export default class HUD {
     ctx.shadowBlur = 0;
   }
 
+  // ============================================================
+  // 绘制按钮（倒计时面板下方，开/关切换）
+  // ============================================================
+  _drawDrawButton(ctx, s, active, locked) {
+    const x = this.drawBtnX;
+    const y = this.drawBtnY;
+    const w = this.drawBtnW;
+    const h = this.drawBtnH;
+
+    if (locked) {
+      // 锁定状态：灰色边框，表示不可操作
+      this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {
+        stroke: '#555555',
+        glow: 'rgba(80,80,80,0.3)',
+        fill: 'rgba(20,20,20,0.85)',
+      });
+      ctx.fillStyle = '#777777';
+    } else if (active) {
+      // 高亮状态：金色边框 + 呼吸光晕（与保持按钮点击后样式一致）
+      const pulse = 0.7 + 0.3 * Math.sin(this.glowPhase * 2);
+      this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {
+        stroke: '#ffcc44',
+        glow: `rgba(255,210,80,${pulse})`,
+        fill: 'rgba(40,30,8,0.92)',
+      });
+      ctx.fillStyle = '#ffdd88';
+    } else {
+      // 普通状态：蓝色边框（与倒计时面板一致）
+      this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {
+        stroke: '#2960dd',
+        glow: 'rgba(50,100,230,0.75)',
+        fill: 'rgba(6,10,28,0.92)',
+      });
+      ctx.fillStyle = '#5b8dff';
+    }
+
+    ctx.font = `bold ${13 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('绘制', x + w / 2, y + h / 2);
+  }
+
+  // 绘制按钮命中检测
+  hitDrawButton(x, y) {
+    return x >= this.drawBtnX && x <= this.drawBtnX + this.drawBtnW &&
+      y >= this.drawBtnY && y <= this.drawBtnY + this.drawBtnH;
+  }
+
   _drawAtkButton(ctx, cx, cy, r, s, count, level) {
     // 与其他技能按钮一致的蓝色风格
     this._drawSkillCircle(ctx, cx, cy, r, s, count);
@@ -455,7 +514,7 @@ export default class HUD {
   hitBackButton(x, y) {
     const r = this.backR;
     return x >= this.backX - r && x <= this.backX + r &&
-           y >= this.backY - r && y <= this.backY + r;
+      y >= this.backY - r && y <= this.backY + r;
   }
 
   // 兼容旧调用：暂停按钮 → 命中返回按钮
