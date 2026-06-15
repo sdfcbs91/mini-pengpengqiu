@@ -2370,9 +2370,9 @@ export default class GameScene {
     const totalH = btnGap * 2;  // 3 个按钮间隔占的总高度
     const startY = centerY - totalH / 2;
 
-    this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', COLORS.neonCyan);
-    this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', COLORS.neonYellow);
-    this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', COLORS.neonRed);
+    this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
+    this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
+    this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', '#4499cc');
   }
 
   _renderGameOverOverlay(ctx) {

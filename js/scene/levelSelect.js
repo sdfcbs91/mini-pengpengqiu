@@ -1365,7 +1365,7 @@ export default class LevelSelect {
     ctx.fillText('在您使用本游戏前，请仔细阅读', centerX, boxY + 52 * s);
 
     // 隐私协议链接（突出显示）
-    ctx.fillStyle = '#39ff14';
+    ctx.fillStyle = '#4499cc';
     ctx.font = `bold ${11 * s}px Arial`;
     ctx.fillText('《隐私协议》', centerX, boxY + 70 * s);
 
@@ -1379,7 +1379,7 @@ export default class LevelSelect {
     const btnY = boxY + boxH - 50 * s;
 
     // "同意并继续" 按钮
-    ctx.fillStyle = '#39ff14';
+    ctx.fillStyle = '#4499cc';
     ctx.beginPath();
     const btnR = 6 * s;
     const agreeX = centerX - btnW - 8 * s;
