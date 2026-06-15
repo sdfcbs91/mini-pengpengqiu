@@ -315,7 +315,7 @@ exports.main = async (event, context) => {
         updateData.maxLevel = maxLevel;
       }
 
-      // 更新完整关卡进度（合并：保留云端的 score/scoreTime 不被覆盖）
+      // 更新完整关卡进度（合并：保留云端的 score/scoreTime/clearScore/clearTime/clearRounds/lastClearAt 不被覆盖）
       if (levelProgress) {
         const existingProgress = doc.levelProgress || [];
         const merged = levelProgress.map((item, idx) => {
@@ -325,6 +325,19 @@ exports.main = async (event, context) => {
           if (existing && existing.score) {
             result.score = existing.score;
             result.scoreTime = existing.scoreTime;
+          }
+          // 保留云端已有的通关记录数据
+          if (existing && existing.clearScore) {
+            result.clearScore = existing.clearScore;
+          }
+          if (existing && existing.clearTime) {
+            result.clearTime = existing.clearTime;
+          }
+          if (existing && existing.clearRounds) {
+            result.clearRounds = existing.clearRounds;
+          }
+          if (existing && existing.lastClearAt) {
+            result.lastClearAt = existing.lastClearAt;
           }
           return result;
         });

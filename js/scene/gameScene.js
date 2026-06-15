@@ -1883,8 +1883,12 @@ export default class GameScene {
     if (typeof wx === 'undefined' || !wx.cloud) return;
     if (this.initialLevel <= 0) return; // 特殊模式不计入
 
-    // 计算通关耗时（总时间 - 剩余时间）
-    const timeUsed = LEVEL_TIME_LIMIT - (this.timeLeft || 0);
+    // 计算通关耗时（总时间 - 剩余时间 + 帧级精度补偿）
+    // timeLeft是整秒递减的，_timeAccumFrames记录了当前秒内已累计的帧数
+    const fractionalSecond = (this._timeAccumFrames || 0) / 60;
+    const timeUsed = LEVEL_TIME_LIMIT - (this.timeLeft || 0) + fractionalSecond;
+    // 保留1位小数
+    const timeUsedRounded = Math.round(timeUsed * 10) / 10;
 
     wx.cloud.callFunction({
       name: 'saveUserProgress',
@@ -1892,7 +1896,7 @@ export default class GameScene {
         action: 'levelCleared',
         level: this.initialLevel,       // 关卡编号
         clearScore: this.score,         // 通关积分
-        timeUsed: timeUsed,             // 通关耗时（秒）
+        timeUsed: timeUsedRounded,             // 通关耗时（秒，精确到0.1秒）
         rounds: this.line,              // 通关使用的回合数
       },
       success: (res) => {
