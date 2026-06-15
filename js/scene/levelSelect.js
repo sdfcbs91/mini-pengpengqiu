@@ -79,7 +79,13 @@ export default class LevelSelect {
     // 检查游戏结束后是否需要获取用户信息
     if (GameGlobal._needAuthPrompt) {
       GameGlobal._needAuthPrompt = false;
-      this._requestUserProfile();
+      // 必须先确认隐私协议已同意，才能请求用户信息
+      try {
+        const agreed = wx.getStorageSync('ppq_privacy_agreed');
+        if (agreed) {
+          this._requestUserProfile();
+        }
+      } catch (e) { /* ignore */ }
     }
   }
 
@@ -88,8 +94,8 @@ export default class LevelSelect {
    * 微信规范要求：处理用户个人信息前必须以弹窗方式提示用户阅读同意隐私协议
    */
   _checkPrivacyAndInit() {
-    if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
-      // 不支持隐私接口，直接初始化
+    if (typeof wx === 'undefined') {
+      // 非微信环境，直接初始化
       this._doAfterPrivacyAgreed();
       return;
     }
@@ -104,23 +110,10 @@ export default class LevelSelect {
       }
     } catch (e) { /* ignore */ }
 
-    // 调用微信接口检查是否需要授权
-    wx.getPrivacySetting({
-      success: (res) => {
-        if (res.needAuthorization) {
-          // 需要用户同意隐私协议，显示弹窗
-          this._showPrivacyPrompt = true;
-        } else {
-          // 已授权，记录并初始化
-          try { wx.setStorageSync('ppq_privacy_agreed', true); } catch (e) { /* ignore */ }
-          this._doAfterPrivacyAgreed();
-        }
-      },
-      fail: () => {
-        // 获取失败，显示弹窗让用户确认
-        this._showPrivacyPrompt = true;
-      },
-    });
+    // 本地未记录同意 → 必须弹窗让用户确认隐私协议
+    // 不依赖 wx.getPrivacySetting 的返回值，因为即使系统层面不需要授权，
+    // 微信审核仍要求在处理用户个人信息前以弹窗方式提示用户
+    this._showPrivacyPrompt = true;
   }
 
   /**
@@ -1573,105 +1566,64 @@ export default class LevelSelect {
 
   /**
    * 请求用户昵称授权（wx.getUserProfile）
-   * 先检查隐私协议，再请求用户信息
+   * 注意：调用此方法前必须确保隐私协议已同意（ppq_privacy_agreed = true）
    */
   _requestUserProfile() {
     if (typeof wx === 'undefined' || !wx.getUserProfile) return;
 
-    // 先处理隐私协议授权（微信隐私保护指引要求）
-    const doGetUserProfile = () => {
-      wx.getUserProfile({
-        desc: '用于游戏内展示玩家昵称。',
-        success: (res) => {
-          const info = res.userInfo;
-          try {
-            const cached = wx.getStorageSync('ppq_user_info') || {};
-            cached.nickName = info.nickName || '';
-            cached.avatarUrl = info.avatarUrl || '';
-            cached.refused = false;
-            wx.setStorageSync('ppq_user_info', cached);
-            wx.setStorageSync('ppq_auth_refused', false);
-          } catch (e) { /* ignore */ }
+    // 再次确认隐私协议已同意，防止任何绕过
+    try {
+      const agreed = wx.getStorageSync('ppq_privacy_agreed');
+      if (!agreed) return;
+    } catch (e) { return; }
 
-          // 同步到云函数
-          if (wx.cloud) {
-            wx.cloud.callFunction({
-              name: 'saveUserProgress',
-              data: {
-                action: 'save',
-                userInfo: {
-                  nickName: info.nickName || '',
-                  avatarUrl: info.avatarUrl || '',
-                },
+    wx.getUserProfile({
+      desc: '用于游戏内展示玩家昵称。',
+      success: (res) => {
+        const info = res.userInfo;
+        try {
+          const cached = wx.getStorageSync('ppq_user_info') || {};
+          cached.nickName = info.nickName || '';
+          cached.avatarUrl = info.avatarUrl || '';
+          cached.refused = false;
+          wx.setStorageSync('ppq_user_info', cached);
+          wx.setStorageSync('ppq_auth_refused', false);
+        } catch (e) { /* ignore */ }
+
+        // 同步到云函数
+        if (wx.cloud) {
+          wx.cloud.callFunction({
+            name: 'saveUserProgress',
+            data: {
+              action: 'save',
+              userInfo: {
+                nickName: info.nickName || '',
+                avatarUrl: info.avatarUrl || '',
               },
-              success: (res) => {
-                console.log('[云函数调用成功]', res);
-              },
-              fail: (err) => {
-                console.error('[云函数调用失败]', err);
-              },
-            });
-          }
+            },
+            success: (res) => {
+              console.log('[云函数调用成功]', res);
+            },
+            fail: (err) => {
+              console.error('[云函数调用失败]', err);
+            },
+          });
+        }
 
-          // 记录成功信息和返回数据到 console.log
-          console.log('[授权成功]', res);
-          console.log('用户名称：', info.nickName || '');
-          this._toastText = '授权成功（查看Dev日志）';
-          this._toastTimer = 60;
-        },
-        fail: (err) => {
-          // 用户取消了授权弹窗
-          try {
-            wx.setStorageSync('ppq_auth_refused', true);
-          } catch (e) { /* ignore */ }
+        console.log('[授权成功]', res);
+        console.log('用户名称：', info.nickName || '');
+        this._toastText = '授权成功';
+        this._toastTimer = 60;
+      },
+      fail: (err) => {
+        // 用户取消了授权弹窗
+        try {
+          wx.setStorageSync('ppq_auth_refused', true);
+        } catch (e) { /* ignore */ }
 
-          // 记录失败错误信息到 console.log
-          console.error('[授权失败]', err);
-          this._toastText = '授权失败（查看Dev日志）';
-          this._toastTimer = 60;
-        },
-      });
-    };
-
-    // 检查隐私协议状态并要求授权
-    if (wx.getPrivacySetting) {
-      wx.getPrivacySetting({
-        success: (res) => {
-          if (res.needAuthorization) {
-            // 需要展示隐私协议弹窗
-            if (wx.requirePrivacyAuthorize) {
-              wx.requirePrivacyAuthorize({
-                success: () => {
-                  // 用户同意隐私协议后，再请求用户信息
-                  doGetUserProfile();
-                },
-                fail: () => {
-                  // 用户拒绝隐私协议
-                  try {
-                    wx.setStorageSync('ppq_auth_refused', true);
-                  } catch (e) { /* ignore */ }
-                  this._toastText = '需要同意隐私协议';
-                  this._toastTimer = 60;
-                },
-              });
-            } else {
-              // 不支持 requirePrivacyAuthorize，直接请求
-              doGetUserProfile();
-            }
-          } else {
-            // 已授权隐私协议，直接请求用户信息
-            doGetUserProfile();
-          }
-        },
-        fail: () => {
-          // 获取隐私设置失败，直接请求用户信息
-          doGetUserProfile();
-        },
-      });
-    } else {
-      // 不支持 getPrivacySetting，直接请求用户信息
-      doGetUserProfile();
-    }
+        console.error('[授权失败]', err);
+      },
+    });
   }
 
   _drawBackground(ctx) {

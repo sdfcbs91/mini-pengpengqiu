@@ -81,6 +81,7 @@ export default class HUD {
       keepDisabled = false,
       drawMode = false,
       drawLocked = false,
+      drawBtnBlink = false,
     } = data || {};
 
     // ---- 1) 左上角返回按钮 ----
@@ -93,7 +94,7 @@ export default class HUD {
     this._drawTimerPanel(ctx, s, timeLeft);
 
     // ---- 3.5) 左侧绘制按钮 ----
-    this._drawDrawButton(ctx, s, drawMode, drawLocked);
+    this._drawDrawButton(ctx, s, drawMode, drawLocked, drawBtnBlink);
 
     // ---- 4) 右侧技能按钮（中央显示中文文案 + 底部显示数量） ----
     // 闪电按钮：激活时显示金色光晕
@@ -440,7 +441,7 @@ export default class HUD {
   // ============================================================
   // 绘制按钮（倒计时面板下方，开/关切换）
   // ============================================================
-  _drawDrawButton(ctx, s, active, locked) {
+  _drawDrawButton(ctx, s, active, locked, blink) {
     const x = this.drawBtnX;
     const y = this.drawBtnY;
     const w = this.drawBtnW;
@@ -463,6 +464,24 @@ export default class HUD {
         fill: 'rgba(40,30,8,0.92)',
       });
       ctx.fillStyle = '#ffdd88';
+    } else if (blink) {
+      // 开局闪动提示：快速在蓝色和亮白之间切换，引导用户注意
+      const blinkOn = Math.sin(this.glowPhase * 8) > 0;
+      if (blinkOn) {
+        this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {
+          stroke: '#66aaff',
+          glow: 'rgba(100,180,255,0.9)',
+          fill: 'rgba(20,40,80,0.95)',
+        });
+        ctx.fillStyle = '#ffffff';
+      } else {
+        this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {
+          stroke: '#2960dd',
+          glow: 'rgba(50,100,230,0.75)',
+          fill: 'rgba(6,10,28,0.92)',
+        });
+        ctx.fillStyle = '#5b8dff';
+      }
     } else {
       // 普通状态：蓝色边框（与倒计时面板一致）
       this._drawRoundedPanel(ctx, x, y, w, h, 10 * s, {

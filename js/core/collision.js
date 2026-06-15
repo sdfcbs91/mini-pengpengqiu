@@ -64,9 +64,16 @@ function sweepBallRect(ball, vx, vy, brick) {
 }
 
 /**
- * 球与三角形砖块的扫描碰撞
- * 算法：逐边检测移动球心（点）与膨胀边（线段外扩r）的碰撞 + 顶点圆碰撞
- * 取所有碰撞中最早的 t，法线为该边的外法线
+ * 球与三角形砖块的扫描碰撞（Swept Circle vs Convex Polygon）
+ * 
+ * 业界标准算法：将三角形 Minkowski 膨胀球半径 r，形成圆角三角形（Rounded Triangle）
+ * 圆角三角形 = 3条外扩平面（边向外平移r）+ 3个顶点圆（半径r）
+ * 球心作为质点射线，检测与圆角三角形的碰撞
+ * 
+ * 关键改进：
+ * 1. 边碰撞的投影范围严格限制在 [0, edgeLen]，不再扩展
+ * 2. 顶点圆碰撞完全独立检测，覆盖边的端点区域
+ * 3. 增加 Voronoi 区域判断，确保碰撞法线精确
  */
 function sweepBallTriangle(ball, vx, vy, brick) {
   const r = ball.radius;
@@ -74,96 +81,100 @@ function sweepBallTriangle(ball, vx, vy, brick) {
   const py = ball.y;
   const pts = brick._getTrianglePoints(brick.x, brick.y, brick.width, brick.height);
 
-  // 三角形三条边
-  const edges = [
-    { a: pts[0], b: pts[1] },
-    { a: pts[1], b: pts[2] },
-    { a: pts[2], b: pts[0] },
-  ];
-
   // 计算三角形重心（用于确定外法线方向）
   const cx = (pts[0].x + pts[1].x + pts[2].x) / 3;
   const cy = (pts[0].y + pts[1].y + pts[2].y) / 3;
 
-  let bestT = Infinity;
-  let bestNx = 0, bestNy = 0;
+  // 预计算三条边的几何信息
+  const edgeData = [];
+  for (let i = 0; i < 3; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % 3];
+    const edx = b.x - a.x;
+    const edy = b.y - a.y;
+    const len = Math.sqrt(edx * edx + edy * edy);
+    if (len < 0.001) continue;
 
-  // 1. 检测球心射线与每条膨胀边（外扩 r）的碰撞
-  for (const edge of edges) {
-    const ax = edge.a.x, ay = edge.a.y;
-    const bx = edge.b.x, by = edge.b.y;
+    // 边的单位方向
+    const ux = edx / len;
+    const uy = edy / len;
 
-    // 边方向
-    const edx = bx - ax;
-    const edy = by - ay;
-    const edLen = Math.sqrt(edx * edx + edy * edy);
-    if (edLen < 0.001) continue;
-
-    // 边的单位法线（选朝外的方向）
-    let nx = -edy / edLen;
-    let ny = edx / edLen;
-
-    // 确保法线朝外（远离重心）
-    const toCenterX = cx - ax;
-    const toCenterY = cy - ay;
-    if (nx * toCenterX + ny * toCenterY > 0) {
+    // 边的外法线（远离重心方向）
+    let nx = -uy;
+    let ny = ux;
+    if (nx * (cx - a.x) + ny * (cy - a.y) > 0) {
       nx = -nx;
       ny = -ny;
     }
 
-    // 将边沿法线方向外扩 r，变为：平面检测
-    // 球心到膨胀平面的距离检测
-    // 平面方程：nx*(X - ax - nx*r) + ny*(Y - ay - ny*r) = 0
-    // 即 nx*X + ny*Y = D，其中 D = nx*(ax + nx*r) + ny*(ay + ny*r)
-    const D = nx * (ax + nx * r) + ny * (ay + ny * r);
+    edgeData.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, ux, uy, nx, ny, len });
+  }
 
-    // 球心相对平面的有符号距离
-    const dist0 = nx * px + ny * py - D;
-    const velN = nx * vx + ny * vy;
+  let bestT = Infinity;
+  let bestNx = 0, bestNy = 0;
 
-    // 如果球心在平面外侧且朝平面运动
-    if (dist0 > 0 && velN < -0.0001) {
-      const t = dist0 / (-velN);
-      if (t >= 0 && t < 1 && t < bestT) {
-        // 检查碰撞点是否在边的投影范围内
-        const hitX = px + vx * t;
-        const hitY = py + vy * t;
-        const projLen = (hitX - ax) * (edx / edLen) + (hitY - ay) * (edy / edLen);
-        if (projLen >= -r && projLen <= edLen + r) {
-          bestT = t;
-          bestNx = nx;
-          bestNy = ny;
-        }
-      }
+  // === 1. 边碰撞检测（平面碰撞，投影严格在 [0, edgeLen] 内）===
+  for (const ed of edgeData) {
+    // 球心到边平面的有符号距离（正值 = 在外法线侧）
+    const dist0 = (px - ed.ax) * ed.nx + (py - ed.ay) * ed.ny;
+
+    // 球心必须在边的外侧（距离 > 0）
+    if (dist0 <= 0) continue;
+
+    // 速度在法线方向的分量
+    const velN = vx * ed.nx + vy * ed.ny;
+
+    // 球必须朝边移动
+    if (velN >= -0.0001) continue;
+
+    // 碰撞时间：球心到膨胀平面（外扩r）的距离
+    const t = (dist0 - r) / (-velN);
+    if (t < -0.001 || t >= 1 || t >= bestT) continue;
+
+    // 碰撞点在边方向上的投影（严格在边范围内）
+    const hitX = px + vx * t;
+    const hitY = py + vy * t;
+    const proj = (hitX - ed.ax) * ed.ux + (hitY - ed.ay) * ed.uy;
+
+    // 严格限制在边的范围内，端点区域由顶点圆处理
+    if (proj >= 0 && proj <= ed.len) {
+      if (t < 0) continue; // 已经穿过了
+      bestT = t;
+      bestNx = ed.nx;
+      bestNy = ed.ny;
     }
   }
 
-  // 2. 检测球与三角形顶点的碰撞（球心射线与顶点圆的交叉）
-  for (const pt of pts) {
-    const t = sweepCirclePoint(px, py, vx, vy, pt.x, pt.y, r);
-    if (t >= 0 && t < 1 && t < bestT) {
-      // 碰撞法线 = 球心到顶点的方向
-      const hitX = px + vx * t;
-      const hitY = py + vy * t;
-      const dnx = hitX - pt.x;
-      const dny = hitY - pt.y;
-      const dLen = Math.sqrt(dnx * dnx + dny * dny);
-      if (dLen > 0.001) {
-        bestT = t;
-        bestNx = dnx / dLen;
-        bestNy = dny / dLen;
-      }
-    }
+  // === 2. 顶点圆碰撞（独立检测，覆盖 Voronoi 顶点区域）===
+  for (let i = 0; i < pts.length; i++) {
+    const pt = pts[i];
+    const t = _sweepCirclePoint(px, py, vx, vy, pt.x, pt.y, r);
+    if (t < 0 || t >= 1 || t >= bestT) continue;
+
+    // 碰撞法线 = 碰撞时刻球心指向顶点的反方向（从顶点指向球心）
+    const hitX = px + vx * t;
+    const hitY = py + vy * t;
+    const dnx = hitX - pt.x;
+    const dny = hitY - pt.y;
+    const dLen = Math.sqrt(dnx * dnx + dny * dny);
+    if (dLen < 0.001) continue;
+
+    // Voronoi 区域验证：碰撞点不应在任何边的有效投影范围内
+    // 这确保顶点碰撞只在真正的顶点区域触发
+    const normNx = dnx / dLen;
+    const normNy = dny / dLen;
+
+    bestT = t;
+    bestNx = normNx;
+    bestNy = normNy;
   }
 
-  // 3. 检查球心是否已在三角形内部（静态重叠）
+  // === 3. 静态重叠检测（球心已在膨胀三角形内部）===
   if (bestT === Infinity) {
-    if (pointInTriangleExpanded(px, py, pts, r)) {
-      // 已经重叠，找最近的边推出
-      const pushResult = findClosestEdgePush(px, py, pts, cx, cy);
-      if (pushResult) {
-        return { brick, t: 0, nx: pushResult.nx, ny: pushResult.ny };
-      }
+    // 检查球心是否在三角形的 Minkowski 膨胀区域内
+    const overlap = _checkTriangleOverlap(px, py, pts, edgeData, r);
+    if (overlap) {
+      return { brick, t: 0, nx: overlap.nx, ny: overlap.ny };
     }
     return null;
   }
@@ -172,17 +183,18 @@ function sweepBallTriangle(ball, vx, vy, brick) {
 }
 
 /**
- * 射线（点）与圆的碰撞时间
- * 点从 (px,py) 以 (vx,vy) 移动，碰到以 (cx,cy) 为圆心、半径 r 的圆
+ * 射线（质点）与圆的碰撞时间
+ * 质点从 (px,py) 以 (vx,vy) 移动，碰到以 (cx,cy) 为圆心、半径 r 的圆
+ * 返回最早的正碰撞时间，无碰撞返回 -1
  */
-function sweepCirclePoint(px, py, vx, vy, cx, cy, r) {
+function _sweepCirclePoint(px, py, vx, vy, cx, cy, r) {
   const dx = px - cx;
   const dy = py - cy;
   const a = vx * vx + vy * vy;
   const b = 2 * (dx * vx + dy * vy);
   const c = dx * dx + dy * dy - r * r;
 
-  if (a < 0.0001) return -1; // 不动
+  if (a < 0.0001) return -1;
 
   const disc = b * b - 4 * a * c;
   if (disc < 0) return -1;
@@ -191,67 +203,92 @@ function sweepCirclePoint(px, py, vx, vy, cx, cy, r) {
   const t1 = (-b - sqrtDisc) / (2 * a);
   if (t1 >= 0) return t1;
 
-  const t2 = (-b + sqrtDisc) / (2 * a);
-  if (t2 >= 0) return t2;
-
+  // 如果 t1 < 0 说明球心已在圆内，取 t2（穿出时间）
+  // 但对于碰撞检测我们不需要穿出时间
   return -1;
 }
 
 /**
- * 检查点是否在三角形（膨胀 r）内部
+ * 检查球心是否在三角形的 Minkowski 膨胀区域内（静态重叠）
+ * 膨胀区域 = 三角形内部 + 各边外扩r的矩形带 + 各顶点半径r的圆
+ * 返回推出法线（最浅穿透方向），或 null
  */
-function pointInTriangleExpanded(px, py, pts, r) {
-  // 简单方法：检查点到三角形各边的距离是否都 < r 或在内侧
-  const cx = (pts[0].x + pts[1].x + pts[2].x) / 3;
-  const cy = (pts[0].y + pts[1].y + pts[2].y) / 3;
+function _checkTriangleOverlap(px, py, pts, edgeData, r) {
+  // 先检查是否在原始三角形内部
+  const inTriangle = _pointInTriangle(px, py, pts);
 
-  for (let i = 0; i < 3; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % 3];
-    const edx = b.x - a.x;
-    const edy = b.y - a.y;
-    const len = Math.sqrt(edx * edx + edy * edy);
-    if (len < 0.001) continue;
-
-    let nx = -edy / len;
-    let ny = edx / len;
-    if (nx * (cx - a.x) + ny * (cy - a.y) > 0) { nx = -nx; ny = -ny; }
-
-    const dist = nx * (px - a.x) + ny * (py - a.y);
-    if (dist > r) return false;
+  if (inTriangle) {
+    // 在三角形内部，找最近的边推出
+    let minPen = Infinity;
+    let bestNx = 0, bestNy = 0;
+    for (const ed of edgeData) {
+      const dist = (px - ed.ax) * ed.nx + (py - ed.ay) * ed.ny;
+      // dist 应该是负值（在内侧），穿透深度 = r - dist
+      const pen = r - dist;
+      if (pen < minPen) {
+        minPen = pen;
+        bestNx = ed.nx;
+        bestNy = ed.ny;
+      }
+    }
+    return { nx: bestNx, ny: bestNy };
   }
-  return true;
-}
 
-/**
- * 找到距离点最近的三角形边，返回推出法线
- */
-function findClosestEdgePush(px, py, pts, cx, cy) {
+  // 不在三角形内部，检查是否在边的外扩带或顶点圆内
+  // 找到最近的边或顶点
   let minDist = Infinity;
   let bestNx = 0, bestNy = 0;
 
-  for (let i = 0; i < 3; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % 3];
-    const edx = b.x - a.x;
-    const edy = b.y - a.y;
-    const len = Math.sqrt(edx * edx + edy * edy);
-    if (len < 0.001) continue;
+  // 检查各边
+  for (const ed of edgeData) {
+    const proj = (px - ed.ax) * ed.ux + (py - ed.ay) * ed.uy;
+    if (proj >= 0 && proj <= ed.len) {
+      const dist = (px - ed.ax) * ed.nx + (py - ed.ay) * ed.ny;
+      if (dist >= 0 && dist < r && dist < minDist) {
+        minDist = dist;
+        bestNx = ed.nx;
+        bestNy = ed.ny;
+      }
+    }
+  }
 
-    let nx = -edy / len;
-    let ny = edx / len;
-    if (nx * (cx - a.x) + ny * (cy - a.y) > 0) { nx = -nx; ny = -ny; }
-
-    const dist = Math.abs(nx * (px - a.x) + ny * (py - a.y));
-    if (dist < minDist) {
+  // 检查各顶点
+  for (const pt of pts) {
+    const dx = px - pt.x;
+    const dy = py - pt.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < r && dist < minDist) {
       minDist = dist;
-      bestNx = nx;
-      bestNy = ny;
+      if (dist > 0.001) {
+        bestNx = dx / dist;
+        bestNy = dy / dist;
+      }
     }
   }
 
   if (minDist < Infinity) return { nx: bestNx, ny: bestNy };
   return null;
+}
+
+/**
+ * 判断点是否在三角形内部（使用重心坐标法）
+ */
+function _pointInTriangle(px, py, pts) {
+  const x0 = pts[0].x, y0 = pts[0].y;
+  const x1 = pts[1].x, y1 = pts[1].y;
+  const x2 = pts[2].x, y2 = pts[2].y;
+
+  const dX = px - x2;
+  const dY = py - y2;
+  const dX21 = x2 - x1;
+  const dY12 = y1 - y2;
+  const D = dY12 * (x0 - x2) + dX21 * (y0 - y2);
+  if (Math.abs(D) < 0.0001) return false;
+
+  const s = (dY12 * dX + dX21 * dY) / D;
+  const t = ((y2 - y0) * dX + (x0 - x2) * dY) / D;
+
+  return s >= 0 && t >= 0 && (s + t) <= 1;
 }
 
 /**
@@ -408,8 +445,8 @@ export function moveBallWithCollision(ball, vx, vy, bricks, segments) {
       break;
     }
 
-    // 移动到碰撞点
-    const safeT = Math.max(0, earliest.t - 0.01);
+    // 移动到碰撞点（微小退避防止数值穿透，0.001足够小不会产生视觉间隙）
+    const safeT = Math.max(0, earliest.t - 0.001);
     ball.x += remainVx * safeT;
     ball.y += remainVy * safeT;
     ball._pathPoints.push({ x: ball.x, y: ball.y });

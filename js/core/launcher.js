@@ -421,6 +421,7 @@ export default class Launcher {
     let bestT = Infinity;
     let bestNx = 0, bestNy = 0;
 
+    // 1. 边碰撞（投影严格在 [0, edgeLen] 内）
     for (const edge of edges) {
       const ax = edge.a.x, ay = edge.a.y;
       const bx = edge.b.x, by = edge.b.y;
@@ -430,24 +431,27 @@ export default class Launcher {
       const edLen = Math.sqrt(edx * edx + edy * edy);
       if (edLen < 0.001) continue;
 
+      const ux = edx / edLen;
+      const uy = edy / edLen;
+
       // 边的外法线
       let nx = -edy / edLen;
       let ny = edx / edLen;
       if (nx * (cx - ax) + ny * (cy - ay) > 0) { nx = -nx; ny = -ny; }
 
-      // 膨胀平面 D
-      const D = nx * (ax + nx * r) + ny * (ay + ny * r);
-      const dist0 = nx * ox + ny * oy - D;
-      const velN = nx * dx + ny * dy;
+      // 球心到边平面的有符号距离
+      const dist0 = (ox - ax) * nx + (oy - ay) * ny;
+      const velN = dx * nx + dy * ny;
 
+      // 球心在外侧且朝边移动
       if (dist0 > 0 && velN < -0.0001) {
-        const t = dist0 / (-velN);
+        const t = (dist0 - r) / (-velN);
         if (t > 0 && t < bestT) {
-          // 验证碰撞点在边的投影范围内
+          // 碰撞点在边方向上的投影（严格在边范围内）
           const hitX = ox + dx * t;
           const hitY = oy + dy * t;
-          const proj = (hitX - ax) * (edx / edLen) + (hitY - ay) * (edy / edLen);
-          if (proj >= -r && proj <= edLen + r) {
+          const proj = (hitX - ax) * ux + (hitY - ay) * uy;
+          if (proj >= 0 && proj <= edLen) {
             bestT = t;
             bestNx = nx;
             bestNy = ny;
@@ -456,7 +460,7 @@ export default class Launcher {
       }
     }
 
-    // 顶点碰撞
+    // 2. 顶点圆碰撞（独立检测）
     for (const pt of pts) {
       const pdx = ox - pt.x;
       const pdy = oy - pt.y;
@@ -466,7 +470,8 @@ export default class Launcher {
       if (a < 0.0001) continue;
       const disc = b * b - 4 * a * c;
       if (disc < 0) continue;
-      const t = (-b - Math.sqrt(disc)) / (2 * a);
+      const sqrtDisc = Math.sqrt(disc);
+      const t = (-b - sqrtDisc) / (2 * a);
       if (t > 0 && t < bestT) {
         const hitX = ox + dx * t;
         const hitY = oy + dy * t;

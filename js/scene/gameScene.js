@@ -503,6 +503,7 @@ export default class GameScene {
     this._isDrawing = false;
     this._isDraggingLine = false;
     this._drawLocked = false;
+    this._drawBtnBlinkTimer = 90;  // 绘制按钮开局闪动提示（约1.5秒）
 
     // 飞起的得分文字（特效）
     this._scoreFloats = [];
@@ -1387,6 +1388,11 @@ export default class GameScene {
 
     this.hud.update();
     this.grid.update();
+
+    // 绘制按钮开局闪动计时器递减
+    if (this._drawBtnBlinkTimer > 0) {
+      this._drawBtnBlinkTimer--;
+    }
 
     // 倒计时（基于帧累计，60FPS = 每秒1秒）
     // 只有在白球正式发射后才开始倒计时（launching/running 状态）
@@ -2367,6 +2373,7 @@ export default class GameScene {
       keepDisabled: !!this._keepBallActive,      // 保持按钮是否不可点击（上轮激活了"保持"仍在生效中）
       drawMode: this._drawMode,                  // 绘制按钮开关状态
       drawLocked: this._drawLocked,                // 绘制功能是否已锁定（发球后）
+      drawBtnBlink: this._drawBtnBlinkTimer > 0,   // 绘制按钮是否正在闪动提示
     });
 
     // 绘制模式：渲染已绘制的直线
