@@ -257,7 +257,8 @@ function findClosestEdgePush(px, py, pts, cx, cy) {
 /**
  * 球与有厚度线段的扫描碰撞
  * 线段 {x1,y1,x2,y2}，厚度 thickness
- * 算法：将线段视为一个胶囊体（两端半圆 + 中间矩形），检测球心射线与胶囊体的碰撞
+ * 算法：胶囊体碰撞 = 平面碰撞（中间段）+ 端点圆碰撞（两端）
+ * 两种碰撞独立检测，取最早的碰撞时间
  */
 function sweepBallSegment(ball, vx, vy, segment, thickness) {
   const r = ball.radius + thickness;
@@ -270,7 +271,11 @@ function sweepBallSegment(ball, vx, vy, segment, thickness) {
   // 线段单位方向和法线
   const ux = sx / segLen;
   const uy = sy / segLen;
-  // 法线（两个方向都要检测，选球所在的一侧）
+
+  let bestT = Infinity;
+  let bestNx = 0, bestNy = 0;
+
+  // === 1. 平面碰撞（线段中间段）===
   let nx = -uy;
   let ny = ux;
 
@@ -289,47 +294,72 @@ function sweepBallSegment(ball, vx, vy, segment, thickness) {
 
   // 速度在法线方向的分量
   const velN = vx * nx + vy * ny;
-  // 球必须朝线段移动
-  if (velN >= 0) return null;
-
-  // 计算碰撞时间：球心到膨胀线段平面的距离 / 速度法线分量
-  const t = (absDist - r) / (-velN);
-  if (t < 0 || t >= 1) return null;
-
-  // 碰撞点在线段方向上的投影
-  const hitX = ball.x + vx * t;
-  const hitY = ball.y + vy * t;
-  const projOnSeg = (hitX - segment.x1) * ux + (hitY - segment.y1) * uy;
-
-  // 碰撞点必须在线段范围内（含两端半径扩展）
-  if (projOnSeg >= -r && projOnSeg <= segLen + r) {
-    // 如果在线段两端之外，需要做端点圆碰撞
-    if (projOnSeg < 0 || projOnSeg > segLen) {
-      // 端点碰撞
-      const endX = projOnSeg < 0 ? segment.x1 : segment.x2;
-      const endY = projOnSeg < 0 ? segment.y1 : segment.y2;
-      const edx = ball.x - endX;
-      const edy = ball.y - endY;
-      const a = vx * vx + vy * vy;
-      const b = 2 * (edx * vx + edy * vy);
-      const c = edx * edx + edy * edy - r * r;
-      if (a < 0.0001) return null;
-      const disc = b * b - 4 * a * c;
-      if (disc < 0) return null;
-      const sqrtDisc = Math.sqrt(disc);
-      const t1 = (-b - sqrtDisc) / (2 * a);
-      if (t1 < 0 || t1 >= 1) return null;
-      // 端点碰撞法线：从端点指向球心
-      const chx = ball.x + vx * t1 - endX;
-      const chy = ball.y + vy * t1 - endY;
-      const chLen = Math.sqrt(chx * chx + chy * chy);
-      if (chLen < 0.001) return null;
-      return { brick: segment, t: t1, nx: chx / chLen, ny: chy / chLen };
+  // 球朝线段移动时才检测平面碰撞
+  if (velN < -0.0001) {
+    const t = (absDist - r) / (-velN);
+    if (t >= 0 && t < 1 && t < bestT) {
+      // 碰撞点在线段方向上的投影（必须在线段范围内）
+      const hitX = ball.x + vx * t;
+      const hitY = ball.y + vy * t;
+      const projOnSeg = (hitX - segment.x1) * ux + (hitY - segment.y1) * uy;
+      if (projOnSeg >= 0 && projOnSeg <= segLen) {
+        bestT = t;
+        bestNx = nx;
+        bestNy = ny;
+      }
     }
-    return { brick: segment, t, nx, ny };
   }
 
-  return null;
+  // === 2. 端点圆碰撞（两端独立检测）===
+  // 端点1
+  const t1 = _sweepBallPoint(ball.x, ball.y, vx, vy, segment.x1, segment.y1, r);
+  if (t1 >= 0 && t1 < 1 && t1 < bestT) {
+    const chx = ball.x + vx * t1 - segment.x1;
+    const chy = ball.y + vy * t1 - segment.y1;
+    const chLen = Math.sqrt(chx * chx + chy * chy);
+    if (chLen > 0.001) {
+      bestT = t1;
+      bestNx = chx / chLen;
+      bestNy = chy / chLen;
+    }
+  }
+
+  // 端点2
+  const t2 = _sweepBallPoint(ball.x, ball.y, vx, vy, segment.x2, segment.y2, r);
+  if (t2 >= 0 && t2 < 1 && t2 < bestT) {
+    const chx = ball.x + vx * t2 - segment.x2;
+    const chy = ball.y + vy * t2 - segment.y2;
+    const chLen = Math.sqrt(chx * chx + chy * chy);
+    if (chLen > 0.001) {
+      bestT = t2;
+      bestNx = chx / chLen;
+      bestNy = chy / chLen;
+    }
+  }
+
+  if (bestT >= 1 || bestT === Infinity) return null;
+  return { brick: segment, t: bestT, nx: bestNx, ny: bestNy };
+}
+
+/**
+ * 球心射线与圆的碰撞时间（辅助函数）
+ * 从 (px,py) 以 (vx,vy) 移动，碰到以 (cx,cy) 为圆心、半径 r 的圆
+ */
+function _sweepBallPoint(px, py, vx, vy, cx, cy, r) {
+  const dx = px - cx;
+  const dy = py - cy;
+  const a = vx * vx + vy * vy;
+  const b = 2 * (dx * vx + dy * vy);
+  const c = dx * dx + dy * dy - r * r;
+  if (a < 0.0001) return -1;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return -1;
+  const sqrtDisc = Math.sqrt(disc);
+  const t1 = (-b - sqrtDisc) / (2 * a);
+  if (t1 >= 0) return t1;
+  const t2 = (-b + sqrtDisc) / (2 * a);
+  if (t2 >= 0) return t2;
+  return -1;
 }
 
 /**

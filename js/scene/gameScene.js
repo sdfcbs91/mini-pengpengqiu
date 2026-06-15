@@ -1001,8 +1001,9 @@ export default class GameScene {
    */
   _renderDrawLines(ctx) {
     const s = SCALE;
+    const endpointR = 4 * s; // 端点小圆点半径
 
-    // 已保存的直线（白色半透明）
+    // 已保存的直线（白色半透明）+ 两端小圆点
     ctx.strokeStyle = 'rgba(255,255,255,0.8)';
     ctx.lineWidth = 2.5 * s;
     ctx.lineCap = 'round';
@@ -1011,9 +1012,17 @@ export default class GameScene {
       ctx.moveTo(line.x1, line.y1);
       ctx.lineTo(line.x2, line.y2);
       ctx.stroke();
+      // 两端小圆点（增强端点碰撞的视觉提示）
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(line.x1, line.y1, endpointR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(line.x2, line.y2, endpointR, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // 当前正在绘制的直线（金色高亮）
+    // 当前正在绘制的直线（金色高亮）+ 两端小圆点
     if (this._drawingLine) {
       ctx.strokeStyle = 'rgba(255,210,80,0.9)';
       ctx.lineWidth = 2.5 * s;
@@ -1024,6 +1033,14 @@ export default class GameScene {
       ctx.lineTo(this._drawingLine.x2, this._drawingLine.y2);
       ctx.stroke();
       ctx.shadowBlur = 0;
+      // 两端小圆点
+      ctx.fillStyle = 'rgba(255,210,80,0.9)';
+      ctx.beginPath();
+      ctx.arc(this._drawingLine.x1, this._drawingLine.y1, endpointR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this._drawingLine.x2, this._drawingLine.y2, endpointR, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.lineCap = 'butt';
@@ -2813,7 +2830,7 @@ export default class GameScene {
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const centerX = SCREEN_WIDTH / 2;
-    const centerY = SCREEN_HEIGHT / 2;
+    const centerY = SCREEN_HEIGHT / 2 - 20 * s;
 
     // 标题
     ctx.fillStyle = '#39ff14';
@@ -2879,7 +2896,7 @@ export default class GameScene {
   _handleWinTap(x, y) {
     const s = SCALE;
     const centerX = SCREEN_WIDTH / 2;
-    const centerY = SCREEN_HEIGHT / 2;
+    const centerY = SCREEN_HEIGHT / 2 - 20 * s;
     const bw = 140 * s;
     const bh = 40 * s;
 
