@@ -2359,7 +2359,7 @@ export default class GameScene {
     const s = SCALE;
 
     // 半透明背景
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const centerX = SCREEN_WIDTH / 2;
@@ -2408,10 +2408,10 @@ export default class GameScene {
     ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
 
     // 重试按钮
-    this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, '重试', COLORS.neonCyan);
+    this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, '重试', '#4499cc');
 
     // 返回菜单
-    this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, '菜单', COLORS.neonRed);
+    this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, '菜单', '#4499cc');
   }
 
   _renderWinOverlay(ctx) {
@@ -2476,11 +2476,11 @@ export default class GameScene {
 
     if (this.initialLevel === -150) {
       // 150球模式：只显示菜单按钮
-      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
+      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '菜单', '#4499cc');
     } else {
       // 普通模式：下一关 + 菜单
-      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#39ff14');
-      this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', COLORS.neonCyan);
+      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#4499cc');
+      this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', '#4499cc');
     }
   }
 
@@ -2527,9 +2527,6 @@ export default class GameScene {
     ctx.shadowBlur = 6 * s;
     ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
     ctx.shadowBlur = 0;
-
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
 
     ctx.fillStyle = color;
     ctx.font = `bold ${14 * s}px Arial`;
