@@ -140,6 +140,14 @@ exports.main = async (event, context) => {
           if (clearScore && clearScore > oldClearScore) {
             progress[idx].clearScore = clearScore;  // 通关最高积分
           }
+          // 同时更新关卡最高分（与 saveScore action 相同逻辑）
+          if (clearScore) {
+            const oldBest = progress[idx].score || 0;
+            if (clearScore > oldBest) {
+              progress[idx].score = clearScore;
+              progress[idx].scoreTime = new Date().toISOString();
+            }
+          }
           if (timeUsed !== undefined) {
             // 记录最快通关时间（耗时越少越好）
             const oldTime = progress[idx].clearTime;

@@ -2187,7 +2187,6 @@ export default class GameScene {
 
       this.winStars = stars;
       this.gameState = 'win';
-      this._uploadLevelScore();
       this._notifyLevelCleared();
 
       // 游戏结束后获取用户信息

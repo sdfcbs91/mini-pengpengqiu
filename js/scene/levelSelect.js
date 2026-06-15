@@ -457,8 +457,10 @@ export default class LevelSelect {
     this.progress.completeLevel(levelNum, stars);
     if (score) this.progress.saveScore(levelNum, score);
     this.levelData = this.progress.getAllData();
-    // 通关后同步到云端
-    this._uploadProgressToCloud();
+    // 通关后同步到云端（延迟2秒，确保 levelCleared 先完成写入通关数据）
+    setTimeout(() => {
+      this._uploadProgressToCloud();
+    }, 2000);
     // 写入开放数据（好友排行用）
     this._updateOpenData();
   }
