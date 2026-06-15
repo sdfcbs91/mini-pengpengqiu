@@ -1877,15 +1877,24 @@ export default class GameScene {
   }
 
   /**
-   * 通关后通知云端（记录通关次数，每3次奖励技能+1）
+   * 通关后通知云端（记录通关次数、通关积分、时间、回合数，每3次奖励技能+1）
    */
   _notifyLevelCleared() {
     if (typeof wx === 'undefined' || !wx.cloud) return;
     if (this.initialLevel <= 0) return; // 特殊模式不计入
 
+    // 计算通关耗时（总时间 - 剩余时间）
+    const timeUsed = LEVEL_TIME_LIMIT - (this.timeLeft || 0);
+
     wx.cloud.callFunction({
       name: 'saveUserProgress',
-      data: { action: 'levelCleared' },
+      data: {
+        action: 'levelCleared',
+        level: this.initialLevel,       // 关卡编号
+        clearScore: this.score,         // 通关积分
+        timeUsed: timeUsed,             // 通关耗时（秒）
+        rounds: this.line,              // 通关使用的回合数
+      },
       success: (res) => {
         const result = res.result;
         if (result && result.code === 0) {

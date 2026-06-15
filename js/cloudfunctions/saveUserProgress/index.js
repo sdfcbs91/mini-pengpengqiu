@@ -16,18 +16,22 @@ const db = cloud.database();
  *   maxLevel: number（当前闯到第几关）
  *   levelProgress: Array<{ unlocked, stars }>（完整关卡进度，可选）
  *   skillType: 'lightning' | 'multiBall' | 'atkBoost'（useSkill时必填）
+ *   level: number（levelCleared时传入，关卡编号）
+ *   clearScore: number（levelCleared时传入，通关积分）
+ *   timeUsed: number（levelCleared时传入，通关耗时秒数）
+ *   rounds: number（levelCleared时传入，通关使用回合数）
  *
  * 技能管理：
  *   getSkills  - 获取玩家当前技能次数
  *   useSkill   - 使用技能，扣减1次（需传 skillType）
- *   levelCleared - 记录通关次数，每3次通关三种技能各+1
+ *   levelCleared - 记录通关次数，每3次通关三种技能各+1；同时记录该关卡的通关积分、时间、回合数
  *
  * 数据库集合：user_progress
  * 文档结构：
  *   _openid: string
  *   userInfo: object
  *   maxLevel: number
- *   levelProgress: Array（完整关卡进度数据，含 score）
+ *   levelProgress: Array（完整关卡进度数据，含 score/clearScore/clearTime/clearRounds）
  *   skillLightning: number（闪电技能剩余次数）
  *   skillMultiBall: number（加球技能剩余次数）
  *   skillAtkBoost: number（保持技能剩余次数）
@@ -39,7 +43,7 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
 
-  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score, skillType } = event;
+  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score, skillType, clearScore, timeUsed, rounds } = event;
 
   const collection = db.collection('user_progress');
 
@@ -97,7 +101,7 @@ exports.main = async (event, context) => {
       }
     }
 
-    // ====== 技能管理：通关奖励（每通过3次关卡，三种技能各+1） ======
+    // ====== 技能管理：通关奖励（每通过3次关卡，三种技能各+1）+ 记录通关数据 ======
     if (action === 'levelCleared') {
       const { data } = await collection.where({ _openid: openid }).get();
       if (data.length > 0) {
@@ -120,6 +124,40 @@ exports.main = async (event, context) => {
           updateData.skillAtkBoost = (doc.skillAtkBoost || 0) + 1;
         }
 
+        // 记录该关卡的通关数据（积分、时间、回合数）到 levelProgress
+        if (level && level > 0) {
+          let progress = doc.levelProgress;
+          if (!progress || !Array.isArray(progress)) {
+            progress = [];
+          }
+          const idx = level - 1;
+          // 确保数组长度足够
+          while (progress.length <= idx) {
+            progress.push({ unlocked: false, stars: 0 });
+          }
+          // 记录通关数据（保留最高分，同时记录最新通关时间和回合数）
+          const oldClearScore = progress[idx].clearScore || 0;
+          if (clearScore && clearScore > oldClearScore) {
+            progress[idx].clearScore = clearScore;  // 通关最高积分
+          }
+          if (timeUsed !== undefined) {
+            // 记录最快通关时间（耗时越少越好）
+            const oldTime = progress[idx].clearTime;
+            if (!oldTime || timeUsed < oldTime) {
+              progress[idx].clearTime = timeUsed;
+            }
+          }
+          if (rounds !== undefined) {
+            // 记录最少通关回合数（回合越少越好）
+            const oldRounds = progress[idx].clearRounds;
+            if (!oldRounds || rounds < oldRounds) {
+              progress[idx].clearRounds = rounds;
+            }
+          }
+          progress[idx].lastClearAt = new Date().toISOString();  // 最近通关时间戳
+          updateData.levelProgress = progress;
+        }
+
         await collection.doc(doc._id).update({ data: updateData });
         return {
           code: 0,
@@ -138,10 +176,22 @@ exports.main = async (event, context) => {
         };
       } else {
         // 新用户：创建记录并记录第1次通关
+        let progress = [];
+        if (level && level > 0) {
+          for (let i = 0; i < level; i++) {
+            progress.push({ unlocked: i === 0, stars: 0 });
+          }
+          progress[level - 1].clearScore = clearScore || 0;
+          if (timeUsed !== undefined) progress[level - 1].clearTime = timeUsed;
+          if (rounds !== undefined) progress[level - 1].clearRounds = rounds;
+          progress[level - 1].lastClearAt = new Date().toISOString();
+        }
+
         await collection.add({
           data: {
             _openid: openid,
             levelClearCount: 1,
+            levelProgress: progress.length > 0 ? progress : null,
             skillLightning: 0,
             skillMultiBall: 0,
             skillAtkBoost: 0,
