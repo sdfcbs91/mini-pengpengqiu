@@ -65,11 +65,10 @@ export default class LevelSelect {
     this._propsGuidePage = 0; // 当前道具页码
     this._propsSwipeStartX = 0; // 滑动起始X
     this._showAuthPrompt = false; // 授权昵称弹窗
+    this._showPrivacyPrompt = false; // 隐私协议弹窗
 
-    // 进入菜单时同步本地进度到云端
-    this._syncProgressToCloud();
-    // 写入开放数据（排行榜数据源）
-    this._updateOpenData();
+    // 检查是否已同意隐私协议，未同意则弹窗提示
+    this._checkPrivacyAndInit();
   }
 
   /**
@@ -82,6 +81,91 @@ export default class LevelSelect {
       GameGlobal._needAuthPrompt = false;
       this._requestUserProfile();
     }
+  }
+
+  /**
+   * 检查隐私协议状态，决定是否弹窗
+   * 微信规范要求：处理用户个人信息前必须以弹窗方式提示用户阅读同意隐私协议
+   */
+  _checkPrivacyAndInit() {
+    if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
+      // 不支持隐私接口，直接初始化
+      this._doAfterPrivacyAgreed();
+      return;
+    }
+
+    // 检查本地是否已记录同意
+    try {
+      const agreed = wx.getStorageSync('ppq_privacy_agreed');
+      if (agreed) {
+        // 已同意过，直接初始化
+        this._doAfterPrivacyAgreed();
+        return;
+      }
+    } catch (e) { /* ignore */ }
+
+    // 调用微信接口检查是否需要授权
+    wx.getPrivacySetting({
+      success: (res) => {
+        if (res.needAuthorization) {
+          // 需要用户同意隐私协议，显示弹窗
+          this._showPrivacyPrompt = true;
+        } else {
+          // 已授权，记录并初始化
+          try { wx.setStorageSync('ppq_privacy_agreed', true); } catch (e) { /* ignore */ }
+          this._doAfterPrivacyAgreed();
+        }
+      },
+      fail: () => {
+        // 获取失败，显示弹窗让用户确认
+        this._showPrivacyPrompt = true;
+      },
+    });
+  }
+
+  /**
+   * 用户同意隐私协议后执行的初始化操作
+   */
+  _doAfterPrivacyAgreed() {
+    // 同步本地进度到云端
+    this._syncProgressToCloud();
+    // 写入开放数据（排行榜数据源）
+    this._updateOpenData();
+  }
+
+  /**
+   * 隐私协议弹窗 - 用户点击同意
+   */
+  _onPrivacyAgree() {
+    this._showPrivacyPrompt = false;
+
+    if (typeof wx !== 'undefined' && wx.requirePrivacyAuthorize) {
+      wx.requirePrivacyAuthorize({
+        success: () => {
+          try { wx.setStorageSync('ppq_privacy_agreed', true); } catch (e) { /* ignore */ }
+          this._doAfterPrivacyAgreed();
+        },
+        fail: () => {
+          // 用户在系统弹窗中拒绝了，提示后仍可继续游戏（不获取个人信息）
+          this._toastText = '需同意隐私协议才能使用排行榜等功能';
+          this._toastTimer = 90;
+        },
+      });
+    } else {
+      // 不支持 requirePrivacyAuthorize，直接记录同意
+      try { wx.setStorageSync('ppq_privacy_agreed', true); } catch (e) { /* ignore */ }
+      this._doAfterPrivacyAgreed();
+    }
+  }
+
+  /**
+   * 隐私协议弹窗 - 用户点击拒绝
+   */
+  _onPrivacyReject() {
+    this._showPrivacyPrompt = false;
+    // 拒绝后仍可玩游戏，但不同步云端数据
+    this._toastText = '您可以稍后在设置中同意隐私协议';
+    this._toastTimer = 90;
   }
 
   _calculateLayout() {
@@ -261,6 +345,12 @@ export default class LevelSelect {
   }
 
   _handleTap(x, y) {
+    // 隐私协议弹窗最高优先级
+    if (this._showPrivacyPrompt) {
+      this._handlePrivacyPromptTap(x, y);
+      return;
+    }
+
     // 授权弹窗优先处理
     if (this._showAuthPrompt) {
       this._handleAuthPromptTap(x, y);
@@ -624,6 +714,11 @@ export default class LevelSelect {
     // 授权昵称弹窗
     if (this._showAuthPrompt) {
       this._drawAuthPrompt(ctx);
+    }
+
+    // 隐私协议弹窗（最高优先级，覆盖在最上层）
+    if (this._showPrivacyPrompt) {
+      this._drawPrivacyPrompt(ctx);
     }
 
     this._drawNavBar(ctx);
@@ -1216,6 +1311,152 @@ export default class LevelSelect {
       // 右半边点击 → 下一页
       if (this._propsGuidePage < props.length - 1) this._propsGuidePage++;
       else this.showPropsGuide = false; // 最后一页再点右边关闭
+    }
+  }
+
+  /**
+   * 绘制隐私协议弹窗
+   * 微信规范要求：处理用户个人信息前必须以弹窗方式提示用户阅读同意隐私协议
+   */
+  _drawPrivacyPrompt(ctx) {
+    const s = SCALE;
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // 遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    const boxW = 280 * s;
+    const boxH = 160 * s;
+    const boxX = centerX - boxW / 2;
+    const boxY = centerY - boxH / 2;
+    const r = 12 * s;
+
+    // 弹窗背景（圆角矩形）
+    ctx.fillStyle = '#0c1435';
+    ctx.strokeStyle = '#4499cc';
+    ctx.lineWidth = 1.5 * s;
+    ctx.beginPath();
+    ctx.moveTo(boxX + r, boxY);
+    ctx.lineTo(boxX + boxW - r, boxY);
+    ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + r, r);
+    ctx.arcTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH, r);
+    ctx.lineTo(boxX + r, boxY + boxH);
+    ctx.arcTo(boxX, boxY + boxH, boxX, boxY + boxH - r, r);
+    ctx.arcTo(boxX, boxY, boxX + r, boxY, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 标题
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${14 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('用户隐私保护提示', centerX, boxY + 25 * s);
+
+    // 正文内容
+    ctx.fillStyle = '#ccccdd';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.fillText('在您使用本游戏前，请仔细阅读', centerX, boxY + 52 * s);
+
+    // 隐私协议链接（突出显示）
+    ctx.fillStyle = '#39ff14';
+    ctx.font = `bold ${11 * s}px Arial`;
+    ctx.fillText('《隐私协议》', centerX, boxY + 70 * s);
+
+    ctx.fillStyle = '#ccccdd';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.fillText('我们将收集您的昵称、头像用于排行榜展示', centerX, boxY + 88 * s);
+
+    // 按钮
+    const btnW = 100 * s;
+    const btnH = 34 * s;
+    const btnY = boxY + boxH - 50 * s;
+
+    // "同意并继续" 按钮
+    ctx.fillStyle = '#39ff14';
+    ctx.beginPath();
+    const btnR = 6 * s;
+    const agreeX = centerX - btnW - 8 * s;
+    ctx.moveTo(agreeX + btnR, btnY);
+    ctx.lineTo(agreeX + btnW - btnR, btnY);
+    ctx.arcTo(agreeX + btnW, btnY, agreeX + btnW, btnY + btnR, btnR);
+    ctx.arcTo(agreeX + btnW, btnY + btnH, agreeX + btnW - btnR, btnY + btnH, btnR);
+    ctx.lineTo(agreeX + btnR, btnY + btnH);
+    ctx.arcTo(agreeX, btnY + btnH, agreeX, btnY + btnH - btnR, btnR);
+    ctx.arcTo(agreeX, btnY, agreeX + btnR, btnY, btnR);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#0c1435';
+    ctx.font = `bold ${12 * s}px Arial`;
+    ctx.fillText('同意并继续', agreeX + btnW / 2, btnY + btnH / 2);
+
+    // "不同意" 按钮
+    const rejectX = centerX + 8 * s;
+    ctx.strokeStyle = '#888899';
+    ctx.lineWidth = 1 * s;
+    ctx.beginPath();
+    ctx.moveTo(rejectX + btnR, btnY);
+    ctx.lineTo(rejectX + btnW - btnR, btnY);
+    ctx.arcTo(rejectX + btnW, btnY, rejectX + btnW, btnY + btnR, btnR);
+    ctx.arcTo(rejectX + btnW, btnY + btnH, rejectX + btnW - btnR, btnY + btnH, btnR);
+    ctx.lineTo(rejectX + btnR, btnY + btnH);
+    ctx.arcTo(rejectX, btnY + btnH, rejectX, btnY + btnH - btnR, btnR);
+    ctx.arcTo(rejectX, btnY, rejectX + btnR, btnY, btnR);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fillStyle = '#888899';
+    ctx.font = `bold ${12 * s}px Arial`;
+    ctx.fillText('不同意', rejectX + btnW / 2, btnY + btnH / 2);
+  }
+
+  /**
+   * 隐私协议弹窗点击处理
+   */
+  _handlePrivacyPromptTap(x, y) {
+    const s = SCALE;
+    const centerX = SCREEN_WIDTH / 2;
+    const centerY = SCREEN_HEIGHT / 2;
+    const boxH = 160 * s;
+    const boxY = centerY - boxH / 2;
+    const btnW = 100 * s;
+    const btnH = 34 * s;
+    const btnY = boxY + boxH - 50 * s;
+
+    // "同意并继续" 按钮区域
+    const agreeX = centerX - btnW - 8 * s;
+    if (x >= agreeX && x <= agreeX + btnW &&
+      y >= btnY && y <= btnY + btnH) {
+      this._onPrivacyAgree();
+      return;
+    }
+
+    // "不同意" 按钮区域
+    const rejectX = centerX + 8 * s;
+    if (x >= rejectX && x <= rejectX + btnW &&
+      y >= btnY && y <= btnY + btnH) {
+      this._onPrivacyReject();
+      return;
+    }
+
+    // 点击"隐私协议"链接 - 打开隐私协议页面
+    const linkY = boxY + 70 * s;
+    if (y >= linkY - 12 * s && y <= linkY + 12 * s &&
+      x >= centerX - 60 * s && x <= centerX + 60 * s) {
+      if (typeof wx !== 'undefined' && wx.openPrivacyContract) {
+        wx.openPrivacyContract({
+          fail: () => {
+            this._toastText = '无法打开隐私协议';
+            this._toastTimer = 60;
+          },
+        });
+      }
+      return;
     }
   }
 

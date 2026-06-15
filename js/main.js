@@ -96,55 +96,6 @@ export default class Main {
   }
 
   /**
-   * 通过云函数获取用户openid和信息，缓存到本地
-   * 如果没有 nickName 且未拒绝过授权，标记需要弹窗请求
-   */
-  _fetchUserFromCloud() {
-    if (typeof wx === 'undefined' || !wx.cloud) return;
-
-    try {
-      const cached = wx.getStorageSync('ppq_user_info');
-      if (cached && cached.openid) {
-        // 已有缓存，检查是否需要请求昵称
-        if (!cached.nickName && !cached.refused) {
-          this.levelSelect._showAuthPrompt = true;
-        }
-        return;
-      }
-    } catch (e) { /* ignore */ }
-
-    wx.cloud.callFunction({
-      name: 'getUserInfo',
-      data: {},
-      success: (res) => {
-        const result = res.result;
-        if (result && result.code === 0) {
-          const userInfo = {
-            openid: result.openid,
-            nickName: result.nickName || '',
-            avatarUrl: result.avatarUrl || '',
-          };
-          wx.setStorageSync('ppq_user_info', userInfo);
-          // 没有昵称且未拒绝过 → 标记弹窗
-          if (!userInfo.nickName) {
-            try {
-              const refused = wx.getStorageSync('ppq_auth_refused');
-              if (!refused) {
-                this.levelSelect._showAuthPrompt = true;
-              }
-            } catch (e) { /* ignore */ }
-          }
-        }
-      },
-      fail: (err) => {
-        if (this.devLog) {
-          console.error('[云函数] 获取用户信息失败:', err);
-        }
-      },
-    });
-  }
-
-  /**
    * 当玩家选择关卡时，切换到游戏场景
    */
   onLevelSelected(levelNum) {
