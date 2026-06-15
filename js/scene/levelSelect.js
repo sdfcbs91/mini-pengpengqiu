@@ -1,6 +1,7 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { COLORS, SCALE, TOTAL_LEVELS, LEVEL_GRID_COLS, LEVEL_GRID_ROWS, LEVELS_PER_PAGE, SAFE_LEFT, SAFE_RIGHT } from '../config';
 import { LevelProgress } from '../data/levelData';
+import ScrollView from '../runtime/scrollView';
 
 /**
  * 关卡选择页面
@@ -61,6 +62,7 @@ export default class LevelSelect {
     this._introScrollY = 0;    // 游戏介绍弹窗滚动偏移
     this._introScrollVelocity = 0;  // 惯性滚动速度
     this._introScrolling = false;   // 是否正在手动拖动
+    this._introScroller = new ScrollView(); // 游戏介绍弹窗滚动条模块
     this.showPropsGuide = false; // 道具介绍弹窗
     this._propsGuidePage = 0; // 当前道具页码
     this._propsSwipeStartX = 0; // 滑动起始X
@@ -231,7 +233,7 @@ export default class LevelSelect {
     // 游戏介绍弹窗：按下时停止惯性滚动
     if (this.showGameIntro) {
       this._introScrolling = true;
-      this._introScrollVelocity = 0;
+      this._introScroller.onTouchStart(y);
     }
   }
 
@@ -241,12 +243,10 @@ export default class LevelSelect {
   handleTouchMove(x, y) {
     if (!this.isDragging) return;
 
-    // 游戏介绍弹窗上下拖动（惯性滚动 - Move 阶段：跟手 + 记录速度）
+    // 游戏介绍弹窗上下拖动（使用ScrollView模块）
     if (this.showGameIntro && this._introScrolling) {
-      const dy = y - this._lastTouchY;
-      this._introScrollY += dy;
-      // 指数移动平均计算速度（更平滑的惯性）
-      this._introScrollVelocity = dy * 0.6 + (this._introScrollVelocity || 0) * 0.4;
+      this._introScroller.onTouchMove(y);
+      this._introScrollY = this._introScroller.getScrollY();
       this._lastTouchY = y;
       return;
     }
@@ -287,6 +287,7 @@ export default class LevelSelect {
     // 游戏介绍弹窗：松手处理
     if (this.showGameIntro) {
       this._introScrolling = false;
+      this._introScroller.onTouchEnd();
       // 判断是否为"点击"（滑动距离很小）→ 检测是否在弹窗外部关闭
       const totalDy = y - this.touchStartY;
       if (Math.abs(totalDy) < 10 && Math.abs(totalDx) < 10) {
@@ -299,7 +300,6 @@ export default class LevelSelect {
           this.showGameIntro = false;
         }
       }
-      // velocity 已在 Move 中累计，update 中会持续应用惯性并衰减
       return;
     }
 
@@ -664,31 +664,10 @@ export default class LevelSelect {
       }
     }
 
-    // 游戏介绍弹窗 - 惯性滚动（松手后持续滚动 + 逐渐减速 + 边界弹性回弹）
+    // 游戏介绍弹窗 - 惯性滚动（由ScrollView模块处理）
     if (this.showGameIntro && !this._introScrolling) {
-      const maxScroll = this._introMaxScroll || 0;
-
-      // 惯性应用
-      if (Math.abs(this._introScrollVelocity) > 0.3) {
-        this._introScrollY += this._introScrollVelocity;
-        this._introScrollVelocity *= 0.92;  // 摩擦力衰减
-        if (Math.abs(this._introScrollVelocity) < 0.3) {
-          this._introScrollVelocity = 0;
-        }
-      }
-
-      // 弹性回弹：超出顶部
-      if (this._introScrollY > 0) {
-        this._introScrollY *= 0.82;
-        this._introScrollVelocity = 0;
-        if (this._introScrollY < 0.5) this._introScrollY = 0;
-      }
-      // 弹性回弹：超出底部
-      if (this._introScrollY < maxScroll) {
-        this._introScrollY += (maxScroll - this._introScrollY) * 0.18;
-        this._introScrollVelocity = 0;
-        if (Math.abs(this._introScrollY - maxScroll) < 0.5) this._introScrollY = maxScroll;
-      }
+      this._introScroller.update();
+      this._introScrollY = this._introScroller.getScrollY();
     }
   }
 
@@ -884,7 +863,7 @@ export default class LevelSelect {
           case 1: this._toggleSound(); break;
           case 2: this._doSyncData(); break;
           case 3: this.showPropsGuide = true; this._propsGuidePage = 0; break;
-          case 4: this.showGameIntro = true; this._introScrollY = 0; break;
+          case 4: this.showGameIntro = true; this._introScrollY = 0; this._introScroller.reset(); break;
         }
         return;
       }
@@ -1060,14 +1039,9 @@ export default class LevelSelect {
     const contentH = contentBottom - contentTop;
     const totalContentH = lines.length * lineH;
 
-    // 限制滚动范围（允许少量弹性超出，由 update 中的回弹处理）
-    const maxScroll = Math.min(0, contentH - totalContentH);
-    // 手动拖动时允许超出 30px（弹性感），惯性滚动中由 update 限制
-    const elasticLimit = 30;
-    if (this._introScrollY < maxScroll - elasticLimit) this._introScrollY = maxScroll - elasticLimit;
-    if (this._introScrollY > elasticLimit) this._introScrollY = elasticLimit;
-    // 保存 maxScroll 供 update 回弹使用
-    this._introMaxScroll = maxScroll;
+    // 设置ScrollView的内容区域参数
+    this._introScroller.setContentArea(contentTop, contentH, totalContentH);
+    this._introScrollY = this._introScroller.getScrollY();
 
     // 裁剪内容区域
     ctx.save();
@@ -1093,12 +1067,9 @@ export default class LevelSelect {
 
     ctx.restore();
 
-    // 滚动指示器（内容超出时显示）
-    if (totalContentH > contentH) {
-      const barH = Math.max(10 * s, contentH * (contentH / totalContentH));
-      const barY = contentTop + (-this._introScrollY / (totalContentH - contentH)) * (contentH - barH);
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.fillRect(boxX + boxW - 6 * s, barY, 3 * s, barH);
+    // 滚动指示器（内容超出时显示，使用ScrollView模块渲染）
+    if (this._introScroller.needsScroll()) {
+      this._introScroller.renderScrollBar(ctx, boxX + boxW - 6 * s, s);
     }
 
     // 底部提示

@@ -181,6 +181,7 @@ export default class Grid {
    */
   _applyTemplate(stage) {
     const template = LEVEL_TEMPLATES[Math.floor(Math.random() * LEVEL_TEMPLATES.length)];
+    this.templateName = template.name || '未知阵型';  // 保存选中的模板名称
     const cfg = this.levelConfig || getLevelConfig(stage);
     const baseHp = Math.round((cfg.baseHp || stage * 1.5) * 0.76);
 

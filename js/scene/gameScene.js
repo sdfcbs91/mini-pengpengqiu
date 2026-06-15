@@ -14,6 +14,7 @@ import HUD from '../runtime/hud';
 import { moveBallWithCollision } from '../core/collision';
 import Warp from '../core/warp';
 import { getLevelConfig, getLevelTargetScore, getLevelStarThresholds } from '../data/levelData';
+import ScrollView from '../runtime/scrollView';
 
 /**
  * 游戏主场景
@@ -24,6 +25,7 @@ export default class GameScene {
     this.grid = new Grid();
     this.launcher = new Launcher();
     this.hud = new HUD();
+    this._historyScroller = new ScrollView(); // 150球历史记录滚动条
 
     // 墙壁碰撞标记（用于死循环检测，区分三面墙）
     this._wallLeft = { isWall: true, wallId: 1 };
@@ -666,6 +668,13 @@ export default class GameScene {
       return;
     }
 
+    if (this.gameState === 'mode150History') {
+      // 先尝试启动滚动
+      this._historyScroller.onTouchStart(y);
+      this._handleMode150HistoryTap(x, y);
+      return;
+    }
+
     // 球飞行中：检查收回按钮
     if (this._shouldShowRecallButton() && this._hitRecallButton(x, y)) {
       this._doRecallBalls();
@@ -762,6 +771,13 @@ export default class GameScene {
    */
   handleTouchMove(x, y) {
     if (GameGlobal.databus.scene !== 'playing') return;
+
+    // 150球历史记录弹窗：滚动处理
+    if (this.gameState === 'mode150History') {
+      this._historyScroller.onTouchMove(y);
+      return;
+    }
+
     if (this.gameState !== 'aiming') return;
 
     // 绘制模式下：更新当前绘制直线的终点（限制最大长度为两个砖块宽度）
@@ -835,6 +851,12 @@ export default class GameScene {
   handleTouchEnd() {
     if (GameGlobal.databus.scene !== 'playing') return;
     this._touching = false;
+
+    // 150球历史记录弹窗：滚动结束
+    if (this.gameState === 'mode150History') {
+      this._historyScroller.onTouchEnd();
+      return;
+    }
 
     // 绘制模式下：手指松开时保存当前绘制的直线
     if (this._isDrawing && this._drawingLine) {
@@ -1382,6 +1404,12 @@ export default class GameScene {
    */
   update() {
     if (this.gameState === 'paused' || this.gameState === 'over' || this.gameState === 'win') return;
+
+    // 150球历史记录弹窗：只更新滚动条惯性
+    if (this.gameState === 'mode150History') {
+      this._historyScroller.update();
+      return;
+    }
 
     this.glowPhase += 0.03;
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
@@ -2291,6 +2319,7 @@ export default class GameScene {
             time: elapsed,
             destroyed: bricksDestroyed,
             total: bricksTotal,
+            formationName: this.grid.templateName || '未知阵型',
             date: new Date().toISOString(),
           },
         },
@@ -2451,6 +2480,11 @@ export default class GameScene {
     // 通关覆盖层
     if (this.gameState === 'win') {
       this._renderWinOverlay(ctx);
+    }
+
+    // 150球模式历史记录弹窗
+    if (this.gameState === 'mode150History') {
+      this._renderMode150HistoryOverlay(ctx);
     }
   }
 
@@ -2793,14 +2827,26 @@ export default class GameScene {
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
 
-    // 三个按钮垂直居中排列（无标题）
-    const btnGap = 60 * s;
-    const totalH = btnGap * 2;  // 3 个按钮间隔占的总高度
-    const startY = centerY - totalH / 2;
+    if (this.initialLevel === -150) {
+      // 150球模式：继续、重试、历史记录、菜单 四个按钮
+      const btnGap = 55 * s;
+      const totalH = btnGap * 3;
+      const startY = centerY - totalH / 2;
 
-    this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
-    this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
-    this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', '#4499cc');
+      this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '历史记录', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '菜单', '#4499cc');
+    } else {
+      // 普通模式：三个按钮垂直居中排列（无标题）
+      const btnGap = 60 * s;
+      const totalH = btnGap * 2;  // 3 个按钮间隔占的总高度
+      const startY = centerY - totalH / 2;
+
+      this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', '#4499cc');
+    }
   }
 
   _renderGameOverOverlay(ctx) {
@@ -2903,8 +2949,9 @@ export default class GameScene {
     }
 
     if (this.initialLevel === -150) {
-      // 150球模式：只显示菜单按钮
-      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '菜单', '#4499cc');
+      // 150球模式：显示菜单按钮 + 历史记录按钮
+      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '历史记录', '#4499cc');
+      this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', '#4499cc');
     } else {
       // 普通模式：下一关 + 菜单
       this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#4499cc');
@@ -2920,8 +2967,14 @@ export default class GameScene {
     const bh = 40 * s;
 
     if (this.initialLevel === -150) {
-      // 150球模式：菜单按钮在 65*s 位置
-      const menuY = centerY + 65 * s;
+      // 150球模式：历史记录按钮在 65*s 位置，菜单按钮在 120*s 位置
+      const historyY = centerY + 65 * s;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= historyY - bh / 2 && y <= historyY + bh / 2) {
+        this._showMode150History();
+        return;
+      }
+      const menuY = centerY + 120 * s;
       if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
         y >= menuY - bh / 2 && y <= menuY + bh / 2) {
         if (this.onBackToMenu) this.onBackToMenu();
@@ -2972,30 +3025,276 @@ export default class GameScene {
     const centerY = SCREEN_HEIGHT / 2;
     const bw = 120 * s;
     const bh = 40 * s;
-    const btnGap = 60 * s;
-    const totalH = btnGap * 2;
-    const startY = centerY - totalH / 2;
 
-    // 继续按钮
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= startY - bh / 2 && y <= startY + bh / 2) {
-      this.gameState = this.prevState || 'aiming';
+    if (this.initialLevel === -150) {
+      // 150球模式：继续、重试、历史记录、菜单
+      const btnGap = 55 * s;
+      const totalH = btnGap * 3;
+      const startY = centerY - totalH / 2;
+
+      // 继续按钮
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= startY - bh / 2 && y <= startY + bh / 2) {
+        this.gameState = this.prevState || 'aiming';
+        return;
+      }
+      // 重试按钮
+      const retryY = startY + btnGap;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+        this.initLevel(this.initialLevel);
+        return;
+      }
+      // 历史记录按钮
+      const historyY = startY + btnGap * 2;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= historyY - bh / 2 && y <= historyY + bh / 2) {
+        this._showMode150History();
+        return;
+      }
+      // 菜单按钮
+      const menuY = startY + btnGap * 3;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+        if (this.onBackToMenu) this.onBackToMenu();
+        return;
+      }
+    } else {
+      // 普通模式
+      const btnGap = 60 * s;
+      const totalH = btnGap * 2;
+      const startY = centerY - totalH / 2;
+
+      // 继续按钮
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= startY - bh / 2 && y <= startY + bh / 2) {
+        this.gameState = this.prevState || 'aiming';
+        return;
+      }
+
+      // 重试按钮
+      const retryY = startY + btnGap;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+        this.initLevel(this.initialLevel);
+        return;
+      }
+
+      // 返回菜单按钮
+      const menuY = startY + btnGap * 2;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+        if (this.onBackToMenu) this.onBackToMenu();
+        return;
+      }
+    }
+  }
+
+  /**
+   * 显示150球模式历史记录弹窗
+   */
+  _showMode150History() {
+    this._mode150HistoryData = null;
+    this._mode150HistoryLoading = true;
+    this._prevStateBeforeHistory = this.gameState;
+    this.gameState = 'mode150History';
+    this._historyScroller.reset(); // 重置滚动状态
+
+    // 从云端获取历史记录
+    if (typeof wx !== 'undefined' && wx.cloud) {
+      wx.cloud.callFunction({
+        name: 'saveUserProgress',
+        data: { action: 'getMode150History' },
+        success: (res) => {
+          const result = res.result;
+          if (result && result.code === 0) {
+            this._mode150HistoryData = result.history || [];
+          } else {
+            this._mode150HistoryData = [];
+          }
+          this._mode150HistoryLoading = false;
+        },
+        fail: () => {
+          this._mode150HistoryData = [];
+          this._mode150HistoryLoading = false;
+        },
+      });
+    } else {
+      this._mode150HistoryData = [];
+      this._mode150HistoryLoading = false;
+    }
+  }
+
+  /**
+   * 渲染150球模式历史记录弹窗
+   */
+  _renderMode150HistoryOverlay(ctx) {
+    const s = SCALE;
+
+    // 半透明背景
+    ctx.fillStyle = 'rgba(0,0,0,0.92)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const topY = 60 * s;
+
+    // 标题
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${20 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#4499cc';
+    ctx.shadowBlur = 8 * s;
+    ctx.fillText('150球模式 - 历史记录', centerX, topY);
+    ctx.shadowBlur = 0;
+
+    // 副标题
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = `${11 * s}px Arial`;
+    ctx.fillText('TOP 10 排行（按得分降序）', centerX, topY + 25 * s);
+
+    if (this._mode150HistoryLoading) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${14 * s}px Arial`;
+      ctx.fillText('加载中...', centerX, SCREEN_HEIGHT / 2);
       return;
     }
 
-    // 重试按钮
-    const retryY = startY + btnGap;
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= retryY - bh / 2 && y <= retryY + bh / 2) {
-      this.initLevel(this.initialLevel);
-      return;
+    // 返回按钮位置
+    const btnY = SCREEN_HEIGHT - 60 * s;
+
+    const data = this._mode150HistoryData || [];
+    if (data.length === 0) {
+      ctx.fillStyle = '#888888';
+      ctx.font = `${14 * s}px Arial`;
+      ctx.fillText('暂无记录', centerX, SCREEN_HEIGHT / 2);
+    } else {
+      // 表头（固定不滚动）
+      const headerY = topY + 55 * s;
+      const rowH = 32 * s;
+
+      // 表格总宽度和居中偏移
+      const tableW = 280 * s;
+      const tableLeft = (SCREEN_WIDTH - tableW) / 2;
+      const col1X = tableLeft;                    // 排名
+      const col2X = tableLeft + 35 * s;           // 得分
+      const col3X = tableLeft + 105 * s;          // 阵型
+      const col4X = tableLeft + 190 * s;          // 时间
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#4499cc';
+      ctx.font = `bold ${11 * s}px Arial`;
+      ctx.fillText('#', col1X, headerY);
+      ctx.fillText('得分', col2X, headerY);
+      ctx.fillText('阵型', col3X, headerY);
+      ctx.fillText('游玩时间', col4X, headerY);
+
+      // 分隔线
+      ctx.strokeStyle = 'rgba(68,153,204,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(tableLeft, headerY + 12 * s);
+      ctx.lineTo(tableLeft + tableW, headerY + 12 * s);
+      ctx.stroke();
+
+      // 可滚动内容区域：从分隔线下方到返回按钮上方
+      const contentTop = headerY + 18 * s;
+      const contentBottom = btnY - 30 * s;
+      const contentHeight = contentBottom - contentTop;
+      const totalContentHeight = data.length * rowH;
+
+      // 设置滚动区域参数
+      this._historyScroller.setContentArea(contentTop, contentHeight, totalContentHeight);
+
+      // 获取当前滚动偏移
+      const scrollY = this._historyScroller.getScrollY();
+
+      // 裁剪内容区域
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(tableLeft - 5 * s, contentTop, tableW + 10 * s, contentHeight);
+      ctx.clip();
+
+      // 数据行（带滚动偏移）
+      for (let i = 0; i < data.length && i < 10; i++) {
+        const item = data[i];
+        const rowY = contentTop + i * rowH + 10 * s + scrollY;
+
+        // 跳过不可见行
+        if (rowY + rowH < contentTop || rowY - rowH > contentBottom) continue;
+
+        // 排名颜色
+        if (i === 0) ctx.fillStyle = '#ffdd00';
+        else if (i === 1) ctx.fillStyle = '#c0c0c0';
+        else if (i === 2) ctx.fillStyle = '#cd7f32';
+        else ctx.fillStyle = '#ffffff';
+
+        ctx.font = `bold ${12 * s}px Arial`;
+        ctx.textAlign = 'left';
+        ctx.fillText(`${i + 1}`, col1X, rowY);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${12 * s}px Arial`;
+        ctx.fillText(`${item.score}`, col2X, rowY);
+
+        ctx.fillStyle = '#aaddff';
+        ctx.font = `${11 * s}px Arial`;
+        ctx.fillText(item.formationName || '未知', col3X, rowY);
+
+        // 格式化日期
+        ctx.fillStyle = '#888888';
+        ctx.font = `${10 * s}px Arial`;
+        const dateStr = this._formatHistoryDate(item.date);
+        ctx.fillText(dateStr, col4X, rowY);
+      }
+
+      ctx.restore();
+
+      // 渲染滚动条（内容超出时显示）
+      if (this._historyScroller.needsScroll()) {
+        this._historyScroller.renderScrollBar(ctx, tableLeft + tableW + 2 * s, s, {
+          color: 'rgba(68,153,204,0.4)',
+        });
+      }
     }
 
-    // 返回菜单按钮
-    const menuY = startY + btnGap * 2;
+    // 返回按钮
+    ctx.textAlign = 'center';
+    this._drawButton(ctx, centerX, btnY, 120 * s, 40 * s, '返回', '#4499cc');
+  }
+
+  /**
+   * 格式化历史记录日期
+   */
+  _formatHistoryDate(dateStr) {
+    if (!dateStr) return '--';
+    try {
+      const d = new Date(dateStr);
+      const m = (d.getMonth() + 1).toString().padStart(2, '0');
+      const day = d.getDate().toString().padStart(2, '0');
+      const h = d.getHours().toString().padStart(2, '0');
+      const min = d.getMinutes().toString().padStart(2, '0');
+      return `${m}-${day} ${h}:${min}`;
+    } catch (e) {
+      return '--';
+    }
+  }
+
+  /**
+   * 处理150球模式历史记录弹窗的点击
+   */
+  _handleMode150HistoryTap(x, y) {
+    const s = SCALE;
+    const centerX = SCREEN_WIDTH / 2;
+    const btnY = SCREEN_HEIGHT - 60 * s;
+    const bw = 120 * s;
+    const bh = 40 * s;
+
+    // 返回按钮
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
-      if (this.onBackToMenu) this.onBackToMenu();
+      y >= btnY - bh / 2 && y <= btnY + bh / 2) {
+      // 返回到之前的状态
+      this.gameState = this._prevStateBeforeHistory || 'paused';
       return;
     }
   }

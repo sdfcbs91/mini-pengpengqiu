@@ -217,6 +217,22 @@ exports.main = async (event, context) => {
       }
     }
 
+    // ====== 150球模式：获取历史记录（前10条） ======
+    if (action === 'getMode150History') {
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length > 0) {
+        const doc = data[0];
+        const history = doc.mode150History || [];
+        return {
+          code: 0,
+          msg: 'history_found',
+          history: history.slice(0, 10),
+        };
+      } else {
+        return { code: 0, msg: 'no_history', history: [] };
+      }
+    }
+
     // 查询操作：返回云端数据
     if (action === 'get') {
       const { data } = await collection.where({ _openid: openid }).get();
@@ -352,7 +368,7 @@ exports.main = async (event, context) => {
         updateData.levelProgress = merged;
       }
 
-      // 更新150球模式成绩（保留最高分，含 score + scoreTime）
+      // 更新150球模式成绩（保留最高分 + 追加历史记录，最多保留10条）
       if (mode150) {
         const oldBest = doc.mode150BestScore || 0;
         if (mode150.score > oldBest) {
@@ -361,6 +377,17 @@ exports.main = async (event, context) => {
           updateData.mode150ScoreTime = new Date().toISOString();
           updateData.mode150LastRecord = mode150;
         }
+        // 追加到历史记录列表（按分数降序，最多保留10条）
+        const history = doc.mode150History || [];
+        history.push({
+          score: mode150.score,
+          formationName: mode150.formationName || '未知阵型',
+          time: mode150.time,
+          date: mode150.date || new Date().toISOString(),
+        });
+        // 按分数降序排列，保留前10条
+        history.sort((a, b) => b.score - a.score);
+        updateData.mode150History = history.slice(0, 10);
       }
 
       await collection.doc(doc._id).update({ data: updateData });
