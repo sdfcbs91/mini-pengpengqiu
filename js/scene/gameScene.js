@@ -236,7 +236,7 @@ export default class GameScene {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.shadowColor = 'rgba(120, 200, 255, 0.95)';
-      ctx.shadowBlur = 3 * s;
+      ctx.shadowBlur = 2 * s;
 
       // 1) 外层粗光晕线
       ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.45})`;
@@ -305,7 +305,7 @@ export default class GameScene {
 
     // 外发光圆环
     ctx.shadowColor = `rgba(255,68,68,${glowAlpha})`;
-    ctx.shadowBlur = (hover ? 4 : 2) * s * pulse;
+    ctx.shadowBlur = (hover ? 2 : 1) * s * pulse;
     ctx.strokeStyle = hover ? '#ff5566' : '#cc3344';
     ctx.lineWidth = (hover ? 3 : 2) * s;
     ctx.beginPath();
@@ -356,7 +356,7 @@ export default class GameScene {
 
     // 蓝色边框光晕（与左侧面板风格统一）
     ctx.shadowColor = 'rgba(50,100,230,0.75)';
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.strokeStyle = '#2960dd';
     ctx.lineWidth = 1.5 * s;
     ctx.beginPath();
@@ -978,7 +978,7 @@ export default class GameScene {
 
     // 蓝色边框光晕（与取消按钮风格一致但用蓝色）
     ctx.shadowColor = 'rgba(50,100,230,0.75)';
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.strokeStyle = '#2960dd';
     ctx.lineWidth = 2 * s;
     ctx.beginPath();
@@ -2479,7 +2479,7 @@ export default class GameScene {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.shadowColor = COLORS.ballGlow;
-      ctx.shadowBlur = 3 * SCALE;
+      ctx.shadowBlur = 2 * SCALE;
       ctx.fillStyle = COLORS.ballColor;
       ctx.beginPath();
       ctx.arc(this.launcher.x, this.launcher.y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
@@ -2614,7 +2614,7 @@ export default class GameScene {
 
       // 扩散外圈（蓝白发光）
       ctx.shadowColor = 'rgba(150,200,255,0.9)';
-      ctx.shadowBlur = 3 * s * appear;
+      ctx.shadowBlur = 2 * s * appear;
       ctx.strokeStyle = `rgba(200,220,255,${0.9 * flash * (appear > 0.1 ? 1 : appear * 10)})`;
       ctx.lineWidth = 2.5 * s;
       ctx.beginPath();
@@ -2794,7 +2794,7 @@ export default class GameScene {
     // 主光线
     ctx.fillStyle = '#ff3333';
     ctx.shadowColor = '#ff3333';
-    ctx.shadowBlur = 3 * s * progress;
+    ctx.shadowBlur = 2 * s * progress;
     ctx.fillRect(left, e.y - lineH / 2, right - left, lineH);
 
     // 外扩光晕
@@ -2823,7 +2823,7 @@ export default class GameScene {
     // 主光线
     ctx.fillStyle = '#ff3333';
     ctx.shadowColor = '#ff3333';
-    ctx.shadowBlur = 3 * s * progress;
+    ctx.shadowBlur = 2 * s * progress;
     ctx.fillRect(e.x - lineW / 2, top, lineW, bottom - top);
 
     // 外扩光晕
@@ -2975,7 +2975,7 @@ export default class GameScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = titleColor;
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText(title, centerX, centerY - 80 * s);
     ctx.shadowBlur = 0;
 
@@ -3008,7 +3008,7 @@ export default class GameScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#39ff14';
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText('通关！', centerX, centerY - 100 * s);
     ctx.shadowBlur = 0;
 

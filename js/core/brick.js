@@ -122,7 +122,7 @@ export default class Brick {
 
     // 外圈淡蓝光晕（蓝色丝带闪烁）
     ctx.shadowColor = `rgba(120, 200, 255, ${alpha})`;
-    ctx.shadowBlur = 3 * s * pulse;
+    ctx.shadowBlur = 2 * s * pulse;
     ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.8})`;
     ctx.lineWidth = 2 * s;
     ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);

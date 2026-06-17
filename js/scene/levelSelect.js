@@ -864,7 +864,7 @@ export default class LevelSelect {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#4499cc';
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText('排行榜', centerX, topY);
     ctx.shadowBlur = 0;
 
@@ -926,7 +926,7 @@ export default class LevelSelect {
     ctx.strokeStyle = '#4499cc';
     ctx.lineWidth = 2;
     ctx.shadowColor = '#4499cc';
-    ctx.shadowBlur = 6 * s;
+    ctx.shadowBlur = 2 * s;
     const btnW = 120 * s;
     const btnH = 40 * s;
     ctx.strokeRect(centerX - btnW / 2, btnY - btnH / 2, btnW, btnH);
@@ -1152,7 +1152,7 @@ export default class LevelSelect {
     ctx.closePath();
     ctx.fill();
     ctx.shadowColor = '#00d4ff';
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.stroke();
     ctx.shadowBlur = 0;
 
@@ -1797,12 +1797,12 @@ export default class LevelSelect {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#00d4ff';
-    ctx.shadowBlur = 18 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillStyle = '#00d4ff';
     ctx.fillText(title, centerX, y + 18 * s);
 
     // 主体文字（白色）
-    ctx.shadowBlur = 6 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillStyle = '#ffffff';
     ctx.fillText(title, centerX, y + 18 * s);
     ctx.shadowBlur = 0;
@@ -1857,7 +1857,7 @@ export default class LevelSelect {
     ctx.strokeStyle = COLORS.neonBlue;
     ctx.lineWidth = 1.5;
     ctx.shadowColor = COLORS.neonBlue;
-    ctx.shadowBlur = 10 * s * glowIntensity;
+    ctx.shadowBlur = 2 * s * glowIntensity;
     this._roundRect(ctx, bx, by, bw, bh, cornerR);
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -1925,7 +1925,7 @@ export default class LevelSelect {
       ctx.strokeStyle = isSelected ? '#00d4ff' : '#2a5580';
       ctx.lineWidth = isSelected ? 2 : 1;
       ctx.shadowColor = isSelected ? '#00d4ff' : '#2a5580';
-      ctx.shadowBlur = (isSelected ? 10 : 3) * s * cellGlow;
+      ctx.shadowBlur = (isSelected ? 2 : 1) * s * cellGlow;
       this._roundRect(ctx, x, y, w, h, cornerR);
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -1974,7 +1974,7 @@ export default class LevelSelect {
       ctx.fillStyle = filled ? COLORS.starActive : COLORS.starInactive;
       if (filled) {
         ctx.shadowColor = COLORS.starActive;
-        ctx.shadowBlur = 4 * SCALE;
+        ctx.shadowBlur = 2 * SCALE;
       }
       this._drawStar(ctx, sx, centerY, size, size * 0.4);
       ctx.fill();

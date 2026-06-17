@@ -261,7 +261,7 @@ export default class HUD {
     // 2) 强外发光（仅靠 shadow 营造扩散光晕，不画粗边）
     buildPath();
     ctx.shadowColor = glow;
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = 2;
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.2;
     ctx.stroke();
@@ -297,7 +297,7 @@ export default class HUD {
 
     // 2) 强外发光描边
     ctx.shadowColor = GLOW;
-    ctx.shadowBlur = 3;
+    ctx.shadowBlur = 2;
     ctx.strokeStyle = STROKE;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -330,7 +330,7 @@ export default class HUD {
     ctx.fill();
 
     ctx.shadowColor = `rgba(255,210,80,${pulse})`;
-    ctx.shadowBlur = 4;
+    ctx.shadowBlur = 2;
     ctx.strokeStyle = '#ffcc44';
     ctx.lineWidth = 2;
     ctx.beginPath();

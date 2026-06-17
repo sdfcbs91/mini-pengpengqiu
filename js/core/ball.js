@@ -283,11 +283,11 @@ export default class Ball {
       if (this.powerLevel >= 4) {
         glowColor = 'rgba(255,50,50,0.5)';
         ballShadow = '#ff3333';
-        ballBlur = 3;
+        ballBlur = 2;
       } else if (this.powerLevel >= 3) {
         glowColor = 'rgba(255,200,50,0.45)';
         ballShadow = '#ffcc00';
-        ballBlur = 3;
+        ballBlur = 2;
       } else if (this.powerLevel >= 2) {
         glowColor = 'rgba(50,150,255,0.4)';
         ballShadow = '#3399ff';

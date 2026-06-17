@@ -176,7 +176,7 @@ export default class Launcher {
     // 瞄准/空闲状态：发射点球
     ctx.fillStyle = COLORS.ballColor;
     ctx.shadowColor = COLORS.ballGlow;
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.beginPath();
     ctx.arc(this.x, this.y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
     ctx.fill();
