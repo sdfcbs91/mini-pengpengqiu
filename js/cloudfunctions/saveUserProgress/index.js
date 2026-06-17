@@ -233,6 +233,43 @@ exports.main = async (event, context) => {
       }
     }
 
+    // ====== 排行榜：获取所有用户数据并按指定字段排序（前 50 名） ======
+    if (action === 'getRankList') {
+      const { category = 'maxLevel' } = event;
+      // 支持的排序字段
+      const sortField = category === 'mode150Best' ? 'mode150BestScore'
+        : category === 'totalStars' ? 'totalStars'
+        : 'maxLevel';
+
+      try {
+        const { data } = await collection
+          .orderBy(sortField, 'desc')
+          .limit(50)
+          .get();
+
+        const list = data.map(doc => ({
+          nickName: (doc.userInfo && doc.userInfo.nickName) || '微信用户',
+          avatarUrl: (doc.userInfo && doc.userInfo.avatarUrl) || '',
+          maxLevel: doc.maxLevel || 0,
+          totalStars: 0,
+          mode150Best: doc.mode150BestScore || 0,
+        }));
+
+        // 计算 totalStars（从 levelProgress 中累加）
+        data.forEach((doc, i) => {
+          if (doc.levelProgress && Array.isArray(doc.levelProgress)) {
+            let stars = 0;
+            doc.levelProgress.forEach(lp => { stars += (lp && lp.stars) || 0; });
+            list[i].totalStars = stars;
+          }
+        });
+
+        return { code: 0, msg: 'rank_list', list };
+      } catch (err) {
+        return { code: -1, msg: err.message, list: [] };
+      }
+    }
+
     // 查询操作：返回云端数据
     if (action === 'get') {
       const { data } = await collection.where({ _openid: openid }).get();
