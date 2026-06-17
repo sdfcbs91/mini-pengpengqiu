@@ -1,6 +1,6 @@
 /**
- * 开放数据域 — 好友排行榜
- * 在子域 canvas 上渲染好友排行列表
+ * 开放数据域 — 排行榜（支持分类：闯关/150球/星星）
+ * 同时支持好友排行和群排行（有 shareTicket 时取群数据，否则取好友数据）
  */
 
 const sharedCanvas = wx.getSharedCanvas();
@@ -8,11 +8,46 @@ const ctx = sharedCanvas.getContext('2d');
 
 let rankList = [];
 let scrollY = 0;
+let rankTitle = '排行榜';
+let rankCategory = 'level';  // 'level' | 'mode150' | 'stars'
+
+// 分类配置
+const CATEGORY_CONFIG = {
+  level: {
+    title: '闯关排名',
+    sortKey: 'maxLevel',
+    displayFn: (friend) => `第${getKVValue(friend.KVDataList, 'maxLevel')}关`,
+    subFn: (friend) => `${getKVValue(friend.KVDataList, 'totalStars')}⭐`,
+  },
+  mode150: {
+    title: '150球最高分',
+    sortKey: 'mode150Best',
+    displayFn: (friend) => `${getKVValue(friend.KVDataList, 'mode150Best')}分`,
+    subFn: () => '',
+  },
+  stars: {
+    title: '星星排名',
+    sortKey: 'totalStars',
+    displayFn: (friend) => `${getKVValue(friend.KVDataList, 'totalStars')}⭐`,
+    subFn: (friend) => `第${getKVValue(friend.KVDataList, 'maxLevel')}关`,
+  },
+};
 
 // 监听主域消息
 wx.onMessage((data) => {
-  if (data.action === 'showRank') {
-    fetchFriendRank();
+  if (data.action === 'showRankByCategory') {
+    rankCategory = data.category || 'level';
+    const cfg = CATEGORY_CONFIG[rankCategory] || CATEGORY_CONFIG.level;
+    rankTitle = cfg.title;
+    fetchRankData(data.shareTicket);
+  } else if (data.action === 'showRank') {
+    rankCategory = 'level';
+    rankTitle = '闯关排名';
+    fetchRankData('');
+  } else if (data.action === 'showGroupRank') {
+    rankCategory = 'level';
+    rankTitle = '闯关排名';
+    fetchRankData(data.shareTicket);
   } else if (data.action === 'hideRank') {
     rankList = [];
     scrollY = 0;
@@ -24,27 +59,41 @@ wx.onMessage((data) => {
 });
 
 /**
- * 获取好友排行数据
+ * 获取排行数据（有 shareTicket 取群数据，否则取好友数据）
  */
-function fetchFriendRank() {
-  wx.getFriendCloudStorage({
-    keyList: ['maxLevel', 'totalStars'],
-    success: (res) => {
-      rankList = res.data || [];
-      // 按 maxLevel 降序排列
-      rankList.sort((a, b) => {
-        const aLevel = getKVValue(a.KVDataList, 'maxLevel');
-        const bLevel = getKVValue(b.KVDataList, 'maxLevel');
-        if (bLevel !== aLevel) return bLevel - aLevel;
-        return getKVValue(b.KVDataList, 'totalStars') - getKVValue(a.KVDataList, 'totalStars');
-      });
-      scrollY = 0;
-      renderRank();
-    },
-    fail: () => {
-      rankList = [];
-      renderRank();
-    },
+function fetchRankData(shareTicket) {
+  const keyList = ['maxLevel', 'totalStars', 'mode150Best'];
+  const onSuccess = (res) => {
+    rankList = res.data || [];
+    sortRankList();
+    scrollY = 0;
+    renderRank();
+  };
+  const onFail = () => {
+    rankList = [];
+    renderRank();
+  };
+
+  if (shareTicket) {
+    wx.getGroupCloudStorage({ shareTicket, keyList, success: onSuccess, fail: onFail });
+  } else {
+    wx.getFriendCloudStorage({ keyList, success: onSuccess, fail: onFail });
+  }
+}
+
+/**
+ * 按当前分类排序
+ */
+function sortRankList() {
+  const cfg = CATEGORY_CONFIG[rankCategory] || CATEGORY_CONFIG.level;
+  const sortKey = cfg.sortKey;
+  rankList.sort((a, b) => {
+    const av = getKVValue(a.KVDataList, sortKey);
+    const bv = getKVValue(b.KVDataList, sortKey);
+    if (bv !== av) return bv - av;
+    // 次要排序：闯关排名时按星星，其他按关卡
+    const subKey = sortKey === 'maxLevel' ? 'totalStars' : 'maxLevel';
+    return getKVValue(b.KVDataList, subKey) - getKVValue(a.KVDataList, subKey);
   });
 }
 
@@ -60,7 +109,8 @@ function getKVValue(list, key) {
 function renderRank() {
   const w = sharedCanvas.width;
   const h = sharedCanvas.height;
-  const dpr = w / 375; // 适配比例
+  const dpr = w / 375;
+  const cfg = CATEGORY_CONFIG[rankCategory] || CATEGORY_CONFIG.level;
 
   ctx.clearRect(0, 0, w, h);
 
@@ -73,7 +123,7 @@ function renderRank() {
   ctx.font = `bold ${18 * dpr}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('好友排行榜', w / 2, 30 * dpr);
+  ctx.fillText(rankTitle, w / 2, 30 * dpr);
 
   // 表头
   const headerY = 55 * dpr;
@@ -83,8 +133,7 @@ function renderRank() {
   ctx.fillText('排名', 15 * dpr, headerY);
   ctx.fillText('玩家', 60 * dpr, headerY);
   ctx.textAlign = 'right';
-  ctx.fillText('关卡', w - 80 * dpr, headerY);
-  ctx.fillText('星星', w - 15 * dpr, headerY);
+  ctx.fillText('成绩', w - 70 * dpr, headerY);
 
   // 分割线
   ctx.strokeStyle = 'rgba(100,150,255,0.3)';
@@ -98,14 +147,13 @@ function renderRank() {
     ctx.fillStyle = '#555577';
     ctx.font = `${14 * dpr}px Arial`;
     ctx.textAlign = 'center';
-    ctx.fillText('暂无好友数据', w / 2, h / 2);
+    ctx.fillText('暂无数据', w / 2, h / 2);
     return;
   }
 
   // 列表区域
   const listTop = 70 * dpr;
   const rowHeight = 50 * dpr;
-  const maxVisible = Math.floor((h - listTop) / rowHeight);
 
   ctx.save();
   ctx.beginPath();
@@ -116,8 +164,6 @@ function renderRank() {
     const y = listTop + i * rowHeight - scrollY;
     if (y + rowHeight < listTop || y > h) return;
 
-    const maxLevel = getKVValue(friend.KVDataList, 'maxLevel');
-    const totalStars = getKVValue(friend.KVDataList, 'totalStars');
     const nickName = friend.nickname || '微信用户';
     const avatarUrl = friend.avatarUrl || '';
 
@@ -158,15 +204,19 @@ function renderRank() {
     const displayName = nickName.length > 6 ? nickName.slice(0, 6) + '...' : nickName;
     ctx.fillText(displayName, 75 * dpr, y + rowHeight / 2);
 
-    // 关卡数
+    // 主成绩（按分类显示）
     ctx.fillStyle = '#00d4ff';
     ctx.font = `bold ${13 * dpr}px Arial`;
     ctx.textAlign = 'right';
-    ctx.fillText(`第${maxLevel}关`, w - 70 * dpr, y + rowHeight / 2);
+    ctx.fillText(cfg.displayFn(friend), w - 15 * dpr, y + rowHeight / 2 - 6 * dpr);
 
-    // 星星数
-    ctx.fillStyle = '#ffdd00';
-    ctx.fillText(`${totalStars}⭐`, w - 15 * dpr, y + rowHeight / 2);
+    // 副信息
+    const subText = cfg.subFn(friend);
+    if (subText) {
+      ctx.fillStyle = '#888899';
+      ctx.font = `${10 * dpr}px Arial`;
+      ctx.fillText(subText, w - 15 * dpr, y + rowHeight / 2 + 10 * dpr);
+    }
   });
 
   ctx.restore();

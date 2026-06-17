@@ -29,6 +29,29 @@ if (ctx.textDrawingMode !== undefined) {
 
 GameGlobal.databus = new DataBus();
 
+// ====== 群排行榜：启用 shareTicket + 捕获群启动参数 ======
+if (typeof wx !== 'undefined') {
+  // 启用群分享 shareTicket
+  wx.updateShareMenu && wx.updateShareMenu({ withShareTicket: true });
+
+  // 冷启动：从群聊卡片进入时捕获 shareTicket
+  try {
+    const launchInfo = wx.getLaunchOptionsSync();
+    if (launchInfo && launchInfo.shareTicket) {
+      GameGlobal.shareTicket = launchInfo.shareTicket;
+      GameGlobal.showGroupRankOnLaunch = true;  // 标记：进入后自动显示群排行
+    }
+  } catch (e) { /* ignore */ }
+
+  // 热启动：监听 onShow
+  wx.onShow && wx.onShow((res) => {
+    if (res && res.shareTicket) {
+      GameGlobal.shareTicket = res.shareTicket;
+      GameGlobal.showGroupRankOnLaunch = true;
+    }
+  });
+}
+
 /**
  * 游戏主函数
  * 管理场景切换和主循环

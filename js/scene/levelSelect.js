@@ -378,6 +378,19 @@ export default class LevelSelect {
       return;
     }
 
+    // 排行榜分类 tab 切换（闯关 / 150球 / 星星）
+    if (this.showRank && this._rankCategoryBtns) {
+      for (const btn of this._rankCategoryBtns) {
+        if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+          if (this._rankCategory !== btn.key) {
+            this._rankCategory = btn.key;
+            this._requestRankData(btn.key);
+          }
+          return;
+        }
+      }
+    }
+
     // 检测副标题行左右箭头点击
     if (this._arrowY) {
       const s = SCALE;
@@ -614,9 +627,33 @@ export default class LevelSelect {
    */
   _showRankBoard() {
     if (typeof wx === 'undefined') return;
+    this._rankCategory = this._rankCategory || 'level';
+    this._requestRankData(this._rankCategory);
+  }
+
+  /**
+   * 切换到群排行榜（从群卡片打开时自动调用）
+   */
+  _showGroupRankBoard() {
+    if (typeof wx === 'undefined') return;
+    this._rankCategory = this._rankCategory || 'level';
+    this._requestRankData(this._rankCategory);
+  }
+
+  /**
+   * 请求排行数据（通知开放数据域按分类获取 + 渲染）
+   * @param {string} category 'level' | 'mode150' | 'stars'
+   */
+  _requestRankData(category) {
+    if (typeof wx === 'undefined') return;
     const openDataContext = wx.getOpenDataContext();
-    openDataContext.postMessage({ action: 'showRank' });
-    // 缓存开放数据域的 canvas 引用
+    const shareTicket = GameGlobal.shareTicket || '';
+
+    openDataContext.postMessage({
+      action: 'showRankByCategory',
+      category: category,
+      shareTicket: shareTicket,
+    });
     this._openDataCanvas = openDataContext.canvas;
   }
 
@@ -628,6 +665,7 @@ export default class LevelSelect {
     const openDataContext = wx.getOpenDataContext();
     openDataContext.postMessage({ action: 'hideRank' });
     this._openDataCanvas = null;
+    this._rankCategory = 'level';
   }
 
   /**
@@ -641,10 +679,17 @@ export default class LevelSelect {
     let totalStars = 0;
     this.levelData.forEach(d => { totalStars += d.stars || 0; });
 
+    // 150 球最高分（从本地缓存或云端获取）
+    let mode150Best = 0;
+    try {
+      mode150Best = parseInt(wx.getStorageSync('ppq_mode150_best')) || 0;
+    } catch (e) { /* ignore */ }
+
     wx.setUserCloudStorage({
       KVDataList: [
         { key: 'maxLevel', value: String(maxLevel) },
         { key: 'totalStars', value: String(totalStars) },
+        { key: 'mode150Best', value: String(mode150Best) },
       ],
       success: () => { console.log('开放数据写入成功'); },
       fail: (err) => { console.error('开放数据写入失败:', err); },
@@ -654,6 +699,16 @@ export default class LevelSelect {
   update() {
     this.glowPhase += 0.03;
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
+
+    // 从群聊卡片打开时，自动跳转到排行榜
+    if (GameGlobal.showGroupRankOnLaunch) {
+      GameGlobal.showGroupRankOnLaunch = false;
+      this.showRank = true;
+      this.showSettings = false;
+      this.navItems.forEach((item) => { item.active = item.label === '排行'; });
+      this._rankCategory = 'level';
+      this._showRankBoard();
+    }
 
     // 滑动回弹动画
     if (this.isSlideAnimating) {
@@ -769,18 +824,55 @@ export default class LevelSelect {
    */
   _drawRankBoard(ctx) {
     if (!this._openDataCanvas) return;
+    const s = SCALE;
     const top = this.gridTop;
     const height = this.gridBottom - this.gridTop;
 
-    // 先绘制半透明遮罩背景（防止底层关卡格子透出）
-    ctx.fillStyle = 'rgba(10, 14, 39, 0.5)';
+    // 遮罩背景
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.95)';
     ctx.fillRect(0, top, SCREEN_WIDTH, height);
 
-    // 将开放数据域 canvas 绘制到游戏区域
+    // 三分类 Tab：闯关排名 / 150球最高分 / 星星排名
+    const tabs = [
+      { key: 'level', label: '闯关' },
+      { key: 'mode150', label: '150球' },
+      { key: 'stars', label: '星星' },
+    ];
+    const currentTab = this._rankCategory || 'level';
+    const tabW = 72 * s;
+    const tabH = 28 * s;
+    const tabGap = 8 * s;
+    const totalTabW = tabs.length * tabW + (tabs.length - 1) * tabGap;
+    const tabStartX = (SCREEN_WIDTH - totalTabW) / 2;
+    const tabY = top + 6 * s;
+
+    this._rankCategoryBtns = [];
+
+    tabs.forEach((tab, i) => {
+      const tx = tabStartX + i * (tabW + tabGap);
+      const active = currentTab === tab.key;
+
+      ctx.fillStyle = active ? '#2960dd' : 'rgba(30,40,70,0.8)';
+      ctx.fillRect(tx, tabY, tabW, tabH);
+      ctx.strokeStyle = '#2960dd';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx, tabY, tabW, tabH);
+      ctx.fillStyle = active ? '#ffffff' : '#888899';
+      ctx.font = `bold ${12 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tab.label, tx + tabW / 2, tabY + tabH / 2);
+
+      this._rankCategoryBtns.push({ key: tab.key, x: tx, y: tabY, w: tabW, h: tabH });
+    });
+
+    // 将开放数据域 canvas 绘制到 tab 下方
+    const dataTop = tabY + tabH + 4 * s;
+    const dataHeight = height - (dataTop - top);
     ctx.drawImage(
       this._openDataCanvas,
       0, 0, this._openDataCanvas.width, this._openDataCanvas.height,
-      0, top, SCREEN_WIDTH, height
+      0, dataTop, SCREEN_WIDTH, dataHeight
     );
   }
 

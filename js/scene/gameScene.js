@@ -1378,6 +1378,103 @@ export default class GameScene {
   /**
    * 播放碰撞音效（节流 + 对象池轮换，避免卡顿）
    */
+  /**
+   * 分享到群（触发群排行榜）
+   * 分数获取优先级：① 当前场景分数 → ② 本地缓存 → ③ 云函数兜底
+   */
+  _doShareToGroup() {
+    if (typeof wx === 'undefined') return;
+
+    let shareScore = this.score;
+    let shareLevel = this.stage;
+
+    // ① 当前场景有分数 → 直接分享
+    if (shareScore > 0) {
+      this._execShare(shareLevel, shareScore);
+      return;
+    }
+
+    // ② 从本地缓存获取
+    try {
+      const progressRaw = wx.getStorageSync('ppq_level_progress');
+      if (progressRaw && Array.isArray(progressRaw)) {
+        for (let i = progressRaw.length - 1; i >= 0; i--) {
+          if (progressRaw[i] && progressRaw[i].score > 0) {
+            shareScore = progressRaw[i].score;
+            shareLevel = i + 1;
+            break;
+          }
+        }
+        if (shareScore <= 0) {
+          for (let i = progressRaw.length - 1; i >= 0; i--) {
+            if (progressRaw[i] && progressRaw[i].unlocked) {
+              shareLevel = i + 1;
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    if (shareScore > 0) {
+      this._execShare(shareLevel, shareScore);
+      return;
+    }
+
+    // ③ 兜底：从云函数获取该关卡的 score
+    if (wx.cloud) {
+      wx.cloud.callFunction({
+        name: 'saveUserProgress',
+        data: { action: 'get' },
+        success: (res) => {
+          const result = res.result;
+          if (result && result.code === 0 && result.levelProgress) {
+            const progress = result.levelProgress;
+            // 找该关卡或最高关卡的分数
+            const idx = this.stage - 1;
+            if (progress[idx] && progress[idx].score > 0) {
+              this._execShare(this.stage, progress[idx].score);
+            } else {
+              // 找最高分的关卡
+              let bestScore = 0;
+              let bestLevel = this.stage;
+              for (let i = progress.length - 1; i >= 0; i--) {
+                if (progress[i] && progress[i].score > 0) {
+                  bestScore = progress[i].score;
+                  bestLevel = i + 1;
+                  break;
+                }
+              }
+              this._execShare(bestLevel, bestScore);
+            }
+          } else {
+            this._execShare(this.stage, 0);
+          }
+        },
+        fail: () => {
+          this._execShare(this.stage, 0);
+        },
+      });
+    } else {
+      this._execShare(shareLevel, shareScore);
+    }
+  }
+
+  /**
+   * 执行分享
+   */
+  _execShare(level, score) {
+    const title = score > 0
+      ? `我在碰碰球第${level}关拿到了${score}分，快来挑战！`
+      : `我在碰碰球闯到了第${level}关，快来挑战！`;
+
+    wx.shareAppMessage({
+      title,
+      imageUrl: 'images/welcome.jpg',
+      query: `level=${level}&score=${score}`,
+    });
+  }
+
   _playCollisionSound() {
     // 检查声音开关
     try {
@@ -2753,7 +2850,7 @@ export default class GameScene {
     ctx.strokeStyle = COLORS.neonBlue;
     ctx.lineWidth = 2;
     ctx.shadowColor = COLORS.neonBlue;
-    ctx.shadowBlur = 10 * s * glow;
+    ctx.shadowBlur = 4 * s * glow;
 
     // 圆角矩形描边（边框只包砖块区域，白球/发射器在边框外）
     const x = GAME_AREA_LEFT - 2;
@@ -2820,6 +2917,13 @@ export default class GameScene {
   _renderPauseOverlay(ctx) {
     const s = SCALE;
 
+    // 重置渲染状态
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     // 半透明背景
     ctx.fillStyle = 'rgba(0,0,0,0.9)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -2836,16 +2940,17 @@ export default class GameScene {
       this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
       this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
       this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '历史记录', '#4499cc');
-      this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '菜单', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '首页', '#4499cc');
     } else {
-      // 普通模式：三个按钮垂直居中排列（无标题）
-      const btnGap = 60 * s;
-      const totalH = btnGap * 2;  // 3 个按钮间隔占的总高度
+      // 普通模式：继续/重试/分享/菜单 四个按钮
+      const btnGap = 55 * s;
+      const totalH = btnGap * 3;
       const startY = centerY - totalH / 2;
 
       this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
       this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
-      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '菜单', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '分享', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '首页', '#4499cc');
     }
   }
 
@@ -3060,9 +3165,9 @@ export default class GameScene {
         return;
       }
     } else {
-      // 普通模式
-      const btnGap = 60 * s;
-      const totalH = btnGap * 2;
+      // 普通模式：继续/重试/分享/菜单
+      const btnGap = 55 * s;
+      const totalH = btnGap * 3;
       const startY = centerY - totalH / 2;
 
       // 继续按钮
@@ -3080,8 +3185,16 @@ export default class GameScene {
         return;
       }
 
+      // 分享按钮
+      const shareY = startY + btnGap * 2;
+      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+        y >= shareY - bh / 2 && y <= shareY + bh / 2) {
+        this._doShareToGroup();
+        return;
+      }
+
       // 返回菜单按钮
-      const menuY = startY + btnGap * 2;
+      const menuY = startY + btnGap * 3;
       if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
         y >= menuY - bh / 2 && y <= menuY + bh / 2) {
         if (this.onBackToMenu) this.onBackToMenu();
@@ -3131,8 +3244,15 @@ export default class GameScene {
   _renderMode150HistoryOverlay(ctx) {
     const s = SCALE;
 
-    // 半透明背景
-    ctx.fillStyle = 'rgba(0,0,0,0.46)';
+    // 重置渲染状态（防止被前面渲染污染）
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // 半透明背景（与暂停弹窗一致）
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const centerX = SCREEN_WIDTH / 2;
