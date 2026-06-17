@@ -298,10 +298,10 @@ export default class Ball {
         ballBlur = 2;
       }
 
-      // 外发光圈
+      // 外发光圈（所有等级统一大小，不随升级变大）
       ctx.fillStyle = glowColor;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius * (this.powerLevel > 0 ? 2.2 : 1.8), 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.radius * 1.6, 0, Math.PI * 2);
       ctx.fill();
 
       // 纯白实心球 + 升级发光

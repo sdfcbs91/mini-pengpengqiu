@@ -2979,18 +2979,22 @@ export default class GameScene {
     ctx.fillText(title, centerX, centerY - 80 * s);
     ctx.shadowBlur = 0;
 
-    // 分数
+    // 关卡
     ctx.fillStyle = COLORS.textWhite;
     ctx.font = `${16 * s}px Arial`;
-    ctx.fillText(`得分: ${this.score} / ${this.targetScore}`, centerX, centerY - 30 * s);
-    ctx.fillText(`关卡: ${this.stage}`, centerX, centerY);
-    ctx.fillText(`回合: ${this.line} / ${this.maxRounds}`, centerX, centerY + 30 * s);
+    ctx.fillText(`关卡: ${this.stage}`, centerX, centerY - 30 * s);
 
-    // 重试按钮
-    this._drawButton(ctx, centerX, centerY + 80 * s, 120 * s, 40 * s, '重试', '#4499cc');
+    // 得分 + 回合（同一行）
+    ctx.font = `${14 * s}px Arial`;
+    ctx.fillText(`得分: ${this.score}/${this.targetScore}    回合: ${this.line}/${this.maxRounds}`, centerX, centerY + 5 * s);
 
-    // 返回菜单
-    this._drawButton(ctx, centerX, centerY + 130 * s, 120 * s, 40 * s, '菜单', '#4499cc');
+    // 按钮组
+    const btnGap = 50 * s;
+    const btnStartY = centerY + 55 * s;
+
+    this._drawButton(ctx, centerX, btnStartY, 120 * s, 40 * s, '重试', '#4499cc');
+    this._drawButton(ctx, centerX, btnStartY + btnGap, 120 * s, 40 * s, '菜单', '#4499cc');
+    this._drawButton(ctx, centerX, btnStartY + btnGap * 2, 120 * s, 40 * s, '分享', '#33aa66');
   }
 
   _renderWinOverlay(ctx) {
@@ -3425,20 +3429,29 @@ export default class GameScene {
     const centerY = SCREEN_HEIGHT / 2;
     const bw = 120 * s;
     const bh = 40 * s;
+    const btnGap = 50 * s;
+    const btnStartY = centerY + 55 * s;
 
     // 重试按钮
-    const retryY = centerY + 80 * s;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= retryY - bh / 2 && y <= retryY + bh / 2) {
+      y >= btnStartY - bh / 2 && y <= btnStartY + bh / 2) {
       this.initLevel(this.stage);
       return;
     }
 
-    // 返回菜单
-    const menuY = centerY + 130 * s;
+    // 菜单按钮
+    const menuY = btnStartY + btnGap;
     if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
       y >= menuY - bh / 2 && y <= menuY + bh / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
+      return;
+    }
+
+    // 分享按钮
+    const shareY = btnStartY + btnGap * 2;
+    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+      y >= shareY - bh / 2 && y <= shareY + bh / 2) {
+      this._doShareToGroup();
       return;
     }
   }
