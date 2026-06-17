@@ -2988,13 +2988,17 @@ export default class GameScene {
     ctx.font = `${14 * s}px Arial`;
     ctx.fillText(`得分: ${this.score}/${this.targetScore}    回合: ${this.line}/${this.maxRounds}`, centerX, centerY + 5 * s);
 
-    // 按钮组
-    const btnGap = 50 * s;
-    const btnStartY = centerY + 55 * s;
+    // 按钮组（重试、菜单、分享 并排）
+    const btnW = 80 * s;
+    const btnH = 36 * s;
+    const btnGapX = 12 * s;
+    const totalBtnW = btnW * 3 + btnGapX * 2;
+    const btnStartX = centerX - totalBtnW / 2 + btnW / 2;
+    const btnY = centerY + 55 * s;
 
-    this._drawButton(ctx, centerX, btnStartY, 120 * s, 40 * s, '重试', '#4499cc');
-    this._drawButton(ctx, centerX, btnStartY + btnGap, 120 * s, 40 * s, '菜单', '#4499cc');
-    this._drawButton(ctx, centerX, btnStartY + btnGap * 2, 120 * s, 40 * s, '分享', '#33aa66');
+    this._drawButton(ctx, btnStartX, btnY, btnW, btnH, '重试', '#4499cc');
+    this._drawButton(ctx, btnStartX + btnW + btnGapX, btnY, btnW, btnH, '菜单', '#4499cc');
+    this._drawButton(ctx, btnStartX + (btnW + btnGapX) * 2, btnY, btnW, btnH, '分享', '#33aa66');
   }
 
   _renderWinOverlay(ctx) {
@@ -3062,9 +3066,17 @@ export default class GameScene {
       this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '历史记录', '#4499cc');
       this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', '#4499cc');
     } else {
-      // 普通模式：下一关 + 菜单
-      this._drawButton(ctx, centerX, centerY + 65 * s, 140 * s, 40 * s, '下一关', '#4499cc');
-      this._drawButton(ctx, centerX, centerY + 120 * s, 140 * s, 40 * s, '菜单', '#4499cc');
+      // 普通模式：下一关、菜单、分享 三个按钮并排
+      const btnW = 80 * s;
+      const btnH = 36 * s;
+      const btnGap = 12 * s;
+      const totalW = btnW * 3 + btnGap * 2;
+      const startX = centerX - totalW / 2 + btnW / 2;
+      const btnY = centerY + 75 * s;
+
+      this._drawButton(ctx, startX, btnY, btnW, btnH, '下一关', '#4499cc');
+      this._drawButton(ctx, startX + btnW + btnGap, btnY, btnW, btnH, '菜单', '#4499cc');
+      this._drawButton(ctx, startX + (btnW + btnGap) * 2, btnY, btnW, btnH, '分享', '#33aa66');
     }
   }
 
@@ -3091,19 +3103,34 @@ export default class GameScene {
       return;
     }
 
-    // 下一关按钮
-    const nextY = centerY + 65 * s;
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= nextY - bh / 2 && y <= nextY + bh / 2) {
+    // 普通模式：三个按钮并排
+    const btnW = 80 * s;
+    const btnH = 36 * s;
+    const btnGap = 12 * s;
+    const totalW = btnW * 3 + btnGap * 2;
+    const startX = centerX - totalW / 2 + btnW / 2;
+    const btnY = centerY + 75 * s;
+
+    // 下一关
+    if (x >= startX - btnW / 2 && x <= startX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
       this.initLevel(this.initialLevel + 1);
       return;
     }
 
-    // 返回菜单
-    const menuY = centerY + 120 * s;
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+    // 菜单
+    const menuX = startX + btnW + btnGap;
+    if (x >= menuX - btnW / 2 && x <= menuX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
+      return;
+    }
+
+    // 分享
+    const shareX = startX + (btnW + btnGap) * 2;
+    if (x >= shareX - btnW / 2 && x <= shareX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
+      this._doShareToGroup();
       return;
     }
   }
@@ -3427,30 +3454,32 @@ export default class GameScene {
     const s = SCALE;
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
-    const bw = 120 * s;
-    const bh = 40 * s;
-    const btnGap = 50 * s;
-    const btnStartY = centerY + 55 * s;
+    const btnW = 80 * s;
+    const btnH = 36 * s;
+    const btnGapX = 12 * s;
+    const totalBtnW = btnW * 3 + btnGapX * 2;
+    const btnStartX = centerX - totalBtnW / 2 + btnW / 2;
+    const btnY = centerY + 55 * s;
 
-    // 重试按钮
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= btnStartY - bh / 2 && y <= btnStartY + bh / 2) {
+    // 重试
+    if (x >= btnStartX - btnW / 2 && x <= btnStartX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
       this.initLevel(this.stage);
       return;
     }
 
-    // 菜单按钮
-    const menuY = btnStartY + btnGap;
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= menuY - bh / 2 && y <= menuY + bh / 2) {
+    // 菜单
+    const menuX = btnStartX + btnW + btnGapX;
+    if (x >= menuX - btnW / 2 && x <= menuX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
       if (this.onBackToMenu) this.onBackToMenu();
       return;
     }
 
-    // 分享按钮
-    const shareY = btnStartY + btnGap * 2;
-    if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-      y >= shareY - bh / 2 && y <= shareY + bh / 2) {
+    // 分享
+    const shareX = btnStartX + (btnW + btnGapX) * 2;
+    if (x >= shareX - btnW / 2 && x <= shareX + btnW / 2 &&
+      y >= btnY - btnH / 2 && y <= btnY + btnH / 2) {
       this._doShareToGroup();
       return;
     }
