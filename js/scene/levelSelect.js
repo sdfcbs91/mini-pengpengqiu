@@ -378,17 +378,32 @@ export default class LevelSelect {
       return;
     }
 
-    // 排行榜分类 tab 切换（闯关 / 150球 / 星星）
-    if (this.showRank && this._rankCategoryBtns) {
-      for (const btn of this._rankCategoryBtns) {
-        if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-          if (this._rankCategory !== btn.key) {
-            this._rankCategory = btn.key;
-            this._requestRankData(btn.key);
-          }
+    // 排行榜弹窗：分类 tab 切换 + 返回按钮
+    if (this.showRank) {
+      // 返回按钮
+      if (this._rankBackBtn) {
+        const rb = this._rankBackBtn;
+        if (x >= rb.x && x <= rb.x + rb.w && y >= rb.y && y <= rb.y + rb.h) {
+          this.showRank = false;
+          this._hideRankBoard();
+          // 切回"闯关"tab
+          this.navItems.forEach((item) => { item.active = item.label === '闯关'; });
           return;
         }
       }
+      // 分类 tab 切换
+      if (this._rankCategoryBtns) {
+        for (const btn of this._rankCategoryBtns) {
+          if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+            if (this._rankCategory !== btn.key) {
+              this._rankCategory = btn.key;
+              this._requestRankData(btn.key);
+            }
+            return;
+          }
+        }
+      }
+      return; // 弹窗显示时拦截所有点击
     }
 
     // 检测副标题行左右箭头点击
@@ -730,13 +745,16 @@ export default class LevelSelect {
     this._drawBackground(ctx);
     this._drawTitle(ctx);
 
-    if (this.showRank) {
-      this._drawRankBoard(ctx);
-    } else if (this.showSettings) {
+    if (this.showSettings) {
       this._drawSettings(ctx);
     } else {
       this._drawPageIndicator(ctx);
       this._drawLevelGrid(ctx);
+    }
+
+    // 排行榜弹窗（全屏遮罩，覆盖在关卡格子之上）
+    if (this.showRank) {
+      this._drawRankBoard(ctx);
     }
 
     // 游戏介绍弹窗（覆盖在最上层）
@@ -825,14 +843,32 @@ export default class LevelSelect {
   _drawRankBoard(ctx) {
     if (!this._openDataCanvas) return;
     const s = SCALE;
-    const top = this.gridTop;
-    const height = this.gridBottom - this.gridTop;
 
-    // 遮罩背景
-    ctx.fillStyle = 'rgba(10, 14, 39, 0.95)';
-    ctx.fillRect(0, top, SCREEN_WIDTH, height);
+    // 重置渲染状态
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
-    // 三分类 Tab：闯关排名 / 150球最高分 / 星星排名
+    // 全屏遮罩（与150球历史记录弹窗一致）
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const topY = 30 * s;
+
+    // 标题
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${20 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#4499cc';
+    ctx.shadowBlur = 8 * s;
+    ctx.fillText('排行榜', centerX, topY);
+    ctx.shadowBlur = 0;
+
+    // 三分类 Tab
     const tabs = [
       { key: 'level', label: '闯关' },
       { key: 'mode150', label: '150球' },
@@ -843,8 +879,8 @@ export default class LevelSelect {
     const tabH = 28 * s;
     const tabGap = 8 * s;
     const totalTabW = tabs.length * tabW + (tabs.length - 1) * tabGap;
-    const tabStartX = (SCREEN_WIDTH - totalTabW) / 2;
-    const tabY = top + 6 * s;
+    const tabStartX = centerX - totalTabW / 2;
+    const tabY = topY + 30 * s;
 
     this._rankCategoryBtns = [];
 
@@ -852,9 +888,9 @@ export default class LevelSelect {
       const tx = tabStartX + i * (tabW + tabGap);
       const active = currentTab === tab.key;
 
-      ctx.fillStyle = active ? '#2960dd' : 'rgba(30,40,70,0.8)';
+      ctx.fillStyle = active ? '#4499cc' : 'rgba(30,40,70,0.8)';
       ctx.fillRect(tx, tabY, tabW, tabH);
-      ctx.strokeStyle = '#2960dd';
+      ctx.strokeStyle = '#4499cc';
       ctx.lineWidth = 1;
       ctx.strokeRect(tx, tabY, tabW, tabH);
       ctx.fillStyle = active ? '#ffffff' : '#888899';
@@ -866,14 +902,42 @@ export default class LevelSelect {
       this._rankCategoryBtns.push({ key: tab.key, x: tx, y: tabY, w: tabW, h: tabH });
     });
 
-    // 将开放数据域 canvas 绘制到 tab 下方
-    const dataTop = tabY + tabH + 4 * s;
-    const dataHeight = height - (dataTop - top);
+    // 分隔线
+    const sepY = tabY + tabH + 8 * s;
+    ctx.strokeStyle = 'rgba(68,153,204,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(30 * s, sepY);
+    ctx.lineTo(SCREEN_WIDTH - 30 * s, sepY);
+    ctx.stroke();
+
+    // 开放数据域 canvas 内容区
+    const dataTop = sepY + 4 * s;
+    const btnY = SCREEN_HEIGHT - 50 * s;
+    const dataHeight = btnY - 30 * s - dataTop;
     ctx.drawImage(
       this._openDataCanvas,
       0, 0, this._openDataCanvas.width, this._openDataCanvas.height,
       0, dataTop, SCREEN_WIDTH, dataHeight
     );
+
+    // 底部"返回"按钮（样式与 150 球历史记录一致）
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#4499cc';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#4499cc';
+    ctx.shadowBlur = 6 * s;
+    const btnW = 120 * s;
+    const btnH = 40 * s;
+    ctx.strokeRect(centerX - btnW / 2, btnY - btnH / 2, btnW, btnH);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${14 * s}px Arial`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('返回', centerX, btnY);
+
+    // 存储返回按钮区域（供点击检测）
+    this._rankBackBtn = { x: centerX - btnW / 2, y: btnY - btnH / 2, w: btnW, h: btnH };
   }
 
   /**

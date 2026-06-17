@@ -89,7 +89,7 @@ export default class Warp {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2 * s;
     ctx.shadowColor = 'rgba(255,255,255,0.8)';
-    ctx.shadowBlur = 8 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     ctx.beginPath();
     ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -136,7 +136,7 @@ export default class Warp {
 
     // 外圈发光
     ctx.shadowColor = 'rgba(150,200,255,0.9)';
-    ctx.shadowBlur = 12 * s * pulse;
+    ctx.shadowBlur = 3 * s * pulse;
     ctx.strokeStyle = `rgba(200,220,255,${0.5 + 0.3 * pulse})`;
     ctx.lineWidth = 2 * s;
     ctx.beginPath();

@@ -122,13 +122,13 @@ export default class Brick {
 
     // 外圈淡蓝光晕（蓝色丝带闪烁）
     ctx.shadowColor = `rgba(120, 200, 255, ${alpha})`;
-    ctx.shadowBlur = 14 * s * pulse;
+    ctx.shadowBlur = 3 * s * pulse;
     ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.8})`;
     ctx.lineWidth = 2 * s;
     ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
 
     // 内层亮蓝边
-    ctx.shadowBlur = 6 * s * pulse;
+    ctx.shadowBlur = 2 * s * pulse;
     ctx.strokeStyle = `rgba(180, 235, 255, ${alpha})`;
     ctx.lineWidth = 1 * s;
     ctx.strokeRect(x, y, w, h);
@@ -152,7 +152,7 @@ export default class Brick {
     ctx.strokeStyle = scheme.border;
     ctx.lineWidth = 1.5;
     ctx.shadowColor = scheme.border;
-    ctx.shadowBlur = 6 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     _roundRect(ctx, x, y, w, h, r);
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -186,7 +186,7 @@ export default class Brick {
     ctx.strokeStyle = scheme.border;
     ctx.lineWidth = 1.5;
     ctx.shadowColor = scheme.border;
-    ctx.shadowBlur = 6 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     ctx.lineTo(points[1].x, points[1].y);

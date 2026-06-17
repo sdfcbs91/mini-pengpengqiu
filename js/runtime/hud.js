@@ -148,7 +148,7 @@ export default class HUD {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(0,245,255,0.85)';
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 2 * s;
     const armLen = r * 0.5;
     ctx.beginPath();
     ctx.moveTo(cx + armLen * 0.4, cy - armLen);
@@ -261,14 +261,14 @@ export default class HUD {
     // 2) 强外发光（仅靠 shadow 营造扩散光晕，不画粗边）
     buildPath();
     ctx.shadowColor = glow;
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 4;
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
     // 3) 再描一次细边强化清晰度
     buildPath();
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 2;
     ctx.shadowColor = glow;
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.2;
@@ -297,14 +297,14 @@ export default class HUD {
 
     // 2) 强外发光描边
     ctx.shadowColor = GLOW;
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 3;
     ctx.strokeStyle = STROKE;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
     // 3) 二次细描边强化清晰度
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -330,13 +330,13 @@ export default class HUD {
     ctx.fill();
 
     ctx.shadowColor = `rgba(255,210,80,${pulse})`;
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 4;
     ctx.strokeStyle = '#ffcc44';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
@@ -397,7 +397,7 @@ export default class HUD {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(50,100,230,0.85)';
-    ctx.shadowBlur = 4 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText(text, cx, cy - 3 * s);
     ctx.shadowBlur = 0;
   }
@@ -406,7 +406,7 @@ export default class HUD {
     const s = SCALE;
     ctx.fillStyle = '#ffcc00';
     ctx.shadowColor = '#ffcc00';
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.beginPath();
     ctx.moveTo(cx - size * 0.1, cy - size * 0.5);
     ctx.lineTo(cx + size * 0.3, cy - size * 0.5);
@@ -424,7 +424,7 @@ export default class HUD {
     const s = SCALE;
     ctx.fillStyle = '#ff6688';
     ctx.shadowColor = '#ff6688';
-    ctx.shadowBlur = 3 * s;
+    ctx.shadowBlur = 2 * s;
     const offsets = [
       { dx: 0, dy: -r * 0.5 },
       { dx: -r * 0.45, dy: r * 0.3 },
@@ -515,7 +515,7 @@ export default class HUD {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(50,100,230,0.85)';
-    ctx.shadowBlur = 4 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText('保持', cx, cy - 3 * s);
     ctx.shadowBlur = 0;
   }

@@ -258,7 +258,7 @@ export default class Ball {
     if (this.recalling) {
       ctx.globalAlpha = 1;
       ctx.shadowColor = 'rgba(100,180,255,0.8)';
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 2;
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -283,19 +283,19 @@ export default class Ball {
       if (this.powerLevel >= 4) {
         glowColor = 'rgba(255,50,50,0.5)';
         ballShadow = '#ff3333';
-        ballBlur = 12;
+        ballBlur = 3;
       } else if (this.powerLevel >= 3) {
         glowColor = 'rgba(255,200,50,0.45)';
         ballShadow = '#ffcc00';
-        ballBlur = 10;
+        ballBlur = 3;
       } else if (this.powerLevel >= 2) {
         glowColor = 'rgba(50,150,255,0.4)';
         ballShadow = '#3399ff';
-        ballBlur = 8;
+        ballBlur = 2;
       } else if (this.powerLevel >= 1) {
         glowColor = 'rgba(50,255,100,0.35)';
         ballShadow = '#33ff66';
-        ballBlur = 6;
+        ballBlur = 2;
       }
 
       // 外发光圈

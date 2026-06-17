@@ -192,7 +192,7 @@ export default class GameScene {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = isCombo ? '#ff9900' : 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 4 * s;
+      ctx.shadowBlur = 2 * s;
       const text = isCombo ? `+${f.score} x${f.multiplier.toFixed(1)}` : `+${f.score}`;
       ctx.fillText(text, f.x, f.y);
       ctx.shadowBlur = 0;
@@ -236,7 +236,7 @@ export default class GameScene {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.shadowColor = 'rgba(120, 200, 255, 0.95)';
-      ctx.shadowBlur = 10 * s;
+      ctx.shadowBlur = 3 * s;
 
       // 1) 外层粗光晕线
       ctx.strokeStyle = `rgba(150, 220, 255, ${alpha * 0.45})`;
@@ -246,7 +246,7 @@ export default class GameScene {
       }
 
       // 2) 内层亮蓝白细线（更清晰的核心电弧）
-      ctx.shadowBlur = 6 * s;
+      ctx.shadowBlur = 2 * s;
       ctx.strokeStyle = `rgba(220, 240, 255, ${alpha})`;
       ctx.lineWidth = 1.5 * s;
       for (const e of chain.edges) {
@@ -305,7 +305,7 @@ export default class GameScene {
 
     // 外发光圆环
     ctx.shadowColor = `rgba(255,68,68,${glowAlpha})`;
-    ctx.shadowBlur = (hover ? 24 : 12) * s * pulse;
+    ctx.shadowBlur = (hover ? 4 : 2) * s * pulse;
     ctx.strokeStyle = hover ? '#ff5566' : '#cc3344';
     ctx.lineWidth = (hover ? 3 : 2) * s;
     ctx.beginPath();
@@ -324,7 +324,7 @@ export default class GameScene {
     ctx.lineWidth = 3 * s;
     ctx.lineCap = 'round';
     ctx.shadowColor = hover ? 'rgba(255,68,68,0.9)' : 'transparent';
-    ctx.shadowBlur = (hover ? 8 : 0) * s;
+    ctx.shadowBlur = (hover ? 2 : 0) * s;
     const xLen = r * 0.4;
     ctx.beginPath();
     ctx.moveTo(cx - xLen, cy - xLen);
@@ -356,7 +356,7 @@ export default class GameScene {
 
     // 蓝色边框光晕（与左侧面板风格统一）
     ctx.shadowColor = 'rgba(50,100,230,0.75)';
-    ctx.shadowBlur = 12 * s;
+    ctx.shadowBlur = 3 * s;
     ctx.strokeStyle = '#2960dd';
     ctx.lineWidth = 1.5 * s;
     ctx.beginPath();
@@ -978,7 +978,7 @@ export default class GameScene {
 
     // 蓝色边框光晕（与取消按钮风格一致但用蓝色）
     ctx.shadowColor = 'rgba(50,100,230,0.75)';
-    ctx.shadowBlur = 12 * s;
+    ctx.shadowBlur = 3 * s;
     ctx.strokeStyle = '#2960dd';
     ctx.lineWidth = 2 * s;
     ctx.beginPath();
@@ -1050,7 +1050,7 @@ export default class GameScene {
       ctx.strokeStyle = 'rgba(255,210,80,0.9)';
       ctx.lineWidth = 2.5 * s;
       ctx.shadowColor = 'rgba(255,210,80,0.6)';
-      ctx.shadowBlur = 6 * s;
+      ctx.shadowBlur = 2 * s;
       ctx.beginPath();
       ctx.moveTo(this._drawingLine.x1, this._drawingLine.y1);
       ctx.lineTo(this._drawingLine.x2, this._drawingLine.y2);
@@ -2479,7 +2479,7 @@ export default class GameScene {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.shadowColor = COLORS.ballGlow;
-      ctx.shadowBlur = 10 * SCALE;
+      ctx.shadowBlur = 3 * SCALE;
       ctx.fillStyle = COLORS.ballColor;
       ctx.beginPath();
       ctx.arc(this.launcher.x, this.launcher.y, BALL_RADIUS * 1.5, 0, Math.PI * 2);
@@ -2614,7 +2614,7 @@ export default class GameScene {
 
       // 扩散外圈（蓝白发光）
       ctx.shadowColor = 'rgba(150,200,255,0.9)';
-      ctx.shadowBlur = 14 * s * appear;
+      ctx.shadowBlur = 3 * s * appear;
       ctx.strokeStyle = `rgba(200,220,255,${0.9 * flash * (appear > 0.1 ? 1 : appear * 10)})`;
       ctx.lineWidth = 2.5 * s;
       ctx.beginPath();
@@ -2759,7 +2759,7 @@ export default class GameScene {
       ctx.globalAlpha = alpha * 0.9;
       ctx.fillStyle = p.color;
       ctx.shadowColor = p.color;
-      ctx.shadowBlur = 4 * SCALE * alpha;
+      ctx.shadowBlur = 2 * SCALE * alpha;
 
       // 随机形状：方块或圆
       if (i % 3 === 0) {
@@ -2794,7 +2794,7 @@ export default class GameScene {
     // 主光线
     ctx.fillStyle = '#ff3333';
     ctx.shadowColor = '#ff3333';
-    ctx.shadowBlur = 12 * s * progress;
+    ctx.shadowBlur = 3 * s * progress;
     ctx.fillRect(left, e.y - lineH / 2, right - left, lineH);
 
     // 外扩光晕
@@ -2823,7 +2823,7 @@ export default class GameScene {
     // 主光线
     ctx.fillStyle = '#ff3333';
     ctx.shadowColor = '#ff3333';
-    ctx.shadowBlur = 12 * s * progress;
+    ctx.shadowBlur = 3 * s * progress;
     ctx.fillRect(e.x - lineW / 2, top, lineW, bottom - top);
 
     // 外扩光晕
@@ -2850,7 +2850,7 @@ export default class GameScene {
     ctx.strokeStyle = COLORS.neonBlue;
     ctx.lineWidth = 2;
     ctx.shadowColor = COLORS.neonBlue;
-    ctx.shadowBlur = 4 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
 
     // 圆角矩形描边（边框只包砖块区域，白球/发射器在边框外）
     const x = GAME_AREA_LEFT - 2;
@@ -2897,7 +2897,7 @@ export default class GameScene {
     gradient.addColorStop(1, 'rgba(255,255,255,0.05)');
     ctx.fillStyle = gradient;
     ctx.shadowColor = 'rgba(255,255,255,0.5)';
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 2 * s;
 
     // 圆角矩形
     ctx.beginPath();
@@ -2975,7 +2975,7 @@ export default class GameScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = titleColor;
-    ctx.shadowBlur = 10 * s;
+    ctx.shadowBlur = 3 * s;
     ctx.fillText(title, centerX, centerY - 80 * s);
     ctx.shadowBlur = 0;
 
@@ -3008,7 +3008,7 @@ export default class GameScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#39ff14';
-    ctx.shadowBlur = 12 * s;
+    ctx.shadowBlur = 3 * s;
     ctx.fillText('通关！', centerX, centerY - 100 * s);
     ctx.shadowBlur = 0;
 
@@ -3020,7 +3020,7 @@ export default class GameScene {
       const sx = centerX + (i - 1) * starGap;
       const filled = i < this.winStars;
       ctx.fillStyle = filled ? '#ffdd00' : '#333355';
-      if (filled) { ctx.shadowColor = '#ffdd00'; ctx.shadowBlur = 6 * s; }
+      if (filled) { ctx.shadowColor = '#ffdd00'; ctx.shadowBlur = 2 * s; }
       ctx.beginPath();
       for (let j = 0; j < 10; j++) {
         const r = j % 2 === 0 ? starSize : starSize * 0.4;
@@ -3048,7 +3048,7 @@ export default class GameScene {
       ctx.fillStyle = '#ffdd00';
       ctx.font = `bold ${13 * s}px Arial`;
       ctx.shadowColor = '#ffdd00';
-      ctx.shadowBlur = 4 * s;
+      ctx.shadowBlur = 2 * s;
       ctx.fillText(' 技能+1（每通关3次奖励）', centerX, centerY + 40 * s);
       ctx.shadowBlur = 0;
     }
@@ -3110,7 +3110,7 @@ export default class GameScene {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 6 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
     ctx.shadowBlur = 0;
 
@@ -3264,7 +3264,7 @@ export default class GameScene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = '#4499cc';
-    ctx.shadowBlur = 8 * s;
+    ctx.shadowBlur = 2 * s;
     ctx.fillText('150球模式 - 历史记录', centerX, topY);
     ctx.shadowBlur = 0;
 

@@ -79,7 +79,7 @@ export default class Plank {
     ctx.strokeStyle = '#88ccff';
     ctx.lineWidth = 1;
     ctx.shadowColor = '#88ccff';
-    ctx.shadowBlur = 3 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     ctx.stroke();
     ctx.shadowBlur = 0;
   }

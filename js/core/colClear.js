@@ -59,7 +59,7 @@ export default class ColClear {
     ctx.strokeStyle = '#ff3333';
     ctx.lineWidth = 2 * s;
     ctx.shadowColor = 'rgba(255,50,50,0.8)';
-    ctx.shadowBlur = 8 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     ctx.beginPath();
     ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
     ctx.stroke();

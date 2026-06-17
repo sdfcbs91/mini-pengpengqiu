@@ -58,7 +58,7 @@ export default class Pickup {
     ctx.strokeStyle = COLORS.pickupColor;
     ctx.lineWidth = 2 * s;
     ctx.shadowColor = COLORS.pickupGlow;
-    ctx.shadowBlur = 8 * s * glow;
+    ctx.shadowBlur = 2 * s * glow;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.stroke();
