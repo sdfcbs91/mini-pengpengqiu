@@ -418,33 +418,45 @@ exports.main = async (event, context) => {
         updateData.maxLevel = maxLevel;
       }
 
-      // 更新完整关卡进度（合并：保留云端的 score/scoreTime/clearScore/clearTime/clearRounds/lastClearAt 不被覆盖）
+      // 更新完整关卡进度（逐字段取更优值合并：分数取高、回合/耗时取低、时间戳取新）
       if (levelProgress) {
         const existingProgress = doc.levelProgress || [];
         const merged = levelProgress.map((item, idx) => {
-          const existing = existingProgress[idx];
+          const existing = existingProgress[idx] || {};
           const result = { ...item };
-          // 保留云端已有的 score 和 scoreTime
-          if (existing && existing.score) {
+
+          // 解锁状态：任一已解锁则解锁
+          if (existing.unlocked) result.unlocked = true;
+          // 星级：取较高
+          result.stars = Math.max(item.stars || 0, existing.stars || 0);
+
+          // 关卡最高分：取较高（含 scoreTime）
+          if ((existing.score || 0) > (item.score || 0)) {
             result.score = existing.score;
             result.scoreTime = existing.scoreTime;
           }
-          // 保留云端已有的通关记录数据
-          if (existing && existing.clearScore) {
+          // 通关最高积分：取较高
+          if ((existing.clearScore || 0) > (item.clearScore || 0)) {
             result.clearScore = existing.clearScore;
           }
-          if (existing && existing.clearTime) {
+          // 最快通关耗时：取较小（越少越好）
+          if (existing.clearTime !== undefined &&
+            (result.clearTime === undefined || existing.clearTime < result.clearTime)) {
             result.clearTime = existing.clearTime;
           }
-          if (existing && existing.clearRounds) {
+          // 最少通关回合：取较小（越少越好）
+          if (existing.clearRounds !== undefined &&
+            (result.clearRounds === undefined || existing.clearRounds < result.clearRounds)) {
             result.clearRounds = existing.clearRounds;
           }
-          if (existing && existing.lastClearAt) {
-            result.lastClearAt = existing.lastClearAt;
-          }
           // 地图名称：客户端未带时，保留云端已有值
-          if (!result.mapName && existing && existing.mapName) {
+          if (!result.mapName && existing.mapName) {
             result.mapName = existing.mapName;
+          }
+          // 最近通关时间戳：取较新
+          if (existing.lastClearAt &&
+            (!result.lastClearAt || existing.lastClearAt > result.lastClearAt)) {
+            result.lastClearAt = existing.lastClearAt;
           }
           return result;
         });

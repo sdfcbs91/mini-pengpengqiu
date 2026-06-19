@@ -647,14 +647,43 @@ export default class LevelSelect {
    */
   _applyCloudProgress(cloudProgress, cloudMax) {
     if (cloudProgress && Array.isArray(cloudProgress)) {
-      // 用云端数据覆盖本地
+      // 用云端数据合并到本地（逐字段取更优值，确保所有字段都同步）
       for (let i = 0; i < cloudProgress.length && i < this.progress.data.length; i++) {
         const cloud = cloudProgress[i];
         const local = this.progress.data[i];
-        // 取两者较高值（合并）
+        if (!cloud) continue;
+        // 解锁状态：任一已解锁则解锁
         if (cloud.unlocked) local.unlocked = true;
+        // 星级：取较高
         if ((cloud.stars || 0) > (local.stars || 0)) {
           local.stars = cloud.stars;
+        }
+        // 关卡最高分：取较高（含 scoreTime）
+        if ((cloud.score || 0) > (local.score || 0)) {
+          local.score = cloud.score;
+          if (cloud.scoreTime) local.scoreTime = cloud.scoreTime;
+        }
+        // 通关最高积分：取较高
+        if ((cloud.clearScore || 0) > (local.clearScore || 0)) {
+          local.clearScore = cloud.clearScore;
+        }
+        // 最少通关回合：取较小（越少越好）
+        if (cloud.clearRounds !== undefined &&
+          (local.clearRounds === undefined || cloud.clearRounds < local.clearRounds)) {
+          local.clearRounds = cloud.clearRounds;
+        }
+        // 最快通关耗时：取较小（越少越好）
+        if (cloud.clearTime !== undefined &&
+          (local.clearTime === undefined || cloud.clearTime < local.clearTime)) {
+          local.clearTime = cloud.clearTime;
+        }
+        // 地图名称：本地缺失时用云端值
+        if (cloud.mapName && !local.mapName) {
+          local.mapName = cloud.mapName;
+        }
+        // 最近通关时间戳：取较新
+        if (cloud.lastClearAt && (!local.lastClearAt || cloud.lastClearAt > local.lastClearAt)) {
+          local.lastClearAt = cloud.lastClearAt;
         }
       }
     }
@@ -1453,7 +1482,7 @@ export default class LevelSelect {
       data: { action: 'get' },
       success: (res) => {
         const result = res.result;
-        if (!result || result.code !== 0) {
+        if (!result || result.code !== 0 || result.msg === 'not_found' || !result.levelProgress) {
           // 云端无数据，直接上传本地
           this._uploadProgressToCloud();
           this._toastText = '数据已上传到云端';
@@ -1464,22 +1493,15 @@ export default class LevelSelect {
         const localMax = this.progress.getMaxUnlocked();
         const cloudMax = result.maxLevel || 0;
         const cloudProgress = result.levelProgress;
+        const effectiveMax = Math.max(cloudMax, localMax);
 
-        if (cloudMax > localMax && cloudProgress) {
-          // 云端更新：拉取云端数据覆盖本地
-          this._applyCloudProgress(cloudProgress, cloudMax);
-          this._toastText = `已从云端同步（第${cloudMax}关）`;
-          this._toastTimer = 90;
-        } else if (localMax > cloudMax) {
-          // 本地更新：上传本地数据到云端
-          this._uploadProgressToCloud();
-          this._toastText = `数据已同步到云端（第${localMax}关）`;
-          this._toastTimer = 90;
-        } else {
-          // 数据一致
-          this._toastText = '数据已是最新';
-          this._toastTimer = 90;
-        }
+        // 双向合并：先把云端数据合并到本地（逐字段取更优值，含 mapName 等所有新字段）
+        this._applyCloudProgress(cloudProgress, effectiveMax);
+        // 再把合并后的本地数据上传到云端，保证云端也获得本地更优/新增字段
+        this._uploadProgressToCloud();
+
+        this._toastText = `数据已同步（第${effectiveMax}关）`;
+        this._toastTimer = 90;
       },
       fail: () => {
         this._toastText = '同步失败，请检查网络';
@@ -1688,9 +1710,9 @@ export default class LevelSelect {
         ],
       },
       {
-        name: '多球',
-        icon: '●●',
-        iconColor: '#ff6688',
+        name: '加球',
+        icon: '●',
+        iconColor: '#fff',
         desc: [
           '瞄准阶段点击左上角多球按钮',
           '',
@@ -1701,21 +1723,21 @@ export default class LevelSelect {
           '可叠加使用（2→4→8...）',
         ],
       },
-      {
-        name: '攻击增幅',
-        icon: '⚔',
-        iconColor: '#ff9900',
-        desc: [
-          '瞄准阶段点击左上角攻击按钮',
-          '',
-          '白球攻击力永久+1。',
-          '默认攻击力1（每碰扣1HP），',
-          '升级后每碰扣2、3、4...HP。',
-          '',
-          '每局初始5次机会。',
-          '对消行/消列伤害也生效。',
-        ],
-      },
+      // {
+      //   name: '攻击增幅',
+      //   icon: '⚔',
+      //   iconColor: '#ff9900',
+      //   desc: [
+      //     '瞄准阶段点击左上角攻击按钮',
+      //     '',
+      //     '白球攻击力永久+1。',
+      //     '默认攻击力1（每碰扣1HP），',
+      //     '升级后每碰扣2、3、4...HP。',
+      //     '',
+      //     '每局初始5次机会。',
+      //     '对消行/消列伤害也生效。',
+      //   ],
+      // },
     ];
   }
 
