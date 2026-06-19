@@ -760,10 +760,9 @@ export default class LevelSelect {
   }
 
   render(ctx) {
-    // 排行榜全屏模式：隐藏主域所有内容，只绘制子域 canvas
+    // 排行榜全屏模式：隐藏主域所有内容（含底部导航栏），纯展示子域排行榜
     if (this.showRank) {
       this._drawRankBoard(ctx);
-      this._drawNavBar(ctx);
       return;
     }
 

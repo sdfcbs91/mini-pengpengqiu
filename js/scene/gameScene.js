@@ -2405,6 +2405,24 @@ export default class GameScene {
     this.winStars = this.score > 500 ? 3 : this.score > 200 ? 2 : 1;
     this.gameState = 'win';
 
+    // 更新 150 球本地最高分 + 上报关系链数据（供群/好友排行榜读取）
+    if (typeof wx !== 'undefined') {
+      try {
+        const oldBest = parseInt(wx.getStorageSync('ppq_mode150_best')) || 0;
+        if (this.score > oldBest) {
+          wx.setStorageSync('ppq_mode150_best', this.score);
+          // 立即更新关系链 KVData（仅 mode150Best 字段），让群好友排行榜能读到最新值
+          if (wx.setUserCloudStorage) {
+            wx.setUserCloudStorage({
+              KVDataList: [{ key: 'mode150Best', value: String(this.score) }],
+              success: () => { console.log('150球最高分已写入关系链'); },
+              fail: () => { /* 静默 */ },
+            });
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     // 上传150球模式成绩到云函数
     if (typeof wx !== 'undefined' && wx.cloud) {
       wx.cloud.callFunction({
