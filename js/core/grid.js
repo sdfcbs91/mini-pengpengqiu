@@ -9,7 +9,7 @@ import {
   GAME_AREA_LEFT, GAME_AREA_TOP,
 } from '../config';
 import { getLevelConfig } from '../data/levelData';
-import { ROW_PATTERNS, MULTI_ROW_TEMPLATES, LEVEL_TEMPLATES } from '../data/patternData';
+import { ROW_PATTERNS, MULTI_ROW_TEMPLATES, MULTI_ROW_TEMPLATE_NAMES, LEVEL_TEMPLATES } from '../data/patternData';
 
 // =====================================================================
 // 砖块行生成 - 可用列范围（最左/最右列强制留空，方便球边墙反弹）
@@ -92,6 +92,9 @@ export default class Grid {
   _applyMultiRowTemplate(stage, templateIdx) {
     const tpl = MULTI_ROW_TEMPLATES[templateIdx];
     if (!tpl) return false;
+
+    // 记录当前关卡所用的地图（布局）名称，供历史记录展示
+    this.templateName = MULTI_ROW_TEMPLATE_NAMES[templateIdx] || '随机地图';
 
     const cfg = this.levelConfig || getLevelConfig(Math.max(1, stage));
     const baseHp = cfg.baseHp || Math.max(1, Math.round(stage * 1.5));

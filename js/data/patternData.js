@@ -320,6 +320,22 @@ export const LEVEL_TEMPLATES = Object.freeze([
     }),
 ]);
 
+/**
+ * 多行图形模板名称（与 MULTI_ROW_TEMPLATES 一一对应，用于关卡地图名称记录）
+ */
+export const MULTI_ROW_TEMPLATE_NAMES = Object.freeze([
+    '实心方阵', // ①
+    '回字形',   // ②
+    '双层回字', // ③
+    '十字形',   // ④
+    'T字形',    // ⑤
+    'H字形',    // ⑥
+    '双方块',   // ⑦
+    '漏斗',     // ⑧
+    '反漏斗',   // ⑨
+    '棋盘格',   // ⑩
+]);
+
 /** 单行图形总数 */
 export const ROW_PATTERN_COUNT = ROW_PATTERNS.length;       // 10
 /** 多行图形总数 */

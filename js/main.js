@@ -126,10 +126,10 @@ export default class Main {
     this.gameScene = new GameScene();
     this.gameScene.onBackToMenu = this.onBackToMenu.bind(this);
     this.gameScene.onGameOver = () => { };
-    this.gameScene.onLevelComplete = (level, stars, score) => {
+    this.gameScene.onLevelComplete = (level, stars, score, mapName) => {
       // 特殊模式不保存进度
       if (level > 0) {
-        this.levelSelect.completeLevel(level, stars, score);
+        this.levelSelect.completeLevel(level, stars, score, mapName);
       }
     };
     this.gameScene.initLevel(levelNum);

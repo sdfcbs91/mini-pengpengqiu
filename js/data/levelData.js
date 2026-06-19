@@ -250,6 +250,18 @@ export class LevelProgress {
   }
 
   /**
+   * 保存关卡所用地图（布局）名称（仅本地，云端由云函数处理）
+   * 参考150球历史记录中的 formationName 字段
+   */
+  saveMapName(levelNum, mapName) {
+    const idx = levelNum - 1;
+    if (idx < 0 || idx >= TOTAL_LEVELS) return;
+    if (!mapName) return;
+    this.data[idx].mapName = mapName;
+    this.save();
+  }
+
+  /**
    * 保存关卡最高分（仅本地，云端由云函数处理）
    */
   saveScore(levelNum, score) {

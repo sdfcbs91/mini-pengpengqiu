@@ -63,6 +63,15 @@ export default class LevelSelect {
     this._introScrollVelocity = 0;  // 惯性滚动速度
     this._introScrolling = false;   // 是否正在手动拖动
     this._introScroller = new ScrollView(); // 游戏介绍弹窗滚动条模块
+
+    // 数据记录弹窗
+    this.showDataRecord = false;
+    this._dataRecordTab = 'level';    // 'level' | 'mode150'
+    this._dataRecordLoading = false;
+    this._levelRecords = null;        // 关卡记录数据
+    this._mode150Records = null;      // 150球记录数据
+    this._dataRecordScroller = new ScrollView();
+
     this.showPropsGuide = false; // 道具介绍弹窗
     this._propsGuidePage = 0; // 当前道具页码
     this._propsSwipeStartX = 0; // 滑动起始X
@@ -235,6 +244,11 @@ export default class LevelSelect {
       this._introScrolling = true;
       this._introScroller.onTouchStart(y);
     }
+
+    // 数据记录弹窗：列表滚动
+    if (this.showDataRecord) {
+      this._dataRecordScroller.onTouchStart(y);
+    }
   }
 
   /**
@@ -248,6 +262,12 @@ export default class LevelSelect {
       this._introScroller.onTouchMove(y);
       this._introScrollY = this._introScroller.getScrollY();
       this._lastTouchY = y;
+      return;
+    }
+
+    // 数据记录弹窗列表滚动
+    if (this.showDataRecord) {
+      this._dataRecordScroller.onTouchMove(y);
       return;
     }
 
@@ -299,6 +319,17 @@ export default class LevelSelect {
         if (x < bx || x > bx + bw || y < by || y > by + bh) {
           this.showGameIntro = false;
         }
+      }
+      return;
+    }
+
+    // 数据记录弹窗：松手释放滚动惯性 + 点击判定
+    if (this.showDataRecord) {
+      this._dataRecordScroller.onTouchEnd();
+      const totalDy = y - this.touchStartY;
+      // 视为点击（移动距离小）→ 交给 _handleTap 处理 tab/返回
+      if (Math.abs(totalDy) < 10 && Math.abs(totalDx) < 10) {
+        this._handleTap(x, y);
       }
       return;
     }
@@ -357,6 +388,28 @@ export default class LevelSelect {
     if (this._showAuthPrompt) {
       this._handleAuthPromptTap(x, y);
       return;
+    }
+
+    // 数据记录弹窗
+    if (this.showDataRecord) {
+      // 返回按钮
+      if (this._dataRecordBackBtn) {
+        const b = this._dataRecordBackBtn;
+        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          this.showDataRecord = false;
+          return;
+        }
+      }
+      // tab 切换
+      if (this._dataRecordTabBtns) {
+        for (const btn of this._dataRecordTabBtns) {
+          if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+            this._switchDataRecordTab(btn.key);
+            return;
+          }
+        }
+      }
+      return; // 拦截弹窗内其他点击
     }
 
     // 游戏介绍弹窗：点击弹窗外部关闭
@@ -494,9 +547,10 @@ export default class LevelSelect {
   /**
    * 通关更新
    */
-  completeLevel(levelNum, stars, score) {
+  completeLevel(levelNum, stars, score, mapName) {
     this.progress.completeLevel(levelNum, stars);
     if (score) this.progress.saveScore(levelNum, score);
+    if (mapName) this.progress.saveMapName(levelNum, mapName);
     this.levelData = this.progress.getAllData();
     // 通关后同步到云端（延迟2秒，确保 levelCleared 先完成写入通关数据）
     setTimeout(() => {
@@ -563,6 +617,8 @@ export default class LevelSelect {
     if (typeof wx === 'undefined' || !wx.cloud) return;
 
     const maxLevel = this.progress.getMaxUnlocked();
+    // levelProgress 每个已通关关卡均含 mapName 字段（地图/布局名称，
+    // 参考150球历史记录的 formationName），随进度一起上传到云端
     const levelProgress = this.progress.getAllData();
 
     // 尝试获取已授权的用户信息
@@ -757,6 +813,11 @@ export default class LevelSelect {
       this._introScroller.update();
       this._introScrollY = this._introScroller.getScrollY();
     }
+
+    // 数据记录弹窗 - 列表惯性滚动
+    if (this.showDataRecord) {
+      this._dataRecordScroller.update();
+    }
   }
 
   render(ctx) {
@@ -797,6 +858,11 @@ export default class LevelSelect {
     }
 
     this._drawNavBar(ctx);
+
+    // 历史记录弹窗（层级置于最上方，高于底部菜单）
+    if (this.showDataRecord) {
+      this._drawDataRecord(ctx);
+    }
 
     // Toast 提示
     if (this._toastTimer > 0) {
@@ -917,6 +983,7 @@ export default class LevelSelect {
       { label: '分享游戏', color: '#ffffff' },
       { label: this.soundOn ? '声音（开）' : '声音（关）', color: this.soundOn ? '#ffffff' : '#888899' },
       { label: '同步数据', color: '#ffffff' },
+      { label: '历史记录', color: '#ffffff' },
       { label: '道具介绍', color: '#ffffff' },
       { label: '游戏介绍', color: '#ffffff' },
     ];
@@ -973,8 +1040,9 @@ export default class LevelSelect {
           case 0: this._doShare(); break;
           case 1: this._toggleSound(); break;
           case 2: this._doSyncData(); break;
-          case 3: this.showPropsGuide = true; this._propsGuidePage = 0; break;
-          case 4: this.showGameIntro = true; this._introScrollY = 0; this._introScroller.reset(); break;
+          case 3: this._showDataRecord(); break;
+          case 4: this.showPropsGuide = true; this._propsGuidePage = 0; break;
+          case 5: this.showGameIntro = true; this._introScrollY = 0; this._introScroller.reset(); break;
         }
         return;
       }
@@ -990,6 +1058,367 @@ export default class LevelSelect {
       title: '碰碰球 — 超爽弹球粉碎游戏！快来挑战！',
       imageUrl: 'images/welcome.jpg',
     });
+  }
+
+  /**
+   * 打开数据记录弹窗（默认显示关卡 tab）
+   */
+  _showDataRecord() {
+    this.showDataRecord = true;
+    this._dataRecordTab = 'level';
+    this._dataRecordScroller.reset();
+    this._fetchLevelRecords();
+  }
+
+  /**
+   * 拉取关卡记录（前10场，按回合少、耗时少排序）
+   */
+  _fetchLevelRecords() {
+    if (this._levelRecords) return; // 已缓存
+    this._dataRecordLoading = true;
+    if (typeof wx === 'undefined' || !wx.cloud) {
+      this._levelRecords = [];
+      this._dataRecordLoading = false;
+      return;
+    }
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'getLevelRecords' },
+      success: (res) => {
+        const result = res.result;
+        console.log('[历史记录-关卡] 云函数返回:', result);
+        const records = (result && result.code === 0) ? (result.records || []) : [];
+        // 排序：耗时升序（优先）→ 回合数升序（其次）
+        records.sort((a, b) => {
+          if (a.timeUsed !== b.timeUsed) return a.timeUsed - b.timeUsed;
+          return a.rounds - b.rounds;
+        });
+        this._levelRecords = records;
+        this._dataRecordLoading = false;
+      },
+      fail: (err) => {
+        console.error('[历史记录-关卡] 云函数调用失败:', err);
+        this._levelRecords = [];
+        this._dataRecordLoading = false;
+      },
+    });
+  }
+
+  /**
+   * 拉取 150 球历史记录
+   */
+  _fetchMode150Records() {
+    if (this._mode150Records) return; // 已缓存
+    this._dataRecordLoading = true;
+    if (typeof wx === 'undefined' || !wx.cloud) {
+      this._mode150Records = [];
+      this._dataRecordLoading = false;
+      return;
+    }
+    wx.cloud.callFunction({
+      name: 'saveUserProgress',
+      data: { action: 'getMode150History' },
+      success: (res) => {
+        const result = res.result;
+        this._mode150Records = (result && result.code === 0) ? (result.history || []) : [];
+        this._dataRecordLoading = false;
+      },
+      fail: () => {
+        this._mode150Records = [];
+        this._dataRecordLoading = false;
+      },
+    });
+  }
+
+  /**
+   * 切换数据记录 tab
+   */
+  _switchDataRecordTab(tab) {
+    if (this._dataRecordTab === tab) return;
+    this._dataRecordTab = tab;
+    this._dataRecordScroller.reset();
+    if (tab === 'level') this._fetchLevelRecords();
+    else this._fetchMode150Records();
+  }
+
+  /**
+   * 绘制数据记录弹窗（样式参照 150 球历史记录）
+   */
+  _drawDataRecord(ctx) {
+    const s = SCALE;
+
+    // 重置渲染状态
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+
+    // 遮罩
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const centerX = SCREEN_WIDTH / 2;
+    const topY = 30 * s;
+
+    // 标题
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${20 * s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#4499cc';
+    ctx.shadowBlur = 2 * s;
+    ctx.fillText('历史记录', centerX, topY);
+    ctx.shadowBlur = 0;
+
+    // Tab（关卡 / 150球）
+    const tabs = [
+      { key: 'level', label: '关卡' },
+      { key: 'mode150', label: '150球' },
+    ];
+    const tabW = 80 * s;
+    const tabH = 28 * s;
+    const tabGap = 10 * s;
+    const totalTabW = tabs.length * tabW + (tabs.length - 1) * tabGap;
+    const tabStartX = centerX - totalTabW / 2;
+    const tabY = topY + 28 * s;
+
+    this._dataRecordTabBtns = [];
+    tabs.forEach((tab, i) => {
+      const tx = tabStartX + i * (tabW + tabGap);
+      const active = this._dataRecordTab === tab.key;
+      ctx.fillStyle = active ? '#4499cc' : 'rgba(30,40,70,0.8)';
+      ctx.fillRect(tx, tabY, tabW, tabH);
+      ctx.strokeStyle = '#4499cc';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx, tabY, tabW, tabH);
+      ctx.fillStyle = active ? '#ffffff' : '#888899';
+      ctx.font = `bold ${12 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tab.label, tx + tabW / 2, tabY + tabH / 2);
+      this._dataRecordTabBtns.push({ key: tab.key, x: tx, y: tabY, w: tabW, h: tabH });
+    });
+
+    const btnY = SCREEN_HEIGHT - 50 * s;
+
+    // 加载中
+    if (this._dataRecordLoading) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${14 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('加载中...', centerX, SCREEN_HEIGHT / 2);
+    } else if (this._dataRecordTab === 'level') {
+      this._drawLevelRecordTable(ctx, s, tabY + tabH + 10 * s, btnY);
+    } else {
+      this._drawMode150RecordTable(ctx, s, tabY + tabH + 10 * s, btnY);
+    }
+
+    // 返回按钮
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#4499cc';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#4499cc';
+    ctx.shadowBlur = 2 * s;
+    const rbW = 120 * s;
+    const rbH = 40 * s;
+    ctx.strokeRect(centerX - rbW / 2, btnY - rbH / 2, rbW, rbH);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${14 * s}px Arial`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('返回', centerX, btnY);
+    this._dataRecordBackBtn = { x: centerX - rbW / 2, y: btnY - rbH / 2, w: rbW, h: rbH };
+  }
+
+  /**
+   * 关卡记录表格（列：关卡、地图、回合、耗时、时间）
+   */
+  _drawLevelRecordTable(ctx, s, contentTop, btnY) {
+    const data = this._levelRecords || [];
+    const centerX = SCREEN_WIDTH / 2;
+
+    const tableW = 320 * s;
+    const tableLeft = (SCREEN_WIDTH - tableW) / 2;
+    const colX = [
+      tableLeft,                 // 关卡
+      tableLeft + 55 * s,        // 地图
+      tableLeft + 150 * s,       // 回合
+      tableLeft + 210 * s,       // 耗时
+      tableLeft + 270 * s,       // 时间
+    ];
+    const headers = ['关卡', '地图', '回合', '耗时', '时间'];
+
+    // 表头
+    const headerY = contentTop;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textBaseline = 'middle';
+    headers.forEach((h, i) => ctx.fillText(h, colX[i], headerY));
+
+    // 分隔线
+    ctx.strokeStyle = 'rgba(68,153,204,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tableLeft, headerY + 12 * s);
+    ctx.lineTo(tableLeft + tableW, headerY + 12 * s);
+    ctx.stroke();
+
+    if (data.length === 0) {
+      ctx.fillStyle = '#888888';
+      ctx.font = `${14 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('暂无通关记录', centerX, (contentTop + btnY) / 2);
+      return;
+    }
+
+    const listTop = headerY + 18 * s;
+    const listBottom = btnY - 30 * s;
+    const rowH = 30 * s;
+    const totalH = data.length * rowH;
+    this._dataRecordScroller.setContentArea(listTop, listBottom - listTop, totalH);
+    const scrollY = this._dataRecordScroller.getScrollY();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(tableLeft - 5 * s, listTop, tableW + 10 * s, listBottom - listTop);
+    ctx.clip();
+
+    data.forEach((item, i) => {
+      const rowY = listTop + i * rowH + 10 * s + scrollY;
+      if (rowY + rowH < listTop || rowY - rowH > listBottom) return;
+
+      const rankColors = ['#ffdd00', '#c0c0c0', '#cd7f32'];
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = i < 3 ? rankColors[i] : '#ffffff';
+      ctx.font = `bold ${11 * s}px Arial`;
+      ctx.fillText(`${item.level}`, colX[0], rowY);
+
+      ctx.fillStyle = '#aaddff';
+      ctx.font = `${10 * s}px Arial`;
+      const mapName = (item.mapName || '随机').slice(0, 5);
+      ctx.fillText(mapName, colX[1], rowY);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${11 * s}px Arial`;
+      ctx.fillText(`${item.rounds}`, colX[2], rowY);
+      ctx.fillText(`${item.timeUsed}s`, colX[3], rowY);
+
+      ctx.fillStyle = '#888888';
+      ctx.font = `${9 * s}px Arial`;
+      ctx.fillText(this._formatRecordDate(item.lastClearAt), colX[4], rowY);
+    });
+
+    ctx.restore();
+
+    if (this._dataRecordScroller.needsScroll()) {
+      this._dataRecordScroller.renderScrollBar(ctx, tableLeft + tableW + 2 * s, s, {
+        color: 'rgba(68,153,204,0.4)',
+      });
+    }
+  }
+
+  /**
+   * 150 球记录表格（复用 150 球历史记录展示：得分、阵型、耗时、时间）
+   */
+  _drawMode150RecordTable(ctx, s, contentTop, btnY) {
+    const data = this._mode150Records || [];
+    const centerX = SCREEN_WIDTH / 2;
+
+    const tableW = 300 * s;
+    const tableLeft = (SCREEN_WIDTH - tableW) / 2;
+    const colX = [
+      tableLeft,                 // 排名
+      tableLeft + 35 * s,        // 得分
+      tableLeft + 110 * s,       // 阵型
+      tableLeft + 210 * s,       // 时间
+    ];
+    const headers = ['#', '得分', '阵型', '游玩时间'];
+
+    const headerY = contentTop;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#4499cc';
+    ctx.font = `bold ${10 * s}px Arial`;
+    ctx.textBaseline = 'middle';
+    headers.forEach((h, i) => ctx.fillText(h, colX[i], headerY));
+
+    ctx.strokeStyle = 'rgba(68,153,204,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tableLeft, headerY + 12 * s);
+    ctx.lineTo(tableLeft + tableW, headerY + 12 * s);
+    ctx.stroke();
+
+    if (data.length === 0) {
+      ctx.fillStyle = '#888888';
+      ctx.font = `${14 * s}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText('暂无记录', centerX, (contentTop + btnY) / 2);
+      return;
+    }
+
+    const listTop = headerY + 18 * s;
+    const listBottom = btnY - 30 * s;
+    const rowH = 30 * s;
+    const totalH = data.length * rowH;
+    this._dataRecordScroller.setContentArea(listTop, listBottom - listTop, totalH);
+    const scrollY = this._dataRecordScroller.getScrollY();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(tableLeft - 5 * s, listTop, tableW + 10 * s, listBottom - listTop);
+    ctx.clip();
+
+    data.forEach((item, i) => {
+      const rowY = listTop + i * rowH + 10 * s + scrollY;
+      if (rowY + rowH < listTop || rowY - rowH > listBottom) return;
+
+      const rankColors = ['#ffdd00', '#c0c0c0', '#cd7f32'];
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = i < 3 ? rankColors[i] : '#ffffff';
+      ctx.font = `bold ${11 * s}px Arial`;
+      ctx.fillText(`${i + 1}`, colX[0], rowY);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${11 * s}px Arial`;
+      ctx.fillText(`${item.score}`, colX[1], rowY);
+
+      ctx.fillStyle = '#aaddff';
+      ctx.font = `${10 * s}px Arial`;
+      ctx.fillText((item.formationName || '未知').slice(0, 6), colX[2], rowY);
+
+      ctx.fillStyle = '#888888';
+      ctx.font = `${9 * s}px Arial`;
+      ctx.fillText(this._formatRecordDate(item.date), colX[3], rowY);
+    });
+
+    ctx.restore();
+
+    if (this._dataRecordScroller.needsScroll()) {
+      this._dataRecordScroller.renderScrollBar(ctx, tableLeft + tableW + 2 * s, s, {
+        color: 'rgba(68,153,204,0.4)',
+      });
+    }
+  }
+
+  /**
+   * 格式化记录日期（MM-DD HH:mm）
+   */
+  _formatRecordDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      return `${mm}-${dd} ${hh}:${mi}`;
+    } catch (e) {
+      return '-';
+    }
   }
 
   /**

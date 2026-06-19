@@ -20,6 +20,7 @@ const db = cloud.database();
  *   clearScore: number（levelCleared时传入，通关积分）
  *   timeUsed: number（levelCleared时传入，通关耗时秒数）
  *   rounds: number（levelCleared时传入，通关使用回合数）
+ *   mapName: string（levelCleared时传入，本关地图/布局名称，参考150球 formationName）
  *
  * 技能管理：
  *   getSkills  - 获取玩家当前技能次数
@@ -43,7 +44,7 @@ exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
 
-  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score, skillType, clearScore, timeUsed, rounds } = event;
+  const { action = 'save', userInfo, maxLevel, levelProgress, mode150, level, score, skillType, clearScore, timeUsed, rounds, mapName } = event;
 
   const collection = db.collection('user_progress');
 
@@ -162,6 +163,9 @@ exports.main = async (event, context) => {
               progress[idx].clearRounds = rounds;
             }
           }
+          if (mapName) {
+            progress[idx].mapName = mapName;  // 本关地图（布局）名称
+          }
           progress[idx].lastClearAt = new Date().toISOString();  // 最近通关时间戳
           updateData.levelProgress = progress;
         }
@@ -192,6 +196,7 @@ exports.main = async (event, context) => {
           progress[level - 1].clearScore = clearScore || 0;
           if (timeUsed !== undefined) progress[level - 1].clearTime = timeUsed;
           if (rounds !== undefined) progress[level - 1].clearRounds = rounds;
+          if (mapName) progress[level - 1].mapName = mapName;
           progress[level - 1].lastClearAt = new Date().toISOString();
         }
 
@@ -231,6 +236,43 @@ exports.main = async (event, context) => {
       } else {
         return { code: 0, msg: 'no_history', history: [] };
       }
+    }
+
+    // ====== 关卡记录：从 levelProgress 中提取已通关关卡，按"回合少、耗时少"排序取前10 ======
+    if (action === 'getLevelRecords') {
+      const { data } = await collection.where({ _openid: openid }).get();
+      if (data.length === 0) {
+        return { code: 0, msg: 'no_records', records: [] };
+      }
+      const doc = data[0];
+      const progress = doc.levelProgress || [];
+
+      // 提取已通关（有 clearRounds 或 clearTime）的关卡
+      const records = [];
+      for (let i = 0; i < progress.length; i++) {
+        const p = progress[i];
+        if (p && (p.clearRounds !== undefined || p.clearTime !== undefined)) {
+          records.push({
+            level: i + 1,
+            mapName: p.mapName || '随机地图',
+            rounds: p.clearRounds || 0,
+            timeUsed: p.clearTime || 0,
+            lastClearAt: p.lastClearAt || '',
+          });
+        }
+      }
+
+      // 排序：耗时升序（优先）→ 回合数升序（其次）
+      records.sort((a, b) => {
+        if (a.timeUsed !== b.timeUsed) return a.timeUsed - b.timeUsed;
+        return a.rounds - b.rounds;
+      });
+
+      return {
+        code: 0,
+        msg: 'level_records',
+        records: records.slice(0, 10),
+      };
     }
 
     // ====== 排行榜：获取所有用户数据并按指定字段排序（前 50 名） ======
@@ -399,6 +441,10 @@ exports.main = async (event, context) => {
           }
           if (existing && existing.lastClearAt) {
             result.lastClearAt = existing.lastClearAt;
+          }
+          // 地图名称：客户端未带时，保留云端已有值
+          if (!result.mapName && existing && existing.mapName) {
+            result.mapName = existing.mapName;
           }
           return result;
         });

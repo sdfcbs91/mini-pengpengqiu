@@ -2023,6 +2023,7 @@ export default class GameScene {
         clearScore: this.score,         // 通关积分
         timeUsed: timeUsedRounded,             // 通关耗时（秒，精确到0.1秒）
         rounds: this.line,              // 通关使用的回合数
+        mapName: this.grid && this.grid.templateName,  // 本关地图（布局）名称，参考150球 formationName
       },
       success: (res) => {
         const result = res.result;
@@ -2318,7 +2319,8 @@ export default class GameScene {
       this._fetchUserInfoAfterGame();
 
       if (this.onLevelComplete) {
-        this.onLevelComplete(this.initialLevel, stars, this.score);
+        // 第4个参数：本关所用地图（布局）名称，参考150球的 formationName
+        this.onLevelComplete(this.initialLevel, stars, this.score, this.grid && this.grid.templateName);
       }
       return;
     }
@@ -2960,15 +2962,15 @@ export default class GameScene {
       this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '历史记录', '#4499cc');
       this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '首页', '#4499cc');
     } else {
-      // 普通模式：继续/重试/分享/菜单 四个按钮
-      const btnGap = 55 * s;
-      const totalH = btnGap * 3;
+      // 普通模式：继续/重试/首页 三个按钮（分享暂未开通好友关系，已隐藏）
+      const btnGap = 60 * s;
+      const totalH = btnGap * 2;
       const startY = centerY - totalH / 2;
 
       this._drawButton(ctx, centerX, startY, 120 * s, 40 * s, '继续', '#4499cc');
       this._drawButton(ctx, centerX, startY + btnGap, 120 * s, 40 * s, '重试', '#4499cc');
-      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '分享', '#4499cc');
-      this._drawButton(ctx, centerX, startY + btnGap * 3, 120 * s, 40 * s, '首页', '#4499cc');
+      // this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '分享', '#4499cc');
+      this._drawButton(ctx, centerX, startY + btnGap * 2, 120 * s, 40 * s, '首页', '#4499cc');
     }
   }
 
@@ -3214,9 +3216,9 @@ export default class GameScene {
         return;
       }
     } else {
-      // 普通模式：继续/重试/分享/菜单
-      const btnGap = 55 * s;
-      const totalH = btnGap * 3;
+      // 普通模式：继续/重试/首页（分享暂未开通好友关系，已隐藏）
+      const btnGap = 60 * s;
+      const totalH = btnGap * 2;
       const startY = centerY - totalH / 2;
 
       // 继续按钮
@@ -3234,16 +3236,16 @@ export default class GameScene {
         return;
       }
 
-      // 分享按钮
-      const shareY = startY + btnGap * 2;
-      if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
-        y >= shareY - bh / 2 && y <= shareY + bh / 2) {
-        this._doShareToGroup();
-        return;
-      }
+      // 分享按钮（暂未开通好友关系，已隐藏）
+      // const shareY = startY + btnGap * 2;
+      // if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
+      //   y >= shareY - bh / 2 && y <= shareY + bh / 2) {
+      //   this._doShareToGroup();
+      //   return;
+      // }
 
       // 返回菜单按钮
-      const menuY = startY + btnGap * 3;
+      const menuY = startY + btnGap * 2;
       if (x >= centerX - bw / 2 && x <= centerX + bw / 2 &&
         y >= menuY - bh / 2 && y <= menuY + bh / 2) {
         if (this.onBackToMenu) this.onBackToMenu();
