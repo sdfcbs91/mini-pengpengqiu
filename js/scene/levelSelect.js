@@ -1067,14 +1067,18 @@ export default class LevelSelect {
     this.showDataRecord = true;
     this._dataRecordTab = 'level';
     this._dataRecordScroller.reset();
+    // 每次打开都清空缓存，实时从云函数重新拉取最新记录
+    this._levelRecords = null;
+    this._mode150Records = null;
     this._fetchLevelRecords();
   }
 
   /**
-   * 拉取关卡记录（前10场，按回合少、耗时少排序）
+   * 拉取关卡记录（前10场，按耗时少、回合少排序）
+   * 实时从云函数获取（每次打开/切换 tab 都会重新请求）
    */
   _fetchLevelRecords() {
-    if (this._levelRecords) return; // 已缓存
+    if (this._levelRecords) return; // 本次已加载完成，避免重复请求
     this._dataRecordLoading = true;
     if (typeof wx === 'undefined' || !wx.cloud) {
       this._levelRecords = [];
