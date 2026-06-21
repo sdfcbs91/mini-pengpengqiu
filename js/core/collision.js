@@ -432,7 +432,11 @@ export function moveBallWithCollision(ball, vx, vy, bricks, segments) {
       for (const seg of segments) {
         if (seg === lastHitBrick) continue;
         const hit = sweepBallSegment(ball, remainVx, remainVy, seg, lineThickness);
-        if (hit && (!earliest || hit.t < earliest.t)) {
+        if (!hit) continue;
+        // 上实下虚横条（单向平台）：碰撞法线朝下（ny>0）表示球从下方接触 → 放行穿过；
+        // 仅当法线朝上（球从上方下落）时才反弹，与碰到白板一致。
+        if (seg.type === 'oneway' && hit.ny > 0) continue;
+        if (!earliest || hit.t < earliest.t) {
           earliest = hit;
         }
       }

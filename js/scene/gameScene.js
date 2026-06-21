@@ -92,6 +92,8 @@ export default class GameScene {
     this._dragLineStartX = 0;       // 拖拽起始X
     this._dragLineStartY = 0;       // 拖拽起始Y
     this._drawLocked = false;       // 发球后锁定绘制功能，本轮不可再编辑
+    this._showDrawTips = false;      // 绘制 tips 选择面板是否显示
+    this._drawLineType = 'normal';   // 当前绘制线条类型：'normal'(白板横条) | 'oneway'(上实下虚横条)
   }
 
   /**
@@ -505,6 +507,8 @@ export default class GameScene {
     this._isDrawing = false;
     this._isDraggingLine = false;
     this._drawLocked = false;
+    this._showDrawTips = false;
+    this._drawLineType = 'normal';
     this._drawBtnBlinkTimer = 90;  // 绘制按钮开局闪动提示（约1.5秒）
 
     // 飞起的得分文字（特效）
@@ -696,7 +700,20 @@ export default class GameScene {
     // 检查绘制按钮（发球后锁定，不可再切换）
     if (this.hud.hitDrawButton(x, y)) {
       if (this._drawLocked) return; // 发球后绘制功能锁定
-      this._drawMode = !this._drawMode;
+      if (this._drawMode) {
+        // 已处于绘制模式 → 关闭绘制模式和 tips
+        this._drawMode = false;
+        this._showDrawTips = false;
+      } else {
+        // 未进入绘制模式 → 切换 tips 选择面板
+        this._showDrawTips = !this._showDrawTips;
+      }
+      return;
+    }
+
+    // tips 选择面板显示中：优先处理面板内点击
+    if (this._showDrawTips && !this._drawLocked) {
+      this._handleDrawTipsTap(x, y);
       return;
     }
 
@@ -723,7 +740,7 @@ export default class GameScene {
       const clipped = this._clipToGameArea(x, y);
       if (this._isInsideGameArea(x, y)) {
         this._isDrawing = true;
-        this._drawingLine = { x1: clipped.x, y1: clipped.y, x2: clipped.x, y2: clipped.y };
+        this._drawingLine = { x1: clipped.x, y1: clipped.y, x2: clipped.x, y2: clipped.y, type: this._drawLineType };
         return;
       }
     }
@@ -783,7 +800,9 @@ export default class GameScene {
     // 绘制模式下：更新当前绘制直线的终点（限制最大长度为两个砖块宽度）
     if (this._isDrawing && this._drawingLine) {
       const clipped = this._clipToGameArea(x, y);
-      const maxLen = BRICK_W * 2;
+      // 白板横条：在原 2 个砖块宽基础上增宽 50% → 3 个砖块宽
+      // 上实下虚横条：白板横条宽度的 50% → 1.5 个砖块宽
+      const maxLen = (this._drawLineType === 'oneway') ? BRICK_W * 1.5 : BRICK_W * 3;
       const dx = clipped.x - this._drawingLine.x1;
       const dy = clipped.y - this._drawingLine.y1;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -865,7 +884,7 @@ export default class GameScene {
       if (Math.abs(dl.x2 - dl.x1) > 2 || Math.abs(dl.y2 - dl.y1) > 2) {
         // 检查是否遮盖砖块，如果遮盖则不保存
         if (!this._isLineOverlappingBricks(dl)) {
-          this._drawLines.push({ ...dl });
+          this._drawLines.push({ ...dl, type: dl.type || this._drawLineType });
         }
       }
       this._drawingLine = null;
@@ -923,6 +942,177 @@ export default class GameScene {
   // ============================================================
   // 绘制模式辅助方法
   // ============================================================
+
+  /**
+   * 计算绘制 tips 选择面板的布局
+   * 面板锚定在"绘制"按钮右侧，自上而下排列：白板横条、上实下虚横条、取消
+   */
+  _getDrawTipsLayout() {
+    const s = SCALE;
+    const btnX = this.hud.drawBtnX;
+    const btnY = this.hud.drawBtnY;
+    const btnW = this.hud.drawBtnW;
+
+    const panelW = 132 * s;
+    const rowH = 36 * s;
+    const padX = 10 * s;
+    const padY = 8 * s;
+    const rows = 3;
+    const panelH = rows * rowH + padY * 2;
+    // 面板放在绘制按钮右侧，顶部与绘制按钮对齐
+    const panelX = btnX + btnW + 8 * s;
+    let panelY = btnY;
+    // 防止超出底部
+    if (panelY + panelH > SCREEN_HEIGHT - 8 * s) {
+      panelY = SCREEN_HEIGHT - 8 * s - panelH;
+    }
+
+    const items = [
+      { key: 'normal', label: '白板横条' },
+      { key: 'oneway', label: '上实下虚' },
+      { key: 'cancel', label: '取消' },
+    ];
+    const rects = items.map((it, i) => ({
+      key: it.key,
+      label: it.label,
+      x: panelX + padX,
+      y: panelY + padY + i * rowH,
+      w: panelW - padX * 2,
+      h: rowH,
+    }));
+
+    return { panelX, panelY, panelW, panelH, rows: rects };
+  }
+
+  /**
+   * 处理 tips 面板内的点击
+   */
+  _handleDrawTipsTap(x, y) {
+    const layout = this._getDrawTipsLayout();
+    for (const r of layout.rows) {
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        if (r.key === 'cancel') {
+          // 取消：关闭 tips，什么都不做
+          this._showDrawTips = false;
+        } else {
+          // 选择白板横条 / 上实下虚横条 → 进入绘制模式
+          this._drawLineType = r.key;
+          this._drawMode = true;
+          this._showDrawTips = false;
+        }
+        return;
+      }
+    }
+    // 点击面板外：关闭 tips
+    this._showDrawTips = false;
+  }
+
+  /**
+   * 渲染绘制 tips 选择面板
+   */
+  _renderDrawTips(ctx) {
+    const s = SCALE;
+    const layout = this._getDrawTipsLayout();
+
+    ctx.save();
+    // 面板背景
+    this._roundRectPath(ctx, layout.panelX, layout.panelY, layout.panelW, layout.panelH, 8 * s);
+    ctx.fillStyle = 'rgba(6,10,28,0.96)';
+    ctx.fill();
+    ctx.strokeStyle = '#2960dd';
+    ctx.lineWidth = 1.5 * s;
+    ctx.shadowColor = 'rgba(50,100,230,0.6)';
+    ctx.shadowBlur = 3 * s;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    for (const r of layout.rows) {
+      const cx = r.x + r.w / 2;
+      const midY = r.y + r.h / 2;
+      const active = (r.key === this._drawLineType);
+
+      if (r.key === 'cancel') {
+        // 取消文案
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = `bold ${13 * s}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('取消', cx, midY);
+        continue;
+      }
+
+      // 选项底色（当前类型高亮）
+      if (active) {
+        this._roundRectPath(ctx, r.x, r.y + 2 * s, r.w, r.h - 4 * s, 5 * s);
+        ctx.fillStyle = 'rgba(41,96,221,0.25)';
+        ctx.fill();
+      }
+
+      // 预览图形：横条
+      const barW = r.w * 0.5;
+      const barX = r.x + 6 * s;
+      const barCx0 = barX;
+      const barCx1 = barX + barW;
+      const barY = midY;
+
+      if (r.key === 'normal') {
+        // 白板横条：实线
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 3 * s;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(barCx0, barY);
+        ctx.lineTo(barCx1, barY);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      } else {
+        // 上实下虚横条：上实线 + 下虚线
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 2.5 * s;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(barCx0, barY - 2 * s);
+        ctx.lineTo(barCx1, barY - 2 * s);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5 * s;
+        ctx.setLineDash([3 * s, 2.5 * s]);
+        ctx.beginPath();
+        ctx.moveTo(barCx0, barY + 3 * s);
+        ctx.lineTo(barCx1, barY + 3 * s);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineCap = 'butt';
+      }
+
+      // 文字标签
+      ctx.fillStyle = active ? '#ffdd88' : '#5b8dff';
+      ctx.font = `bold ${11 * s}px Arial`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(r.label, barX + barW + 8 * s, barY);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 圆角矩形路径辅助（不填充/描边，仅建立路径）
+   */
+  _roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
 
   /**
    * 获取"上一步"按钮的位置（与取消按钮位置和大小一致）
@@ -1026,47 +1216,102 @@ export default class GameScene {
     const s = SCALE;
     const endpointR = 4 * s; // 端点小圆点半径
 
-    // 已保存的直线（白色半透明）+ 两端小圆点
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-    ctx.lineWidth = 2.5 * s;
+    // 已保存的直线 + 两端小圆点
     ctx.lineCap = 'round';
     for (const line of this._drawLines) {
-      ctx.beginPath();
-      ctx.moveTo(line.x1, line.y1);
-      ctx.lineTo(line.x2, line.y2);
-      ctx.stroke();
-      // 两端小圆点（增强端点碰撞的视觉提示）
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.arc(line.x1, line.y1, endpointR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(line.x2, line.y2, endpointR, 0, Math.PI * 2);
-      ctx.fill();
+      if (line.type === 'oneway') {
+        this._renderOneWayLine(ctx, line, 'rgba(255,255,255,0.85)', endpointR);
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 2.5 * s;
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.stroke();
+        // 两端小圆点（增强端点碰撞的视觉提示）
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(line.x1, line.y1, endpointR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(line.x2, line.y2, endpointR, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     // 当前正在绘制的直线（金色高亮）+ 两端小圆点
     if (this._drawingLine) {
-      ctx.strokeStyle = 'rgba(255,210,80,0.9)';
-      ctx.lineWidth = 2.5 * s;
-      ctx.shadowColor = 'rgba(255,210,80,0.6)';
-      ctx.shadowBlur = 2 * s;
-      ctx.beginPath();
-      ctx.moveTo(this._drawingLine.x1, this._drawingLine.y1);
-      ctx.lineTo(this._drawingLine.x2, this._drawingLine.y2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      // 两端小圆点
-      ctx.fillStyle = 'rgba(255,210,80,0.9)';
-      ctx.beginPath();
-      ctx.arc(this._drawingLine.x1, this._drawingLine.y1, endpointR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(this._drawingLine.x2, this._drawingLine.y2, endpointR, 0, Math.PI * 2);
-      ctx.fill();
+      if (this._drawingLine.type === 'oneway') {
+        this._renderOneWayLine(ctx, this._drawingLine, 'rgba(255,210,80,0.95)', endpointR);
+      } else {
+        ctx.strokeStyle = 'rgba(255,210,80,0.9)';
+        ctx.lineWidth = 2.5 * s;
+        ctx.shadowColor = 'rgba(255,210,80,0.6)';
+        ctx.shadowBlur = 2 * s;
+        ctx.beginPath();
+        ctx.moveTo(this._drawingLine.x1, this._drawingLine.y1);
+        ctx.lineTo(this._drawingLine.x2, this._drawingLine.y2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // 两端小圆点
+        ctx.fillStyle = 'rgba(255,210,80,0.9)';
+        ctx.beginPath();
+        ctx.arc(this._drawingLine.x1, this._drawingLine.y1, endpointR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(this._drawingLine.x2, this._drawingLine.y2, endpointR, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     ctx.lineCap = 'butt';
+  }
+
+  /**
+   * 渲染"上实下虚横条"：上边实线（反弹面）+ 下方平行虚线（可穿透提示）
+   * @param {Object} line {x1,y1,x2,y2}
+   * @param {string} color 实线颜色
+   * @param {number} endpointR 端点圆点半径
+   */
+  _renderOneWayLine(ctx, line, color, endpointR) {
+    const s = SCALE;
+    // 线段单位方向 + 法线（向下偏移用）
+    const dx = line.x2 - line.x1;
+    const dy = line.y2 - line.y1;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    // 法线（指向"下方"：y 正方向那一侧）
+    let nx = -uy, ny = ux;
+    if (ny < 0) { nx = -nx; ny = -ny; } // 保证法线朝下
+    const offset = 4 * s; // 下方虚线与实线的间距
+
+    // 上边实线（反弹面）
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5 * s;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(line.x1, line.y1);
+    ctx.lineTo(line.x2, line.y2);
+    ctx.stroke();
+
+    // 下方虚线（表示可从下方穿入）
+    ctx.strokeStyle = color.replace(/0?\.\d+\)$/, '0.5)');
+    ctx.lineWidth = 1.5 * s;
+    ctx.setLineDash([4 * s, 3 * s]);
+    ctx.beginPath();
+    ctx.moveTo(line.x1 + nx * offset, line.y1 + ny * offset);
+    ctx.lineTo(line.x2 + nx * offset, line.y2 + ny * offset);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 两端小圆点（画在实线端点）
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(line.x1, line.y1, endpointR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(line.x2, line.y2, endpointR, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   /**
@@ -2542,6 +2787,11 @@ export default class GameScene {
     // 绘制模式高亮时：显示上一步按钮（发球后锁定则隐藏）
     if (this._drawMode && this._drawLines.length > 0 && !this._drawLocked) {
       this._renderUndoButton(ctx);
+    }
+
+    // 绘制 tips 选择面板（点击"绘制"后弹出）
+    if (this._showDrawTips && !this._drawLocked) {
+      this._renderDrawTips(ctx);
     }
 
     // 加速提示
