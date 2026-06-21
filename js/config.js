@@ -13,16 +13,23 @@ export const LEVEL_GRID_COLS = 8;
 export const LEVEL_GRID_ROWS = 3;
 export const LEVELS_PER_PAGE = LEVEL_GRID_COLS * LEVEL_GRID_ROWS;
 
+// 安全边距防御性上限：单侧不超过屏幕宽度的 20%
+// 背景：部分 iOS 设备（如 iPhone 13 mini）横屏下 safeArea/胶囊位置可能按"竖屏坐标系"返回，
+// 导致算出的安全边距异常巨大（吞掉半屏），表现为首页内容挤在左侧、未全屏渲染。
+// 真实刘海/圆角/胶囊边距都很小（通常 <15%），故对异常值进行裁剪。
+const _maxInset = SCREEN_WIDTH * 0.2;
+
 // 横屏左侧安全边距（动态计算）
 // safeArea.left 表示屏幕左侧不可用区域（刘海/圆角），横屏时即为刘海宽度
 const _safeLeft = SAFE_AREA.left || 0;
-export const SAFE_LEFT = _safeLeft;
+export const SAFE_LEFT = Math.min(Math.max(_safeLeft, 0), _maxInset);
 
 // 横屏右侧安全边距（胶囊按钮区域 + 刘海/圆角）
 // 胶囊按钮在横屏模式下位于右上角，需要避开
 const _safeRight = SCREEN_WIDTH - (SAFE_AREA.right || SCREEN_WIDTH);
 const _menuSafeRight = MENU_BUTTON_RECT.width > 0 ? (SCREEN_WIDTH - MENU_BUTTON_RECT.left + 8) : 0;
-export const SAFE_RIGHT = Math.max(_safeRight, _menuSafeRight);
+const _rawSafeRight = Math.max(_safeRight, _menuSafeRight);
+export const SAFE_RIGHT = Math.min(Math.max(_rawSafeRight, 0), _maxInset);
 
 // 屏幕适配比例（横屏模式：以高度为基准适配）
 export const SCALE = SCREEN_HEIGHT / 375;

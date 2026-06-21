@@ -189,9 +189,11 @@ export default class LevelSelect {
     // 横屏右侧安全边距（胶囊按钮区域）
     this.safeRight = SAFE_RIGHT;
     // 内容区域（去掉左右安全边距后的可用宽度）
-    this.contentLeft = this.safeLeft;
     this.contentWidth = SCREEN_WIDTH - this.safeLeft - this.safeRight;
-    this.contentCenterX = this.safeLeft + this.contentWidth / 2;
+    // 整块布局靠右：富余的安全边距留在左侧，内容块整体贴向右侧
+    // （右边缘 = SCREEN_WIDTH - safeLeft，左侧留白 = safeRight）
+    this.contentLeft = this.safeRight;
+    this.contentCenterX = this.contentLeft + this.contentWidth / 2;
 
     // 顶部标题区域（横屏模式下紧凑布局）
     this.titleY = 8 * s;
@@ -437,11 +439,11 @@ export default class LevelSelect {
       const sw = SCREEN_WIDTH;
       const sh = SCREEN_HEIGHT;
 
-      // 返回按钮（子域布局：底部居中，y = sh - 50）
+      // 返回按钮（子域布局：按钮中心位于 y = sh - 70，矩形上边 = 中心 - 半高）
       const rbW = 120;
       const rbH = 40;
       const rbX = sw / 2 - rbW / 2;
-      const rbY = sh - 70;
+      const rbY = sh - 70 - rbH / 2;
       if (x >= rbX && x <= rbX + rbW && y >= rbY && y <= rbY + rbH) {
         this.showRank = false;
         this._hideRankBoard();
@@ -818,14 +820,13 @@ export default class LevelSelect {
     this.glowPhase += 0.03;
     if (this.glowPhase > Math.PI * 2) this.glowPhase -= Math.PI * 2;
 
-    // 从群聊卡片打开时，自动跳转到排行榜
+    // 从群聊卡片打开时：好友/群关系功能尚未开通，暂不展示排行榜场景，直接进入首页
     if (GameGlobal.showGroupRankOnLaunch) {
       GameGlobal.showGroupRankOnLaunch = false;
-      this.showRank = true;
+      this.showRank = false;
       this.showSettings = false;
-      this.navItems.forEach((item) => { item.active = item.label === '排行'; });
-      this._rankCategory = 'level';
-      this._showRankBoard();
+      this.navItems.forEach((item) => { item.active = item.label === '闯关'; });
+      this._hideRankBoard();
     }
 
     // 滑动回弹动画
@@ -2358,26 +2359,26 @@ export default class LevelSelect {
       this._roundRect(ctx, x, y, w, h, cornerR);
       ctx.stroke();
 
-      // 关卡号（灰色）
-      ctx.fillStyle = '#444466';
+      // 关卡号（待解锁：调亮为 #fdfdfd）
+      ctx.fillStyle = '#fdfdfd';
       ctx.font = `${13 * s}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 5 * s);
 
-      // 灰色星星
-      this._drawStars(ctx, x + w / 2, y + h - 10 * s, 0, 3, 5 * s);
+      // 星星（待解锁：未点亮色调亮为 #fdfdfd）
+      this._drawStars(ctx, x + w / 2, y + h - 10 * s, 0, 3, 5 * s, '#fdfdfd');
     }
   }
 
-  _drawStars(ctx, centerX, centerY, count, total, size) {
+  _drawStars(ctx, centerX, centerY, count, total, size, inactiveColor = COLORS.starInactive) {
     const gap = size * 2.2;
     const startX = centerX - ((total - 1) * gap) / 2;
 
     for (let i = 0; i < total; i++) {
       const sx = startX + i * gap;
       const filled = i < count;
-      ctx.fillStyle = filled ? COLORS.starActive : COLORS.starInactive;
+      ctx.fillStyle = filled ? COLORS.starActive : inactiveColor;
       if (filled) {
         ctx.shadowColor = COLORS.starActive;
         ctx.shadowBlur = 2 * SCALE;
