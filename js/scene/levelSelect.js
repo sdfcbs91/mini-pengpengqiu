@@ -35,6 +35,12 @@ export default class LevelSelect {
     // 霓虹动画计时器
     this.glowPhase = 0;
 
+    // 主页背景地图（图片）
+    this._bgImage = wx.createImage();
+    this._bgImageLoaded = false;
+    this._bgImage.onload = () => { this._bgImageLoaded = true; };
+    this._bgImage.src = 'images/home_bg.jpg';
+
     // 布局计算
     this._calculateLayout();
 
@@ -2167,27 +2173,14 @@ export default class LevelSelect {
   }
 
   _drawBackground(ctx) {
-    // 深色渐变背景
-    const gradient = ctx.createLinearGradient(0, 0, 0, SCREEN_HEIGHT);
-    gradient.addColorStop(0, COLORS.bgTop);
-    gradient.addColorStop(0.5, '#0f0a2a');
-    gradient.addColorStop(1, COLORS.bgBottom);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    // 随机星光粒子（静态绘制几个）
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    const stars = [
-      [0.1, 0.05], [0.3, 0.12], [0.7, 0.08], [0.9, 0.15],
-      [0.15, 0.25], [0.5, 0.3], [0.85, 0.22], [0.6, 0.45],
-      [0.2, 0.55], [0.75, 0.6], [0.4, 0.7], [0.9, 0.75],
-    ];
-    stars.forEach(([rx, ry]) => {
-      const size = 1 + Math.sin(this.glowPhase + rx * 10) * 0.5;
-      ctx.beginPath();
-      ctx.arc(rx * SCREEN_WIDTH, ry * SCREEN_HEIGHT, size, 0, Math.PI * 2);
-      ctx.fill();
-    });
+    // 使用背景地图图片填满整个屏幕
+    if (this._bgImageLoaded) {
+      ctx.drawImage(this._bgImage, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    } else {
+      // 图片加载完成前的兜底底色（深色，避免白屏闪烁）
+      ctx.fillStyle = COLORS.bgTop;
+      ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
   }
 
   _drawTitle(ctx) {
