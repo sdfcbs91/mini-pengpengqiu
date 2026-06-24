@@ -27,6 +27,12 @@ export default class GameScene {
     this.hud = new HUD();
     this._historyScroller = new ScrollView(); // 150球历史记录滚动条
 
+    // 打砖块场景背景地图（图片）
+    this._bgImage = wx.createImage();
+    this._bgImageLoaded = false;
+    this._bgImage.onload = () => { this._bgImageLoaded = true; };
+    this._bgImage.src = 'images/play_bg.jpg';
+
     // 墙壁碰撞标记（用于死循环检测，区分三面墙）
     this._wallLeft = { isWall: true, wallId: 1 };
     this._wallRight = { isWall: true, wallId: 2 };
@@ -801,8 +807,8 @@ export default class GameScene {
     if (this._isDrawing && this._drawingLine) {
       const clipped = this._clipToGameArea(x, y);
       // 白板横条：在原 2 个砖块宽基础上增宽 50% → 3 个砖块宽
-      // 上实下虚横条：白板横条宽度的 50% → 1.5 个砖块宽
-      const maxLen = (this._drawLineType === 'oneway') ? BRICK_W * 1.5 : BRICK_W * 3;
+      // 上实下虚横条：白板横条宽度的 60% → 1.8 个砖块宽
+      const maxLen = (this._drawLineType === 'oneway') ? BRICK_W * 1.8 : BRICK_W * 3;
       const dx = clipped.x - this._drawingLine.x1;
       const dy = clipped.y - this._drawingLine.y1;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -829,6 +835,7 @@ export default class GameScene {
         y1: line.y1 + moveY,
         x2: line.x2 + moveX,
         y2: line.y2 + moveY,
+        type: line.type,  // 保留线条类型（上实下虚/白板），拖拽后不退化
       };
       // 检查新位置是否在游戏区域内且不遮盖砖块（保留4px间距）
       if (this._isLineInsideGameArea(newLine) && !this._isLineOverlappingBricks(newLine)) {
@@ -959,9 +966,9 @@ export default class GameScene {
     const padY = 8 * s;
     const rows = 3;
     const panelH = rows * rowH + padY * 2;
-    // 面板放在绘制按钮右侧，顶部与绘制按钮对齐
+    // 面板放在绘制按钮右侧，顶部相对绘制按钮上移 40px
     const panelX = btnX + btnW + 8 * s;
-    let panelY = btnY;
+    let panelY = btnY - 40 * s;
     // 防止超出底部
     if (panelY + panelH > SCREEN_HEIGHT - 8 * s) {
       panelY = SCREEN_HEIGHT - 8 * s - panelH;
@@ -1029,7 +1036,6 @@ export default class GameScene {
     for (const r of layout.rows) {
       const cx = r.x + r.w / 2;
       const midY = r.y + r.h / 2;
-      const active = (r.key === this._drawLineType);
 
       if (r.key === 'cancel') {
         // 取消文案
@@ -1039,13 +1045,6 @@ export default class GameScene {
         ctx.textBaseline = 'middle';
         ctx.fillText('取消', cx, midY);
         continue;
-      }
-
-      // 选项底色（当前类型高亮）
-      if (active) {
-        this._roundRectPath(ctx, r.x, r.y + 2 * s, r.w, r.h - 4 * s, 5 * s);
-        ctx.fillStyle = 'rgba(41,96,221,0.25)';
-        ctx.fill();
       }
 
       // 预览图形：横条
@@ -1086,8 +1085,8 @@ export default class GameScene {
         ctx.lineCap = 'butt';
       }
 
-      // 文字标签
-      ctx.fillStyle = active ? '#ffdd88' : '#5b8dff';
+      // 文字标签（无默认选中态，统一蓝色）
+      ctx.fillStyle = '#5b8dff';
       ctx.font = `bold ${11 * s}px Arial`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -3105,12 +3104,14 @@ export default class GameScene {
   }
 
   _renderBackground(ctx) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, SCREEN_HEIGHT);
-    gradient.addColorStop(0, COLORS.bgTop);
-    gradient.addColorStop(0.4, COLORS.bgMid);
-    gradient.addColorStop(1, COLORS.bgBottom);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    // 使用背景地图图片填满整个屏幕
+    if (this._bgImageLoaded) {
+      ctx.drawImage(this._bgImage, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    } else {
+      // 图片加载完成前的兜底底色（深色，避免白屏闪烁）
+      ctx.fillStyle = COLORS.bgTop;
+      ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
   }
 
   _renderGameAreaBorder(ctx) {

@@ -335,6 +335,8 @@ export default class Launcher {
         const dpy = oy - seg.y1;
         const distN = dpx * nx + dpy * ny;
         if (distN < 0) { nx = -nx; ny = -ny; }
+        // 上实下虚横条（单向平台）：法线朝下表示球从下方接触 → 瞄准线穿透，不反弹
+        if (seg.type === 'oneway' && ny > 0) continue;
         const absDist = Math.abs(distN);
         // 射线方向在法线上的分量
         const velN = dx * nx + dy * ny;
