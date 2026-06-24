@@ -205,12 +205,12 @@ export default class LevelSelect {
     this.titleY = 8 * s;
     this.titleHeight = 50 * s;
 
-    // 底部导航栏（圆角胶囊样式）
+    // 底部导航栏（圆角胶囊样式）；整体再上移 8px → 底边距 16px
     this.navHeight = 44 * s;
-    this.navY = SCREEN_HEIGHT - this.navHeight - 8 * s;
+    this.navY = SCREEN_HEIGHT - this.navHeight - 16 * s;
 
-    // 关卡网格区域
-    this.gridTop = this.titleY + this.titleHeight + 8 * s;
+    // 关卡网格区域（列表模块整体再下移 8px）
+    this.gridTop = this.titleY + this.titleHeight + 16 * s;
     this.gridBottom = this.navY - 20 * s;
     this.gridHeight = this.gridBottom - this.gridTop;
 
@@ -2339,8 +2339,8 @@ export default class LevelSelect {
       ctx.textBaseline = 'middle';
       ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 7 * s);
 
-      // 星星
-      this._drawStars(ctx, x + w / 2, y + h - 10 * s, data.stars, 3, 5 * s);
+      // 星星（上移 4px）
+      this._drawStars(ctx, x + w / 2, y + h - 14 * s, data.stars, 3, 5 * s);
 
     } else {
       // 未解锁关卡 — 暗色背景 + 暗边框
@@ -2360,8 +2360,8 @@ export default class LevelSelect {
       ctx.textBaseline = 'middle';
       ctx.fillText(String(levelNum), x + w / 2, y + h / 2 - 5 * s);
 
-      // 星星（待解锁：未点亮色调亮为 #fdfdfd）
-      this._drawStars(ctx, x + w / 2, y + h - 10 * s, 0, 3, 5 * s, '#fdfdfd');
+      // 星星（待解锁：未点亮色调亮为 #fdfdfd；上移 4px）
+      this._drawStars(ctx, x + w / 2, y + h - 14 * s, 0, 3, 5 * s, '#fdfdfd');
     }
   }
 
@@ -2400,9 +2400,10 @@ export default class LevelSelect {
 
   _drawNavBar(ctx) {
     // 重置渲染状态，防止前面模块残留影响
-    ctx.globalAlpha = 1;
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
+    // 底部菜单模块整体 0.6 透明度
+    ctx.globalAlpha = 0.6;
 
     const s = SCALE;
     const y = this.navY;
@@ -2449,6 +2450,9 @@ export default class LevelSelect {
         ctx.fillRect(ix - lineW / 2, y + h - 6 * s, lineW, 2.5 * s);
       }
     });
+
+    // 恢复透明度，避免影响后续渲染
+    ctx.globalAlpha = 1;
   }
 
   _roundRect(ctx, x, y, w, h, r) {
