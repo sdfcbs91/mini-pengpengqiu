@@ -141,6 +141,9 @@ export const COLORS = {
     { bg: '#4a1a6b', border: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },
   ],
 
+  // 统一边框色（参考主页设计图：中等亮度蓝色，用于关卡按钮边框 + 大框边框 + 游戏区大框）
+  frameBorder: '#3a7fda',
+
   // 锁定关卡
   lockedBg: '#1a1a2e',
   lockedBorder: '#333355',

@@ -225,7 +225,8 @@ export default class LevelSelect {
     this.cellGapY = 10 * s;   // 上下间距
     this.cellW = (availW - (LEVEL_GRID_COLS - 1) * this.cellGapX) / LEVEL_GRID_COLS;
     this.cellRowH = (availH - (LEVEL_GRID_ROWS - 1) * this.cellGapY) / LEVEL_GRID_ROWS;
-    this.cellH = Math.min(this.cellRowH, this.cellW * 1.0); // 格子接近正方形
+    // 格子接近正方形，高度再降低 5%（cy 会按 (cellRowH - cellH)/2 居中，行间对齐自动保持）
+    this.cellH = Math.min(this.cellRowH, this.cellW * 1.0) * 0.95;
 
     // 网格起始位置（基于内容区域）
     this.gridStartX = this.contentLeft + this.gridPadX;
@@ -2252,11 +2253,11 @@ export default class LevelSelect {
     const bh = this.gridHeight;
     const cornerR = 10 * s;
 
-    // 外框圆角发光边框
+    // 外框圆角发光边框（与关卡按钮边框统一色）
     const glowIntensity = 0.5 + 0.3 * Math.sin(this.glowPhase);
-    ctx.strokeStyle = COLORS.neonBlue;
+    ctx.strokeStyle = COLORS.frameBorder;
     ctx.lineWidth = 1.5;
-    ctx.shadowColor = COLORS.neonBlue;
+    ctx.shadowColor = COLORS.frameBorder;
     ctx.shadowBlur = 2 * s * glowIntensity;
     this._roundRect(ctx, bx, by, bw, bh, cornerR);
     ctx.stroke();
@@ -2322,9 +2323,9 @@ export default class LevelSelect {
       ctx.fill();
 
       // 边框
-      ctx.strokeStyle = isSelected ? '#00d4ff' : '#2a5580';
+      ctx.strokeStyle = isSelected ? '#00d4ff' : COLORS.frameBorder;
       ctx.lineWidth = isSelected ? 2 : 1;
-      ctx.shadowColor = isSelected ? '#00d4ff' : '#2a5580';
+      ctx.shadowColor = isSelected ? '#00d4ff' : COLORS.frameBorder;
       ctx.shadowBlur = (isSelected ? 2 : 1) * s * cellGlow;
       this._roundRect(ctx, x, y, w, h, cornerR);
       ctx.stroke();

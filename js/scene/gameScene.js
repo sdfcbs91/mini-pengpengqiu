@@ -3118,9 +3118,10 @@ export default class GameScene {
     const s = SCALE;
     const glow = 0.5 + 0.3 * Math.sin(this.glowPhase);
 
-    ctx.strokeStyle = COLORS.neonBlue;
+    // 中间大框边框（与主页边框统一色，参考设计图）
+    ctx.strokeStyle = COLORS.frameBorder;
     ctx.lineWidth = 2;
-    ctx.shadowColor = COLORS.neonBlue;
+    ctx.shadowColor = COLORS.frameBorder;
     ctx.shadowBlur = 2 * s * glow;
 
     // 圆角矩形描边（边框只包砖块区域，白球/发射器在边框外）
