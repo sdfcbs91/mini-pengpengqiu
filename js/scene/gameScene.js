@@ -33,6 +33,9 @@ export default class GameScene {
     this._bgImage.onload = () => { this._bgImageLoaded = true; };
     this._bgImage.src = 'images/play_bg.jpg';
 
+    // 打砖块区域左边界（动态：若与左上角"关卡:N"文案重叠则右移；默认 = GAME_AREA_LEFT）
+    this.gameAreaLeft = GAME_AREA_LEFT;
+
     // 墙壁碰撞标记（用于死循环检测，区分三面墙）
     this._wallLeft = { isWall: true, wallId: 1 };
     this._wallRight = { isWall: true, wallId: 2 };
@@ -486,6 +489,8 @@ export default class GameScene {
   initLevel(levelNum) {
     this.initialLevel = levelNum;
     this.stage = Math.abs(levelNum);
+    // 计算打砖块区域左边界：若左上角"关卡:N"文案与砖块区重叠，则把左边界右移避让
+    this._computeGameAreaLeft();
     this.score = 0;
     this.line = 0;
     this.gameState = 'aiming';
@@ -946,6 +951,23 @@ export default class GameScene {
     return { cx, cy, r };
   }
 
+  /**
+   * 计算打砖块区域左边界：
+   * 若左上角"关卡:N"文案区域与砖块区（顶部）水平重叠，则把左边界右移到文案右侧，避免遮挡。
+   */
+  _computeGameAreaLeft() {
+    const s = SCALE;
+    const rect = this.hud.getLevelLabelRect(this.stage);
+    const labelRight = rect.x + rect.w;
+    const gap = 8 * s;
+    // 文案位于顶部，砖块区顶部 = GAME_AREA_TOP，二者垂直重叠，故只需判断水平是否越过左边界
+    if (labelRight + gap > GAME_AREA_LEFT) {
+      this.gameAreaLeft = labelRight + gap;
+    } else {
+      this.gameAreaLeft = GAME_AREA_LEFT;
+    }
+  }
+
   // ============================================================
   // 绘制模式辅助方法
   // ============================================================
@@ -1134,9 +1156,9 @@ export default class GameScene {
    * 判断坐标是否在蓝色边框游戏区域内
    */
   _isInsideGameArea(x, y) {
-    const borderX = GAME_AREA_LEFT - 2;
+    const borderX = this.gameAreaLeft - 2;
     const borderY = GAME_AREA_TOP - 2;
-    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderW = GAME_AREA_RIGHT - this.gameAreaLeft + 4;
     const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
     return x >= borderX && x <= borderX + borderW &&
       y >= borderY && y <= borderY + borderH;
@@ -1147,9 +1169,9 @@ export default class GameScene {
    * 如果坐标超出边框，则截断到边框上
    */
   _clipToGameArea(x, y) {
-    const borderX = GAME_AREA_LEFT - 2;
+    const borderX = this.gameAreaLeft - 2;
     const borderY = GAME_AREA_TOP - 2;
-    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderW = GAME_AREA_RIGHT - this.gameAreaLeft + 4;
     const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
     const clippedX = Math.max(borderX, Math.min(borderX + borderW, x));
     const clippedY = Math.max(borderY, Math.min(borderY + borderH, y));
@@ -1350,9 +1372,9 @@ export default class GameScene {
    * 判断线条的两个端点是否都在游戏区域内
    */
   _isLineInsideGameArea(line) {
-    const borderX = GAME_AREA_LEFT - 2;
+    const borderX = this.gameAreaLeft - 2;
     const borderY = GAME_AREA_TOP - 2;
-    const borderW = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const borderW = GAME_AREA_RIGHT - this.gameAreaLeft + 4;
     const borderH = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
     const inBounds = (x, y) =>
       x >= borderX && x <= borderX + borderW &&
@@ -1833,7 +1855,7 @@ export default class GameScene {
   }
 
   _updateBalls() {
-    const left = GAME_AREA_LEFT;
+    const left = this.gameAreaLeft;
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
@@ -2086,7 +2108,7 @@ export default class GameScene {
    * 将球传送到随机空位（空心白洞穿越效果）
    */
   _warpBall(ball) {
-    const left = GAME_AREA_LEFT;
+    const left = this.gameAreaLeft;
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
@@ -2361,7 +2383,7 @@ export default class GameScene {
    * 优先选择靠近砖块的空位（让球传送后能有效命中砖块）
    */
   _calcWarpDest(warp) {
-    const left = GAME_AREA_LEFT;
+    const left = this.gameAreaLeft;
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const bottom = LAUNCH_Y;
@@ -3054,7 +3076,7 @@ export default class GameScene {
     const s = SCALE;
 
     // 红色横向激光线
-    const left = GAME_AREA_LEFT;
+    const left = this.gameAreaLeft;
     const right = GAME_AREA_RIGHT;
     const lineH = 3.2 * s * progress;
 
@@ -3125,9 +3147,9 @@ export default class GameScene {
     ctx.shadowBlur = 2 * s * glow;
 
     // 圆角矩形描边（边框只包砖块区域，白球/发射器在边框外）
-    const x = GAME_AREA_LEFT - 2;
+    const x = this.gameAreaLeft - 2;
     const y = GAME_AREA_TOP - 2;
-    const w = GAME_AREA_RIGHT - GAME_AREA_LEFT + 4;
+    const w = GAME_AREA_RIGHT - this.gameAreaLeft + 4;
     const h = BRICK_AREA_BOTTOM - GAME_AREA_TOP + 4;
     const r = 8 * s;
 

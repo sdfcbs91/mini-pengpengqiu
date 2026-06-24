@@ -66,6 +66,7 @@ export default class HUD {
   render(ctx, data) {
     const s = SCALE;
     const {
+      stage = 1,
       score = 0,
       line = 0,
       maxRounds = 0,
@@ -86,6 +87,9 @@ export default class HUD {
 
     // ---- 1) 左上角返回按钮 ----
     this._drawBackButton(ctx, s);
+
+    // ---- 1.5) 返回按钮右侧"关卡:N"文案 ----
+    this._drawLevelLabel(ctx, s, stage);
 
     // ---- 2) 左侧分数面板 ----
     this._drawScorePanel(ctx, s, score, line, maxRounds, targetScore);
@@ -157,6 +161,41 @@ export default class HUD {
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.lineCap = 'butt';
+  }
+
+  // ============================================================
+  // 左上角"关卡:N"文案（位于返回按钮右侧）
+  // ============================================================
+  /**
+   * 返回关卡文案的布局矩形 { x, y, w, h, fontSize }
+   * 供渲染与"打砖块区域避让"判断共用，保证位置一致。
+   */
+  getLevelLabelRect(stage) {
+    const s = SCALE;
+    const fontSize = 14 * s;
+    const text = `关卡:${stage}`;
+    // 文字宽度估算：CJK 字符≈fontSize，冒号≈0.4*fontSize，数字≈0.58*fontSize
+    let w = 0;
+    for (const ch of text) {
+      if (ch === ':' || ch === '：') w += 0.4 * fontSize;
+      else if (ch >= '0' && ch <= '9') w += 0.58 * fontSize;
+      else w += fontSize; // CJK
+    }
+    const x = this.backX + this.backR + 8 * s;
+    const y = this.backY - fontSize / 2;
+    return { x, y, w, h: fontSize, fontSize, text };
+  }
+
+  _drawLevelLabel(ctx, s, stage) {
+    const rect = this.getLevelLabelRect(stage);
+    ctx.fillStyle = '#cfe3ff';
+    ctx.font = `bold ${rect.fontSize}px Arial`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(80,140,220,0.5)';
+    ctx.shadowBlur = 2 * s;
+    ctx.fillText(rect.text, rect.x, this.backY);
+    ctx.shadowBlur = 0;
   }
 
   // ============================================================
