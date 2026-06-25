@@ -4,7 +4,7 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT, MENU_BUTTON_RECT, SAFE_AREA } from './rend
 export const TOTAL_LEVELS = 600;
 
 // 网格配置
-export const GRID_COLS = 12;
+export const GRID_COLS = 10;
 export const GRID_ROWS = 10;
 export const BRICK_PADDING = 2;
 
