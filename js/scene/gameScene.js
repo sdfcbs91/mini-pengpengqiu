@@ -811,9 +811,9 @@ export default class GameScene {
     // 绘制模式下：更新当前绘制直线的终点（限制最大长度为两个砖块宽度）
     if (this._isDrawing && this._drawingLine) {
       const clipped = this._clipToGameArea(x, y);
-      // 白板横条：在原 2 个砖块宽基础上增宽 50% → 3 个砖块宽
-      // 上实下虚横条：白板横条宽度的 60% → 1.8 个砖块宽
-      const maxLen = (this._drawLineType === 'oneway') ? BRICK_W * 1.8 : BRICK_W * 3;
+      // 白板横条：3 个砖块宽再降低 30% → 2.1 个砖块宽
+      // 上实下虚横条：1.8 个砖块宽再降低 30% → 1.26 个砖块宽
+      const maxLen = (this._drawLineType === 'oneway') ? BRICK_W * 1.26 : BRICK_W * 2.1;
       const dx = clipped.x - this._drawingLine.x1;
       const dy = clipped.y - this._drawingLine.y1;
       const dist = Math.sqrt(dx * dx + dy * dy);
