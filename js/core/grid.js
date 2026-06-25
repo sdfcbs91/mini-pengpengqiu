@@ -197,7 +197,7 @@ export default class Grid {
     const usableWidth = USABLE_COL_MAX - USABLE_COL_MIN + 1;
     const colOffset = USABLE_COL_MIN + Math.max(0, Math.floor((usableWidth - tplWidth) / 2));
 
-    for (let row = 0; row < template.map.length && row < 10; row++) {
+    for (let row = 0; row < template.map.length && row < GRID_ROWS; row++) {
       for (let col = 0; col < template.map[row].length; col++) {
         const cell = template.map[row][col];
         if (cell === 0) continue;
@@ -253,7 +253,7 @@ export default class Grid {
 
     // 收集所有空位（排除第0行）
     const emptyCells = [];
-    for (let row = 1; row < map.length && row < 10; row++) {
+    for (let row = 1; row < map.length && row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS && col < map[row].length; col++) {
         if (map[row][col] === 0) {
           emptyCells.push({ row, col });

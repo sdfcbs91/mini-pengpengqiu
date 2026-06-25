@@ -4,8 +4,8 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT, MENU_BUTTON_RECT, SAFE_AREA } from './rend
 export const TOTAL_LEVELS = 600;
 
 // 网格配置
-export const GRID_COLS = 10;
-export const GRID_ROWS = 10;
+export const GRID_COLS = 8;
+export const GRID_ROWS = 8;
 export const BRICK_PADDING = 2;
 
 // 关卡选择页 - 网格布局（横屏模式：更多列，更少行）
