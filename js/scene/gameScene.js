@@ -2752,7 +2752,7 @@ export default class GameScene {
     }
 
     // 发射点（瞄准线等）— 传入所有障碍物（砖块+横板）供射线检测
-    this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks], this._drawLines);
+    this.launcher.render(ctx, this.gameState, [...this.grid.bricks, ...this.grid.planks], this._drawLines, this.gameAreaLeft);
 
     // 恢复抖动效果的上下文状态
     if (this._launcherShakeTimer >= 0 && this._launcherShakeTimer < 15) {

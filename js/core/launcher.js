@@ -149,7 +149,7 @@ export default class Launcher {
     return this.x;
   }
 
-  render(ctx, gameState, bricks, segments) {
+  render(ctx, gameState, bricks, segments, gameAreaLeft = GAME_AREA_LEFT) {
     const s = SCALE;
 
     if (gameState === 'launching' || gameState === 'running') {
@@ -191,7 +191,7 @@ export default class Launcher {
 
     // 辅助瞄准线（带反弹折线）
     if (gameState === 'aiming' && this.isAiming && this.showAimLine) {
-      this._renderAimLine(ctx, s, bricks || [], segments || []);
+      this._renderAimLine(ctx, s, bricks || [], segments || [], gameAreaLeft);
     }
   }
 
@@ -200,11 +200,11 @@ export default class Launcher {
    * 支持：墙壁、矩形砖块、三角形砖块、横板
    * 最多反弹 MAX_BOUNCES 次
    */
-  _renderAimLine(ctx, s, bricks, segments) {
+  _renderAimLine(ctx, s, bricks, segments, gameAreaLeft = GAME_AREA_LEFT) {
     const MAX_BOUNCES = 3;
     const DOT_GAP = 6 * s;
     const DOT_R = 2 * s;
-    const left = GAME_AREA_LEFT;
+    const left = gameAreaLeft;
     const right = GAME_AREA_RIGHT;
     const top = GAME_AREA_TOP;
     const r = BALL_RADIUS;
