@@ -188,16 +188,29 @@ export default class Grid {
     const cfg = this.levelConfig || getLevelConfig(stage);
     const baseHp = Math.round((cfg.baseHp || stage * 1.5) * 0.76);
 
+    // 计算模板宽度，并居中放置到可用列范围 [USABLE_COL_MIN, USABLE_COL_MAX]
+    // 避免模板（左对齐占用第0列）越过左/右边界
+    let tplWidth = 0;
+    for (const row of template.map) {
+      if (row && row.length > tplWidth) tplWidth = row.length;
+    }
+    const usableWidth = USABLE_COL_MAX - USABLE_COL_MIN + 1;
+    const colOffset = USABLE_COL_MIN + Math.max(0, Math.floor((usableWidth - tplWidth) / 2));
+
     for (let row = 0; row < template.map.length && row < 10; row++) {
-      for (let col = 0; col < GRID_COLS && col < template.map[row].length; col++) {
+      for (let col = 0; col < template.map[row].length; col++) {
         const cell = template.map[row][col];
         if (cell === 0) continue;
+
+        const gridCol = colOffset + col;
+        // 越过可用列范围的砖块直接跳过，确保不超边界
+        if (gridCol < USABLE_COL_MIN || gridCol > USABLE_COL_MAX) continue;
 
         const hp = cell === 2 ? Math.round(baseHp * 1.5) : baseHp;
         const brick = new Brick();
         brick.init(
-          row, col,
-          this.getColX(col),
+          row, gridCol,
+          this.getColX(gridCol),
           this.getRowY(row),
           BRICK_W, BRICK_H,
           hp, 'normal', ''
@@ -206,8 +219,8 @@ export default class Grid {
       }
     }
 
-    // 在空位上随机放置道具
-    this._spawnTemplateProps(template.map, stage);
+    // 在空位上随机放置道具（使用相同的列偏移，保证与砖块对齐）
+    this._spawnTemplateProps(template.map, stage, colOffset);
 
     return true;
   }
@@ -219,7 +232,7 @@ export default class Grid {
    * - 消单列所在列必须有砖块，否则改为消单行
    * - 空心白洞放置在靠近砖块的位置
    */
-  _spawnTemplateProps(map, stage) {
+  _spawnTemplateProps(map, stage, colOffset = 0) {
     // 找出通道列（整列全空 = 通往顶部的路）
     const throughCols = new Set();
     for (let col = 0; col < GRID_COLS; col++) {
@@ -264,7 +277,7 @@ export default class Grid {
       const { row, col } = emptyCells[idx];
       const rc = new RowClear();
       rc.init(
-        this.getColX(col) + BRICK_W / 2,
+        this.getColX(col + colOffset) + BRICK_W / 2,
         this.getRowY(row) + BRICK_H / 2,
         row
       );
@@ -276,19 +289,19 @@ export default class Grid {
     for (let i = 0; i < colClearCount && idx < emptyCells.length; i++, idx++) {
       const { row, col } = emptyCells[idx];
       if (colsWithBricks.has(col)) {
-        // 该列有砖块，正常放消单列
+        // 该列有砖块，正常放消单列（存储网格列 = col + colOffset，与砖块列一致）
         const cc = new ColClear();
         cc.init(
-          this.getColX(col) + BRICK_W / 2,
+          this.getColX(col + colOffset) + BRICK_W / 2,
           this.getRowY(row) + BRICK_H / 2,
-          col
+          col + colOffset
         );
         this.colClears.push(cc);
       } else {
         // 该列无砖块，改为消单行
         const rc = new RowClear();
         rc.init(
-          this.getColX(col) + BRICK_W / 2,
+          this.getColX(col + colOffset) + BRICK_W / 2,
           this.getRowY(row) + BRICK_H / 2,
           row
         );
@@ -321,7 +334,7 @@ export default class Grid {
       if (warpCell) {
         const warp = new Warp();
         warp.init(
-          this.getColX(warpCell.col) + BRICK_W / 2,
+          this.getColX(warpCell.col + colOffset) + BRICK_W / 2,
           this.getRowY(warpCell.row) + BRICK_H / 2
         );
         this.warps.push(warp);
@@ -346,7 +359,8 @@ export default class Grid {
       for (let i = 0; i < plankCount; i++) {
         const { row, col } = plankCandidates[i];
         const plank = new Plank();
-        plank.init(row, col, this.getColX(col), this.getRowY(row));
+        // 存储网格列 = col + colOffset，与砖块列对齐
+        plank.init(row, col + colOffset, this.getColX(col + colOffset), this.getRowY(row));
         this.planks.push(plank);
       }
     }
