@@ -64,6 +64,14 @@ export default class Ball {
     this.powerLevel = 0;
     this.noBrickBounces = 0;
     this.needRecycle = false;
+    // 龙卷风相关临时标记复位，避免上一轮残留导致异常
+    this._inTornado = false;
+    this._tornadoSpin = 0;
+    this._tornadoSign = 1;
+    this._tornadoMaxSpin = 0;
+    this._tornadoFlingUp = false;
+    this._tornadoPassThrough = false;
+    this._tornadoFrames = 0;
     // 注意：hasLightning 不在 init 中重置，由发射时按 launcher.lightningArmed 注入
   }
 

@@ -1053,6 +1053,14 @@ export default class GameScene {
       return;
     }
 
+    // ★ 防卡死保护：累计该球受龙卷风影响的总帧数，超过上限后不再卷起/上抛，
+    //   让球自然落地，避免被龙卷风反复抛起导致回合无法结算、游戏卡死。
+    ball._tornadoFrames = (ball._tornadoFrames || 0) + 1;
+    const MAX_TORNADO_FRAMES = 300; // 约 5 秒
+    if (ball._tornadoFrames >= MAX_TORNADO_FRAMES) {
+      return; // 超时：龙卷风对该球失效，任其按当前速度自然运动并落地
+    }
+
     // 刚进入：根据进入角度确定旋转方向（顺/逆时针），并重置累计旋转角
     if (!ball._inTornado) {
       ball._inTornado = true;
@@ -1066,7 +1074,7 @@ export default class GameScene {
       ball._tornadoSign = cross >= 0 ? 1 : -1;
       // 微小随机性：本次绕行的目标幅度加 ±25° 抖动，使同角度的球也可能飞向不同方向
       ball._tornadoMaxSpin = Math.PI * 1.25 + (Math.random() - 0.5) * (Math.PI / 3.6);
-      // 较高概率（55%）：球被卷起，绕一定圈后改为向上飞，避免过早落地、提升可玩性
+      // 较高概率：球被卷起，绕一定圈后改为向上飞，避免过早落地、提升可玩性
       ball._tornadoFlingUp = Math.random() < 0.75;
       if (ball._tornadoFlingUp) {
         // 上抛需要绕得更久一些（保证有明显"转圈"过程）
@@ -2332,7 +2340,8 @@ export default class GameScene {
       }
 
       // 8. 死循环回收：连续反弹30次未碰砖块，回收白球
-      if (ball.active && ball.noBrickBounces >= 30) {
+      //    或：被龙卷风影响超时（绕圈/上抛太久仍未落地）→ 强制回收，防止回合卡死
+      if (ball.active && (ball.noBrickBounces >= 30 || (ball._tornadoFrames || 0) >= 300)) {
         this._recycleBall(ball);
       }
     });
