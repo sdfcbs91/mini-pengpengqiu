@@ -145,18 +145,18 @@ export function getLevelConfig(levelNum) {
  * 动态计算每关的过关目标分数
  * 基于关卡的砖块产出：初始砖块 + 每回合补充
  *
- * 推导：
- *   初始砖块约 = initRows × 6
- *   每回合补充约 = 1.4 行 × 6 砖 = 8.4 砖
- *   maxRounds 回合产出 ≈ initRows × 6 + maxRounds × 8.4
- *   平均每砖期望分数 ≈ 11.5（基础）× 1.5（combo均值）× 1.2（power均值）≈ 20 分
- *   合理目标分 = 期望产出 × 玩家命中率（约 60%）× 平均分
+ * 推导（适配 8 列网格：可用列 1~6，每行砖块约 3.9 块，较旧 12 列网格的约 6.2 块下降约 37%）：
+ *   初始砖块约 = initRows × 3.9
+ *   每回合补充约 = 1.4 行 × 3.9 砖 ≈ 5.5 砖
+ *   maxRounds 回合产出 ≈ initRows × 3.9 + maxRounds × 5.5
+ *   平均每砖期望分数 ≈ 20 分，命中率约 60%
+ *   故目标分相较旧网格同比下调约 35%~37%
  *
- * 简化公式：targetScore = 200 + initRows × 40 + maxRounds × 35
- *   - 第 1 关  (initRows=2, maxRounds=4):  200 + 80  + 140 = 420
- *   - 第 10 关 (initRows=3, maxRounds=6):  200 + 120 + 210 = 530
- *   - 第 30 关 (initRows=5, maxRounds=9):  200 + 200 + 315 = 715
- *   - 第 100+ 关:                        基本封顶在 800 左右
+ * 简化公式：targetScore = 140 + initRows × 25 + maxRounds × 22
+ *   - 第 1 关  (initRows=2, maxRounds=4):  140 + 50  + 88  = 278   （旧 420）
+ *   - 第 10 关 (initRows=3, maxRounds=6):  140 + 75  + 132 = 347   （旧 530）
+ *   - 第 30 关 (initRows=5, maxRounds=9):  140 + 125 + 198 = 463   （旧 715）
+ *   - 第 100+ 关:                        基本封顶在 470 左右
  *
  * @param {number} levelNum 关卡号
  * @returns {number} 该关目标分数
@@ -165,7 +165,7 @@ export function getLevelTargetScore(levelNum) {
   const cfg = getLevelConfig(levelNum);
   const initRows = cfg.initRows || 2;
   const maxRounds = cfg.maxRounds || 4;
-  return 200 + initRows * 40 + maxRounds * 35;
+  return 140 + initRows * 25 + maxRounds * 22;
 }
 
 /**
