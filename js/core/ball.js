@@ -280,7 +280,14 @@ export default class Ball {
       let glowColor = 'rgba(200,220,255,0.2)';
       let ballShadow = 'transparent';
       let ballBlur = 0;
-      if (this.powerLevel >= 4) {
+      let ballFill = '#ffffff';
+      if (this.powerLevel >= 5) {
+        // 黑球：深色球体 + 紫色亮光环，暗背景下也清晰可见
+        glowColor = 'rgba(150,90,255,0.6)';
+        ballShadow = '#b066ff';
+        ballBlur = 3;
+        ballFill = '#1a1a1a';
+      } else if (this.powerLevel >= 4) {
         glowColor = 'rgba(255,50,50,0.5)';
         ballShadow = '#ff3333';
         ballBlur = 2;
@@ -304,15 +311,22 @@ export default class Ball {
       ctx.arc(this.x, this.y, this.radius * 1.6, 0, Math.PI * 2);
       ctx.fill();
 
-      // 纯白实心球 + 升级发光
+      // 实心球 + 升级发光（黑球为深色球体，其余为白色）
       if (ballBlur > 0) {
         ctx.shadowColor = ballShadow;
         ctx.shadowBlur = ballBlur;
       }
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = ballFill;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
       ctx.fill();
+      // 黑球加一圈亮色描边，提升暗背景下的辨识度
+      if (this.powerLevel >= 5) {
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#b066ff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
       return;

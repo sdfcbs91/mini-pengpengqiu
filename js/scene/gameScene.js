@@ -103,6 +103,11 @@ export default class GameScene {
     this._drawLocked = false;       // 发球后锁定绘制功能，本轮不可再编辑
     this._showDrawTips = false;      // 绘制 tips 选择面板是否显示
     this._drawLineType = 'normal';   // 当前绘制线条类型：'normal'(白板横条) | 'oneway'(上实下虚横条)
+
+    // 龙卷风道具
+    this._tornado = null;            // { x, y, r } 龙卷风中心与半径，null=未放置
+    this._isDraggingTornado = false; // 是否正在拖拽龙卷风
+    this._tornadoPhase = 0;          // 龙卷风旋转动画相位
   }
 
   /**
@@ -520,6 +525,8 @@ export default class GameScene {
     this._drawLocked = false;
     this._showDrawTips = false;
     this._drawLineType = 'normal';
+    this._tornado = null;
+    this._isDraggingTornado = false;
     this._drawBtnBlinkTimer = 90;  // 绘制按钮开局闪动提示（约1.5秒）
 
     // 飞起的得分文字（特效）
@@ -708,9 +715,10 @@ export default class GameScene {
       return;
     }
 
-    // 检查绘制按钮（发球后锁定，不可再切换）
+    // 检查绘制按钮（发球后锁定 / 场上已有道具 → 不可点击）
     if (this.hud.hitDrawButton(x, y)) {
-      if (this._drawLocked) return; // 发球后绘制功能锁定
+      if (this._drawLocked) return;        // 发球后绘制功能锁定
+      if (this._hasPlacedProp()) return;   // 场上已有道具，禁用（需先用"上一步"清除）
       if (this._drawMode) {
         // 已处于绘制模式 → 关闭绘制模式和 tips
         this._drawMode = false;
@@ -728,10 +736,27 @@ export default class GameScene {
       return;
     }
 
-    // 绘制模式高亮时：检查上一步按钮（发球后锁定则不可操作）
-    if (this._drawMode && this._drawLines.length > 0 && !this._drawLocked) {
+    // 龙卷风：瞄准阶段（未锁定）按住龙卷风开始拖拽
+    if (this._tornado && this.gameState === 'aiming' && !this._drawLocked) {
+      const tdx = x - this._tornado.x;
+      const tdy = y - this._tornado.y;
+      const grab = this._tornado.r * 1.2;
+      if (tdx * tdx + tdy * tdy <= grab * grab) {
+        this._isDraggingTornado = true;
+        return;
+      }
+    }
+
+    // 上一步按钮：场上有道具且未锁定时可点 → 清除当前道具（直线或龙卷风），绘制按钮随之恢复可点
+    if (this._hasPlacedProp() && !this._drawLocked) {
       if (this._hitUndoButton(x, y)) {
-        this._drawLines.pop();
+        if (this._drawLines.length > 0) {
+          this._drawLines.pop();
+        } else if (this._tornado) {
+          this._tornado = null;
+        }
+        this._drawMode = false;
+        this._showDrawTips = false;
         return;
       }
     }
@@ -807,6 +832,14 @@ export default class GameScene {
     }
 
     if (this.gameState !== 'aiming') return;
+
+    // 龙卷风拖拽：跟随手指，限制在游戏区内
+    if (this._isDraggingTornado && this._tornado) {
+      const clipped = this._clipToGameArea(x, y);
+      this._tornado.x = clipped.x;
+      this._tornado.y = clipped.y;
+      return;
+    }
 
     // 绘制模式下：更新当前绘制直线的终点（限制最大长度为两个砖块宽度）
     if (this._isDrawing && this._drawingLine) {
@@ -886,6 +919,12 @@ export default class GameScene {
     // 150球历史记录弹窗：滚动结束
     if (this.gameState === 'mode150History') {
       this._historyScroller.onTouchEnd();
+      return;
+    }
+
+    // 龙卷风拖拽结束
+    if (this._isDraggingTornado) {
+      this._isDraggingTornado = false;
       return;
     }
 
@@ -969,12 +1008,181 @@ export default class GameScene {
   }
 
   // ============================================================
+  // 道具（绘制/龙卷风）通用
+  // ============================================================
+
+  /**
+   * 场上是否已放置道具（直线 或 龙卷风）。
+   * 同一时刻只允许存在一个道具，存在时绘制按钮禁用。
+   */
+  _hasPlacedProp() {
+    return this._drawLines.length > 0 || !!this._tornado;
+  }
+
+  // ============================================================
+  // 龙卷风道具
+  // ============================================================
+
+  /**
+   * 在空地上生成一个龙卷风（中心放在游戏区中部，半径 = 1 格 → 直径约 2 格）
+   */
+  _spawnTornado() {
+    if (this._drawLocked) return;
+    // 面积减小 10% → 半径 × √0.9 ≈ 0.95
+    const r = BRICK_W * 0.95;
+    const cx = (this.gameAreaLeft + GAME_AREA_RIGHT) / 2;
+    const cy = GAME_AREA_TOP + (BRICK_AREA_BOTTOM - GAME_AREA_TOP) * 0.55;
+    this._tornado = { x: cx, y: cy, r };
+  }
+
+  /**
+   * 龙卷风物理效应：球进入影响范围后，速度方向持续被切向偏转（绕圈），
+   * 累计转过一定幅度后停止偏转、沿当前方向飞出 —— 即"绕圈一定幅度再往其他方向飞"。
+   */
+  _applyTornadoEffect(ball) {
+    const t = this._tornado;
+    if (!t) return;
+    const influence = t.r + 0.6 * BRICK_W; // 额外约半格的影响范围
+    const dx = ball.x - t.x;
+    const dy = ball.y - t.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 离开影响范围：复位，下次进入可再次触发
+    if (dist > influence) {
+      ball._inTornado = false;
+      return;
+    }
+
+    // 刚进入：根据进入角度确定旋转方向（顺/逆时针），并重置累计旋转角
+    if (!ball._inTornado) {
+      ball._inTornado = true;
+      ball._tornadoSpin = 0;
+      // 一定概率（5%）直接穿越龙卷风中心：本次不被偏转，沿原方向穿过
+      ball._tornadoPassThrough = Math.random() < 0.05;
+      const rxn = dist > 0.001 ? dx / dist : 0;
+      const ryn = dist > 0.001 ? dy / dist : -1;
+      // 速度 × 半径 的叉积符号 → 决定漩涡旋转方向
+      const cross = ball.vx * ryn - ball.vy * rxn;
+      ball._tornadoSign = cross >= 0 ? 1 : -1;
+      // 微小随机性：本次绕行的目标幅度加 ±25° 抖动，使同角度的球也可能飞向不同方向
+      ball._tornadoMaxSpin = Math.PI * 1.25 + (Math.random() - 0.5) * (Math.PI / 3.6);
+      // 较高概率（55%）：球被卷起，绕一定圈后改为向上飞，避免过早落地、提升可玩性
+      ball._tornadoFlingUp = Math.random() < 0.75;
+      if (ball._tornadoFlingUp) {
+        // 上抛需要绕得更久一些（保证有明显"转圈"过程）
+        ball._tornadoMaxSpin = Math.PI * (1.4 + Math.random() * 0.6); // 约 252°~360°
+      }
+    }
+
+    // 本次中奖穿越：不施加任何偏转，让球直接穿过中心
+    if (ball._tornadoPassThrough) return;
+
+    // 已绕够幅度 → 结束偏转
+    const maxSpin = ball._tornadoMaxSpin || Math.PI * 1.25;
+    if (ball._tornadoSpin >= maxSpin) {
+      if (ball._tornadoFlingUp) {
+        // 上抛球：强制把出射方向调成竖直向上（上方 ±25°）
+        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) || 1;
+        const upAngle = -Math.PI / 2 + (Math.random() - 0.5) * (Math.PI / 3.6);
+        ball.vx = Math.cos(upAngle) * speed;
+        ball.vy = Math.sin(upAngle) * speed;
+        ball._tornadoFlingUp = false;
+      } else if (ball.vy > 0) {
+        // 普通绕行球兜底：若绕够后仍朝下飞，把竖直分量上翻为向上，
+        // 避免"从上往下进、绕一圈还是大体往下"的体验，整体更偏向上扬。
+        ball.vy = -Math.abs(ball.vy);
+        // 轻微上扬保证不会几乎水平（至少带 25% 的向上分量）
+        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy) || 1;
+        if (ball.vy > -speed * 0.25) {
+          ball.vy = -speed * 0.25;
+          const hx = Math.sqrt(Math.max(0, speed * speed - ball.vy * ball.vy));
+          ball.vx = (ball.vx >= 0 ? 1 : -1) * hx;
+        }
+      }
+      return;
+    }
+
+    // 每帧旋转一小步（持续切向偏转 → 绕圈），保持速度大小不变
+    // 每帧叠加微小随机扰动（±1.7°），积累出轻微的轨迹差异
+    const step = 0.16; // 约 9°/帧
+    const jitter = (Math.random() - 0.5) * 0.06;
+    const a = ball._tornadoSign * step + jitter;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const nvx = ball.vx * cos - ball.vy * sin;
+    const nvy = ball.vx * sin + ball.vy * cos;
+    ball.vx = nvx;
+    ball.vy = nvy;
+    ball._tornadoSpin += step;
+  }
+
+  /**
+   * 渲染龙卷风：天气预报"台风/转圈云"样式——多条旋转的开口螺旋臂（有粗细、不闭环）
+   */
+  _renderTornado(ctx) {
+    const t = this._tornado;
+    if (!t) return;
+    this._tornadoPhase += 0.06; // 旋转速度（偏慢，像云团转动）
+    const r = t.r;
+    const s = SCALE;
+
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // 柔和光晕底
+    const halo = ctx.createRadialGradient(0, 0, r * 0.1, 0, 0, r * 1.2);
+    halo.addColorStop(0, 'rgba(150,210,255,0.28)');
+    halo.addColorStop(1, 'rgba(60,120,220,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 螺旋臂：开口弧线（不闭环），沿臂从内到外逐渐变细
+    ctx.lineCap = 'round';
+    const arms = 3;
+    const turns = 1.15;   // 每条臂绕的圈数
+    const segs = 26;
+    for (let a = 0; a < arms; a++) {
+      const baseAng = this._tornadoPhase + a * (Math.PI * 2 / arms);
+      let prevX = null;
+      let prevY = null;
+      for (let k = 0; k <= segs; k++) {
+        const f = k / segs;                        // 0(内) ~ 1(外)
+        const ang = baseAng + f * turns * Math.PI * 2;
+        const rad = r * (0.18 + 0.82 * f);
+        const px = Math.cos(ang) * rad;
+        const py = Math.sin(ang) * rad;
+        if (prevX !== null) {
+          ctx.strokeStyle = `rgba(175,218,255,${0.9 - 0.55 * f})`;
+          ctx.lineWidth = (3.4 - 2.6 * f) * s;     // 内粗外细，体现"粗细"
+          ctx.beginPath();
+          ctx.moveTo(prevX, prevY);
+          ctx.lineTo(px, py);
+          ctx.stroke();
+        }
+        prevX = px;
+        prevY = py;
+      }
+    }
+    ctx.lineCap = 'butt';
+
+    // 中心亮点（风眼）
+    ctx.fillStyle = 'rgba(225,242,255,0.95)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ============================================================
   // 绘制模式辅助方法
   // ============================================================
 
   /**
    * 计算绘制 tips 选择面板的布局
-   * 面板锚定在"绘制"按钮右侧，自上而下排列：白板横条、上实下虚横条、取消
+   * 面板锚定在"绘制"按钮右侧，自上而下排列：白板横条、上实下虚横条、龙卷风、取消
    */
   _getDrawTipsLayout() {
     const s = SCALE;
@@ -986,19 +1194,21 @@ export default class GameScene {
     const rowH = 36 * s;
     const padX = 10 * s;
     const padY = 8 * s;
-    const rows = 3;
+    const rows = 4;
     const panelH = rows * rowH + padY * 2;
     // 面板放在绘制按钮右侧，顶部相对绘制按钮上移 40px
     const panelX = btnX + btnW + 8 * s;
     let panelY = btnY - 40 * s;
-    // 防止超出底部
+    // 防止超出顶部/底部
     if (panelY + panelH > SCREEN_HEIGHT - 8 * s) {
       panelY = SCREEN_HEIGHT - 8 * s - panelH;
     }
+    if (panelY < 4 * s) panelY = 4 * s;
 
     const items = [
       { key: 'normal', label: '白板横条' },
       { key: 'oneway', label: '上实下虚' },
+      { key: 'tornado', label: '龙卷风' },
       { key: 'cancel', label: '取消' },
     ];
     const rects = items.map((it, i) => ({
@@ -1022,6 +1232,10 @@ export default class GameScene {
       if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
         if (r.key === 'cancel') {
           // 取消：关闭 tips，什么都不做
+          this._showDrawTips = false;
+        } else if (r.key === 'tornado') {
+          // 龙卷风：在空地生成一个可拖拽的龙卷风（不进入直线绘制模式）
+          this._spawnTornado();
           this._showDrawTips = false;
         } else {
           // 选择白板横条 / 上实下虚横条 → 进入绘制模式
@@ -1076,7 +1290,18 @@ export default class GameScene {
       const barCx1 = barX + barW;
       const barY = midY;
 
-      if (r.key === 'normal') {
+      if (r.key === 'tornado') {
+        // 龙卷风：同心圆圈预览图标
+        const icx = barX + 10 * s;
+        for (let k = 0; k < 3; k++) {
+          const rr = (10 - k * 3) * s;
+          ctx.strokeStyle = `rgba(120,200,255,${0.4 + k * 0.2})`;
+          ctx.lineWidth = 1.5 * s;
+          ctx.beginPath();
+          ctx.arc(icx, barY, rr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      } else if (r.key === 'normal') {
         // 白板横条：实线
         ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 3 * s;
@@ -1893,6 +2118,11 @@ export default class GameScene {
 
       if (!ball.active) return;
 
+      // 龙卷风物理效应：进入影响范围时甩尾改变方向
+      if (this._tornado) {
+        this._applyTornadoEffect(ball);
+      }
+
       // 记录移动前位置（用于道具扫描碰撞）
       const prevBX = ball.x;
       const prevBY = ball.y;
@@ -1919,7 +2149,9 @@ export default class GameScene {
       for (const brick of hitBricks) {
         // 球每次击打砖块，累计hitCount并检查升级
         ball.hitCount++;
-        if (ball.hitCount >= 30 && ball.powerLevel < 4) {
+        if (ball.hitCount >= 35 && ball.powerLevel < 5) {
+          ball.powerLevel = 5; // 黑球（红球后再破5个砖块）：一击秒杀任意砖块
+        } else if (ball.hitCount >= 30 && ball.powerLevel < 4) {
           ball.powerLevel = 4; // 红光
         } else if (ball.hitCount >= 20 && ball.powerLevel < 3) {
           ball.powerLevel = 3; // 黄光
@@ -1931,7 +2163,9 @@ export default class GameScene {
 
         // 计算实际伤害：基础攻击力 * 球升级倍率
         let damage = this.atkLevel;
-        if (ball.powerLevel >= 4) {
+        if (ball.powerLevel >= 5) {
+          damage = 999999; // 黑球：一击敲碎任意数值的砖块
+        } else if (ball.powerLevel >= 4) {
           damage = Math.floor(this.atkLevel * 10) + 1;
         } else if (ball.powerLevel >= 3) {
           damage = Math.floor(this.atkLevel * 6) + 1;
@@ -2176,7 +2410,8 @@ export default class GameScene {
   _recycleBall(ball) {
     // 生成消散粒子（与球当前升级颜色一致）
     let color = '#ffffff';
-    if (ball.powerLevel >= 4) color = '#ff3333';
+    if (ball.powerLevel >= 5) color = '#222222';
+    else if (ball.powerLevel >= 4) color = '#ff3333';
     else if (ball.powerLevel >= 3) color = '#ffcc00';
     else if (ball.powerLevel >= 2) color = '#3399ff';
     else if (ball.powerLevel >= 1) color = '#33ff66';
@@ -2729,6 +2964,11 @@ export default class GameScene {
     // 砖块和道具
     this.grid.render(ctx, this.glowPhase);
 
+    // 龙卷风道具（在砖块之上、白球之下）
+    if (this._tornado) {
+      this._renderTornado(ctx);
+    }
+
     // 白色发射轨道线（白球横向移动范围的视觉指示）
     this._renderLaunchBar(ctx);
 
@@ -2796,7 +3036,8 @@ export default class GameScene {
       keepArmed: !!this._atkBoostArmed,          // 保持按钮是否已预选
       keepDisabled: !!this._keepBallActive,      // 保持按钮是否不可点击（上轮激活了"保持"仍在生效中）
       drawMode: this._drawMode,                  // 绘制按钮开关状态
-      drawLocked: this._drawLocked,                // 绘制功能是否已锁定（发球后）
+      // 发球后锁定 或 场上已有道具 → 绘制按钮显示为禁用（变暗不可点击）
+      drawLocked: this._drawLocked || this._hasPlacedProp(),
       drawBtnBlink: this._drawBtnBlinkTimer > 0,   // 绘制按钮是否正在闪动提示
     });
 
@@ -2805,8 +3046,8 @@ export default class GameScene {
       this._renderDrawLines(ctx);
     }
 
-    // 绘制模式高亮时：显示上一步按钮（发球后锁定则隐藏）
-    if (this._drawMode && this._drawLines.length > 0 && !this._drawLocked) {
+    // 上一步按钮：场上有道具（直线或龙卷风）且未发球锁定时显示
+    if (this._hasPlacedProp() && !this._drawLocked) {
       this._renderUndoButton(ctx);
     }
 
