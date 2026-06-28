@@ -64,6 +64,7 @@ export default class Ball {
     this.powerLevel = 0;
     this.noBrickBounces = 0;
     this.needRecycle = false;
+    this._flightFrames = 0; // 飞行帧计数（全局超时兜底用）
     // 龙卷风相关临时标记复位，避免上一轮残留导致异常
     this._inTornado = false;
     this._tornadoSpin = 0;

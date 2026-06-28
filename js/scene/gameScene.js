@@ -230,6 +230,9 @@ export default class GameScene {
     for (let i = this._lightningChains.length - 1; i >= 0; i--) {
       const chain = this._lightningChains[i];
 
+      // 独立生命周期递减（硬性兜底，确保链一定会被移除，不依赖砖块对象）
+      chain.life = (chain.life === undefined ? 18 : chain.life) - 1;
+
       // 取 affected 中最大 lightningTimer 作为该链的可见生命周期
       let maxTimer = 0;
       for (const b of chain.affected) {
@@ -237,7 +240,8 @@ export default class GameScene {
         if (b.lightningTimer > maxTimer) maxTimer = b.lightningTimer;
       }
 
-      if (maxTimer <= 0) {
+      // 砖块 timer 归零 或 自身 life 耗尽 → 移除（life 兜底防"僵尸链"累积）
+      if (maxTimer <= 0 || chain.life <= 0) {
         this._lightningChains.splice(i, 1);
         continue;
       }
@@ -916,6 +920,15 @@ export default class GameScene {
     if (GameGlobal.databus.scene !== 'playing') return;
     this._touching = false;
 
+    // 结束态（通关/失败/暂停）：弹窗交互由 handleTouchStart 处理，抬手不做任何发射/绘制操作
+    if (this.gameState === 'win' || this.gameState === 'over' || this.gameState === 'paused') {
+      this._isDraggingTornado = false;
+      this._isDraggingLine = false;
+      this._isDrawing = false;
+      this._isDraggingBall = false;
+      return;
+    }
+
     // 150球历史记录弹窗：滚动结束
     if (this.gameState === 'mode150History') {
       this._historyScroller.onTouchEnd();
@@ -1019,6 +1032,20 @@ export default class GameScene {
     return this._drawLines.length > 0 || !!this._tornado;
   }
 
+  /**
+   * 清理所有道具（龙卷风/绘制直线）及其交互状态。
+   * 用于回合/关卡结束（通关/失败）时，避免残留状态污染弹窗交互或下一关。
+   */
+  _clearProps() {
+    this._tornado = null;
+    this._isDraggingTornado = false;
+    this._drawLines = [];
+    this._drawingLine = null;
+    this._isDrawing = false;
+    this._isDraggingLine = false;
+    this._showDrawTips = false;
+  }
+
   // ============================================================
   // 龙卷风道具
   // ============================================================
@@ -1053,12 +1080,10 @@ export default class GameScene {
       return;
     }
 
-    // ★ 防卡死保护：累计该球受龙卷风影响的总帧数，超过上限后不再卷起/上抛，
-    //   让球自然落地，避免被龙卷风反复抛起导致回合无法结算、游戏卡死。
-    ball._tornadoFrames = (ball._tornadoFrames || 0) + 1;
-    const MAX_TORNADO_FRAMES = 300; // 约 5 秒
-    if (ball._tornadoFrames >= MAX_TORNADO_FRAMES) {
-      return; // 超时：龙卷风对该球失效，任其按当前速度自然运动并落地
+    // ★ 防卡死保护：球飞行较久后龙卷风对其失效（不再卷起/上抛），让球自然落地，
+    //   避免被龙卷风反复抛起导致回合无法结算。以"全局飞行帧数"为准（无论是否在影响区内都可靠）。
+    if ((ball._flightFrames || 0) >= 540) { // 约 9 秒后龙卷风对该球失效
+      return;
     }
 
     // 刚进入：根据进入角度确定旋转方向（顺/逆时针），并重置累计旋转角
@@ -1135,6 +1160,10 @@ export default class GameScene {
     const s = SCALE;
 
     ctx.save();
+    // 自包含：清除可能从前面渲染（如红色消行/消列道具）泄漏的 shadow，避免龙卷风被染红
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
     ctx.translate(t.x, t.y);
 
     // 柔和光晕底
@@ -1850,6 +1879,7 @@ export default class GameScene {
           y2: e.to.y + e.to.height / 2,
         })),
         affected: affected.slice(),
+        life: 18, // 独立生命周期（帧）：硬性兜底，避免依赖砖块 timer 导致"僵尸链"残留累积
       });
     }
   }
@@ -2126,6 +2156,14 @@ export default class GameScene {
 
       if (!ball.active) return;
 
+      // ★ 全局飞行超时兜底（与具体机制无关）：任何球连续飞行过久（如被龙卷风长期卷绕、
+      //   或陷入不碰墙/不碰砖的稳定轨道）→ 强制回收，确保回合一定能结算，杜绝卡死。
+      ball._flightFrames = (ball._flightFrames || 0) + 1;
+      if (ball._flightFrames >= 900) { // 约 15 秒
+        this._recycleBall(ball);
+        return;
+      }
+
       // 龙卷风物理效应：进入影响范围时甩尾改变方向
       if (this._tornado) {
         this._applyTornadoEffect(ball);
@@ -2340,8 +2378,8 @@ export default class GameScene {
       }
 
       // 8. 死循环回收：连续反弹30次未碰砖块，回收白球
-      //    或：被龙卷风影响超时（绕圈/上抛太久仍未落地）→ 强制回收，防止回合卡死
-      if (ball.active && (ball.noBrickBounces >= 30 || (ball._tornadoFrames || 0) >= 300)) {
+      //    （飞行超时由本方法开头的 _flightFrames 全局兜底统一处理）
+      if (ball.active && ball.noBrickBounces >= 30) {
         this._recycleBall(ball);
       }
     });
@@ -2823,6 +2861,7 @@ export default class GameScene {
 
       this.winStars = stars;
       this.gameState = 'win';
+      this._clearProps(); // 通关：清理龙卷风/绘制道具及交互标记
       this._notifyLevelCleared();
 
       // 游戏结束后获取用户信息
@@ -2839,6 +2878,7 @@ export default class GameScene {
     if (this.line >= this.maxRounds) {
       this.gameState = 'over';
       this._roundsExhausted = true;  // 标记为轮数耗尽（区别于超时失败）
+      this._clearProps(); // 失败：清理龙卷风/绘制道具及交互标记
 
       // 游戏结束后获取用户信息
       this._fetchUserInfoAfterGame();
@@ -2902,6 +2942,16 @@ export default class GameScene {
     this._multiBallArmed = false;
     this._atkBoostArmed = false;
     this.launcher.lightningArmed = false;
+
+    // 清理本轮残留的特效数组，避免逐轮累积导致卡顿
+    // （闪电链尤其重要：cleanup 移除死砖块后其 lightningTimer 不再递减，链无法自动删除会变"僵尸链"）
+    this._lightningChains = [];
+    this._scoreFloats = [];
+    this._warpEffect = null;
+    this._rowClearEffect = null;
+    this._colClearEffect = null;
+    // 粒子是短生命周期、会自然消散，回合结算时一并清空避免视觉残留
+    this._particles = [];
 
     this.gameState = 'aiming';
   }

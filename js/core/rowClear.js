@@ -71,5 +71,9 @@ export default class RowClear {
     const barH = 3 * s;
     ctx.fillStyle = `rgba(255,60,60,${0.7 + 0.3 * glow})`;
     ctx.fillRect(this.x - barW / 2, this.y - barH / 2, barW, barH);
+
+    // 复位渲染状态，避免红色 shadow 泄漏污染后续渲染（如龙卷风、UI 弹窗）
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
   }
 }
